@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Capacitor / native build artifacts
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/release/
+
+# System
+.DS_Store
+*.log

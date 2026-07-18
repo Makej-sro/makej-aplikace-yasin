@@ -1,0 +1,30 @@
+{
+  "appId": "eu.makej.brigadnik",
+  "appName": "Makej",
+  "webDir": "www",
+  "backgroundColor": "#f3f2ec",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#f3f2ec",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "backgroundColor": "#f3f2ec"
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#f3f2ec",
+      "overlaysWebView": false
+    },
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "backgroundColor": "#2a2ab5",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    }
+  }
+}
