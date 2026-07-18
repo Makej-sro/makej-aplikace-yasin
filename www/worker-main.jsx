@@ -9,51 +9,69 @@ function _wRelTime(ts) {
   return new Date(ts).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
 }
 
-// Vizuální styl podle typu upozornění
+// Vizuální styl podle typu upozornění (barvy sladěné se světlým tématem)
 const W_NOTIF_STYLE = {
-  review:  { accent: '#F5A623', iconName: 'star-bold',        iconBg: 'rgba(245,166,35,0.14)' },
-  success: { accent: '#16a34a', iconName: 'heart-bold',       iconBg: 'rgba(22,163,74,0.12)' },
-  match:   { accent: '#16a34a', iconName: 'heart-bold',       iconBg: 'rgba(22,163,74,0.12)' },
-  shift:   { accent: '#0020F6', iconName: 'calendar-bold',    iconBg: 'rgba(0,32,246,0.1)' },
-  message: { accent: '#0020F6', iconName: 'chat-round-bold',  iconBg: 'rgba(0,32,246,0.1)' },
-  info:    { accent: '#0020F6', iconName: 'bell-bold',        iconBg: 'rgba(0,32,246,0.1)' },
+  review:  { accent: '#f5b23c', iconName: 'star-bold',        iconBg: 'rgba(245,178,60,0.16)', soft: 'rgba(245,178,60,0.08)' },
+  success: { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
+  match:   { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
+  shift:   { accent: '#1a34e8', iconName: 'calendar-bold',    iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
+  message: { accent: '#1a34e8', iconName: 'chat-round-bold',  iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
+  info:    { accent: '#1a34e8', iconName: 'bell-bold',        iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
 };
 
 function WToast({ toasts, onRemove }) {
   if (!toasts.length) return null;
   return (
     <div style={{
-      position: 'fixed', top: 66, right: 16,
-      zIndex: 9000, display: 'flex', flexDirection: 'column', gap: 10,
-      width: 'min(360px, calc(100vw - 32px))',
+      position: 'fixed', top: 62, right: 14,
+      zIndex: 9000, display: 'flex', flexDirection: 'column', gap: 9,
+      width: 'min(320px, calc(100vw - 28px))',
     }}>
       {toasts.map(t => {
         const st = W_NOTIF_STYLE[t.type] || W_NOTIF_STYLE.info;
+        const accent = t.accent || st.accent;
+        const dur = ((t.ttl || 6000) / 1000).toFixed(2);
         return (
           <div key={t.id} style={{
-            position: 'relative', background: '#fff',
-            border: '1px solid ' + T.border, borderLeft: '4px solid ' + (t.accent || st.accent),
-            borderRadius: 16, padding: '14px 16px',
-            boxShadow: '0 12px 30px rgba(20,22,40,0.14)',
-            animation: 'wPop .3s cubic-bezier(.2,.8,.2,1)',
+            position: 'relative', overflow: 'hidden',
+            background: 'linear-gradient(180deg, ' + st.soft + ' 0%, #fff 44%)',
+            border: '1px solid ' + T.border, borderRadius: 14,
+            padding: '11px 12px 12px',
+            boxShadow: '0 1px 0 rgba(255,255,255,0.7) inset, 0 12px 28px -12px rgba(20,22,40,0.28), 0 4px 10px rgba(20,22,40,0.05)',
+            animation: 'wToastIn .42s cubic-bezier(.16,1,.3,1)',
           }}>
-            <button onClick={() => onRemove(t.id)} style={{ position: 'absolute', top: 10, right: 12, background: 'none', border: 'none', color: T.mutedSoft, cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>✕</button>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <button onClick={() => onRemove(t.id)} aria-label="Zavřít" style={{
+              position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 999,
+              display: 'grid', placeItems: 'center',
+              background: 'rgba(20,22,43,0.05)', border: 'none', color: T.muted, cursor: 'pointer',
+              fontSize: 11, lineHeight: 1, transition: 'background .15s, color .15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(20,22,43,0.1)'; e.currentTarget.style.color = T.ink; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(20,22,43,0.05)'; e.currentTarget.style.color = T.muted; }}
+            >✕</button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               {t.avatar
-                ? <div style={{ width: 44, height: 44, borderRadius: 12, background: t.avatar.color, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{t.avatar.initials}</div>
-                : <div style={{ width: 44, height: 44, borderRadius: 12, background: st.iconBg, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name={st.iconName} size={20} color={t.accent || st.accent} /></div>}
+                ? <div style={{ width: 38, height: 38, borderRadius: 11, background: t.avatar.color, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 13, flexShrink: 0, boxShadow: '0 4px 10px -3px ' + accent + '55' }}>{t.avatar.initials}</div>
+                : <div style={{ width: 38, height: 38, borderRadius: 11, background: st.iconBg, display: 'grid', placeItems: 'center', flexShrink: 0, boxShadow: 'inset 0 0 0 1px ' + accent + '22' }}><Icon name={st.iconName} size={18} color={accent} /></div>}
               <div style={{ flex: 1, minWidth: 0, paddingRight: 14 }}>
-                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800 }}>{t.title}</div>
-                {t.text && <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>{t.text}</div>}
+                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.01em' }}>{t.title}</div>
+                {t.text && <div style={{ color: T.light, fontFamily: T.fontUI, fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>{t.text}</div>}
                 {t.action && (
                   <button onClick={() => { t.action.onClick(); onRemove(t.id); }} style={{
-                    marginTop: 11, padding: '10px 18px', borderRadius: 11,
-                    background: t.action.dark ? '#141414' : T.primary, border: 'none', color: '#fff',
-                    fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+                    marginTop: 9, padding: '8px 15px', borderRadius: 10,
+                    background: t.action.dark ? T.black : accent, border: 'none', color: '#fff',
+                    fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+                    boxShadow: '0 5px 12px -4px ' + accent + '66',
                   }}>{t.action.label}</button>
                 )}
               </div>
             </div>
+            {/* odpočet do automatického zmizení */}
+            <div style={{
+              position: 'absolute', left: 0, bottom: 0, height: 2.5, width: '100%',
+              background: accent, opacity: 0.85, transformOrigin: 'left',
+              animation: 'wToastBar ' + dur + 's linear forwards',
+            }} />
           </div>
         );
       })}
