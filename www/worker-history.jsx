@@ -1,6 +1,8 @@
 // Makej Worker — Moje brigády (historie + hodnocení po brigádě)
 
-function WHistory({ tick, onReviewed }) {
+// `embedded` = vykresluje se uvnitř kalendáře → bez vlastního nadpisu,
+// scrollování a odsazení, ty už řeší obalující obrazovka.
+function WHistory({ tick, onReviewed, embedded }) {
   const [items,  setItems]  = useStateW(() => [...W_HISTORY]);
   const [review, setReview] = useStateW(null); // položka, kterou právě hodnotím
   const [detail, setDetail] = useStateW(null); // brigáda, jejíž detail zobrazuju
@@ -71,13 +73,15 @@ function WHistory({ tick, onReviewed }) {
   );
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
-      <div style={{ padding: '20px 20px 18px' }}>
-        <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 28, fontWeight: 800, letterSpacing: -0.8 }}>Moje brigády</div>
-      </div>
+    <div style={embedded ? {} : { flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
+      <div style={embedded ? {} : { maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      {!embedded && (
+        <div style={{ padding: '20px 20px 18px' }}>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 28, fontWeight: 800, letterSpacing: -0.8 }}>Moje brigády</div>
+        </div>
+      )}
 
-      <div style={{ padding: '0 20px' }}>
+      <div style={embedded ? {} : { padding: '0 20px' }}>
         {/* Výzvy k hodnocení */}
         {needsReview.length > 0 && (
           <div style={{ marginBottom: 24 }}>

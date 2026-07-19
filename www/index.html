@@ -126,6 +126,9 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(208,208,255,0.12); border-radius: 6px; }
+    /* Vodorovný výběr měsíce/roku v kalendáři — bez viditelného posuvníku */
+    .w-wheel { scrollbar-width: none; -ms-overflow-style: none; }
+    .w-wheel::-webkit-scrollbar { display: none; }
     button, input, textarea, select { font-family: inherit; }
 
     /* ── Onboarding (jen při prvním spuštění) — dle Splash Page.html ── */
@@ -415,6 +418,7 @@
 <script type="text/babel" src="worker-messages.jsx"></script>
 <script type="text/babel" src="worker-profile.jsx"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
+<script type="text/babel" src="worker-calendar.jsx"></script>
 <script type="text/babel" src="worker-main.jsx"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->

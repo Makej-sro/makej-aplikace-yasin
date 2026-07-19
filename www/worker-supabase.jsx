@@ -493,17 +493,19 @@ async function createRejectionW(workerId, jobId) {
 async function fetchRejectedJobsW(workerId) {
   const { data: rej, error: rejErr } = await sb.from('rejections')
     .select('job_id').eq('worker_id', workerId);
-  if (rejErr) { console.error('fetchRejectedJobsW (rejections):', rejErr); return []; }
+  if (rejErr) { console.error('fetchRejectedJobsW (rejections):', rejErr); return { jobs: [], celkem: 0 }; }
   const ids = (rej || []).map(r => r.job_id).filter(Boolean);
-  if (!ids.length) return [];
+  if (!ids.length) return { jobs: [], celkem: 0 };
 
   const { data: jobs, error } = await sb.from('jobs')
     .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
     .eq('status', 'active').in('id', ids);
-  if (error) { console.error('fetchRejectedJobsW (jobs):', error); return []; }
+  if (error) { console.error('fetchRejectedJobsW (jobs):', error); return { jobs: [], celkem: ids.length }; }
 
   const nowMs = Date.now();
-  return (jobs || []).filter(j => !j.publish_at || new Date(j.publish_at).getTime() <= nowMs);
+  const aktivni = (jobs || []).filter(j => !j.publish_at || new Date(j.publish_at).getTime() <= nowMs);
+  // celkem = kolik jich odmítl vůbec; rozdíl oproti `jobs` = už nejsou aktivní
+  return { jobs: aktivni, celkem: ids.length };
 }
 
 async function sendMessageW(matchId, senderId, text, type, metadata) {

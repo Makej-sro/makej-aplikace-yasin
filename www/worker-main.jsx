@@ -564,7 +564,7 @@ function WorkerApp() {
 
   const NAV = [
     { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
-    { id: 'history',  label: 'Brigády',  icon: 'checklist-minimalistic-bold', badge: reviewsToDo },
+    { id: 'history',  label: 'Kalendář', img: 'icons/calendar-icon.png', badge: reviewsToDo },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-icon.png', badge: unreadMessages },
     { id: 'profile',  label: 'Profil',   img: 'icons/user.png' },
   ];
@@ -586,7 +586,7 @@ function WorkerApp() {
   } else if (tab === 'swipe') {
     body = <WSwipe tick={tick} />;
   } else if (tab === 'history') {
-    body = <WHistory tick={tick} onReviewed={refreshWorker} />;
+    body = <WCalendar tick={tick} onReviewed={refreshWorker} />;
   } else if (tab === 'messages') {
     body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} />;
   } else if (tab === 'profile') {

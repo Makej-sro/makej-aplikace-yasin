@@ -14,22 +14,25 @@ const _krajName = id => (KRAJE_W.find(k => k.id === id) || {}).name || id;
 // ── Konec zásobníku — nikdy prázdná obrazovka, vždy nabídni další krok ──
 function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
   // Odmítnuté načteme dopředu — tlačítko pak jen předá hotový seznam, nemá jak selhat
-  const [rejectedJobs, setRejectedJobs] = useStateW(null);   // null = ještě načítáme
+  const [rej, setRej] = useStateW(null);   // null = ještě načítáme; { jobs, celkem }
 
   useEffectW(() => {
     let live = true;
     sb.auth.getSession().then(({ data: { session } }) => {
       const uid = session?.user?.id;
-      if (!uid) { if (live) setRejectedJobs([]); return; }
-      fetchRejectedJobsW(uid).then(list => { if (live) setRejectedJobs(list); });
+      if (!uid) { if (live) setRej({ jobs: [], celkem: 0 }); return; }
+      fetchRejectedJobsW(uid).then(r => { if (live) setRej(r); });
     });
     return () => { live = false; };
   }, []);
 
-  const rejected = rejectedJobs ? rejectedJobs.length : 0;
+  const rejectedJobs = rej ? rej.jobs : null;
+  const rejected     = rejectedJobs ? rejectedJobs.length : 0;
+  // odmítl nějaké, ale žádná už není aktivní → chceme to říct, ne mlčet
+  const odmitnuteProsle = !!rej && rej.celkem > 0 && rejected === 0;
 
   // Nejsilnější dostupná cesta ven: rozšířit kraje → jinak vrátit odmítnuté
-  const loading    = rejectedJobs === null;
+  const loading    = rej === null;
   const canWiden   = kraje.length > 0 && otherCount > 0;
   const canRestore = !canWiden && rejected > 0;
 
@@ -42,7 +45,9 @@ function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
       ? <>Nové přibývají každý den. Zatím se můžeš vrátit k odmítnutým.</>
       : loading
         ? <>Moment…</>
-        : <>Nové brigády přibývají průběžně. Zkus to za chvíli.</>;
+        : odmitnuteProsle
+          ? <>Dřív přeskočené brigády už nejsou dostupné. Nové ale přibývají průběžně.</>
+          : <>Nové brigády přibývají průběžně. Zkus to za chvíli.</>;
 
   const btn = {
     width: '100%', height: 50, borderRadius: 16, border: 'none', cursor: 'pointer',
