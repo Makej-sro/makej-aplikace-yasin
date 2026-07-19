@@ -30,7 +30,7 @@
     html, body {
       margin: 0; padding: 0;
       background: #f3f2ec;
-      font-family: "Instrument Sans", -apple-system, system-ui, sans-serif;
+      font-family: "Inter", -apple-system, system-ui, sans-serif;
       color: #14141b;
       -webkit-font-smoothing: antialiased;
       overflow: hidden;
@@ -60,45 +60,68 @@
     @keyframes wPop { 0% { transform: scale(0.85) translateY(20px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
     @keyframes wToastIn { 0% { transform: translateX(26px) scale(0.96); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }
     @keyframes wToastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    /* Rozkývání zvonečku při novém upozornění — doprovod ke zvuku */
+    @keyframes wBellRing {
+      0%, 100% { transform: rotate(0); }
+      12% { transform: rotate(15deg); }  28% { transform: rotate(-13deg); }
+      42% { transform: rotate(9deg); }   56% { transform: rotate(-7deg); }
+      70% { transform: rotate(4deg); }   85% { transform: rotate(-2deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      @keyframes wBellRing { 0%, 100% { transform: rotate(0); } }
+    }
 
     /* ── Auth (registrace / přihlášení) — dle Registrace.html ── */
     #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto; }
     #auth-gate.hidden { display: none; }
     .au-view { min-height: 100%; display: flex; flex-direction: column; }
     .au-head {
-      position: relative; flex-shrink: 0; color: #fff;
-      background: radial-gradient(ellipse 118% 330px at 30% -6%, #2a45f5 0%, #0c1240 80%);
-      padding: calc(env(safe-area-inset-top) + 74px) 30px 26px;
+      position: relative; flex-shrink: 0; background: #fff; text-align: center;
+      padding: calc(env(safe-area-inset-top) + 28px) 30px 2px;
     }
-    .au-logo { position: absolute; top: calc(env(safe-area-inset-top) + 20px); left: 30px; font-family: "Space Grotesk", "Instrument Sans", sans-serif; font-weight: 700; font-size: 22px; letter-spacing: -0.5px; }
-    .au-logo span { color: #9db1ff; }
-    .au-h1 { font-family: "Space Grotesk", "Instrument Sans", sans-serif; font-weight: 700; font-size: clamp(27px, 7.6vw, 32px); letter-spacing: -0.5px; line-height: 1.15; }
-    .au-sub { color: #c2caf5; font-family: "Instrument Sans", sans-serif; font-size: 14px; margin-top: 5px; }
-    .au-body { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 440px; margin: 0 auto; padding: 22px 26px calc(20px + env(safe-area-inset-bottom)); }
-    .au-label { color: #8a8fa6; font-family: "Instrument Sans", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; margin: 0 0 6px 2px; }
+    /* Logo v toku (ne absolutně), aby šlo vycentrovat spolu s textem pod ním */
+    .au-logo { font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -1px; color: #0020F6; margin-bottom: 16px; }
+    .au-logo span { color: #0020F6; }
+    .au-h1 { color: #0020F6; font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 700; font-size: clamp(27px, 7.6vw, 32px); letter-spacing: -0.5px; line-height: 1.15; }
+    .au-sub { color: #252525; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 14px; font-weight: 500; margin-top: 5px; }
+    .au-body { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 440px; margin: 0 auto; padding: 12px 26px calc(20px + env(safe-area-inset-bottom)); }
+    .au-label { color: #252525; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; margin: 0 0 6px 2px; }
     .au-field { position: relative; margin-bottom: 14px; }
-    .au-input { width: 100%; height: 48px; padding: 0 16px; border-radius: 14px; background: #f4f6fb; border: 1px solid #eaedf5; color: #14162b; font-family: "Instrument Sans", sans-serif; font-size: 15px; outline: none; transition: border-color .15s, background .15s; }
-    .au-input::placeholder { color: #a6abc4; }
-    .au-input:focus { border-color: #1a34e8; background: #fff; }
-    .au-eye { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 8px; color: #b3b8cc; display: grid; place-items: center; }
+    .au-input { width: 100%; height: 48px; padding: 0 16px; border-radius: 14px; background: #f4f6fb; border: 1px solid #eaedf5; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 15px; outline: none; transition: border-color .15s, background .15s; }
+    .au-input::placeholder { color: #696F90; }
+    /* Odkrytí hesla držením — stejný princip jako na webu (script.js: setupHoldToShow) */
+    .au-input--pw { padding-right: 84px; }
+    .au-pw-toggle {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; padding: 6px 2px;
+      font-family: "Inter", -apple-system, system-ui, sans-serif;
+      font-size: 12.5px; font-weight: 700; color: #696F90; letter-spacing: 0.01em;
+      user-select: none; -webkit-user-select: none; touch-action: none;
+      transition: color .2s ease;
+    }
+    .au-pw-toggle:active { color: #0020F6; }
+    .au-input:focus { border-color: #0020F6; background: #fff; }
+
+    /* Chybné pole — hláška nahoře řekne co, tohle ukáže kde */
+    .au-input--bad { border-color: #e11d48; background: rgba(244,63,94,0.05); }
     .au-consent { display: flex; gap: 10px; align-items: flex-start; margin: 4px 2px 20px; }
     .au-check { width: 22px; height: 22px; border-radius: 7px; border: 2px solid #d0d3e0; background: #fff; flex-shrink: 0; cursor: pointer; display: grid; place-items: center; margin-top: 1px; transition: all .15s; }
-    .au-check.on { background: #1a34e8; border-color: #1a34e8; }
+    .au-check.on { background: #0020F6; border-color: #0020F6; }
     .au-check .ck { opacity: 0; }
     .au-check.on .ck { opacity: 1; }
-    .au-consent-txt { color: #5b607a; font-family: "Instrument Sans", sans-serif; font-size: 12.5px; line-height: 1.5; }
-    .au-consent-txt a { color: #1a34e8; font-weight: 700; text-decoration: none; }
-    .au-btn { width: 100%; height: 54px; border-radius: 16px; background: #1a34e8; color: #fff; font-family: "Instrument Sans", sans-serif; font-size: 15.5px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 16px 30px -14px rgba(0,32,246,0.55); transition: opacity .2s, transform .1s; }
+    .au-consent-txt { color: #5b607a; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 12.5px; line-height: 1.5; }
+    .au-consent-txt a { color: #0020F6; font-weight: 700; text-decoration: none; }
+    .au-btn { width: 100%; height: 54px; border-radius: 16px; background: #0020F6; color: #fff; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 15.5px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 16px 30px -14px rgba(0,32,246,0.55); transition: opacity .2s, transform .1s; }
     .au-btn:active { transform: scale(0.99); }
     .au-btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
-    .au-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 16px; color: #a6abc4; font-family: "Instrument Sans", sans-serif; font-size: 12px; font-weight: 600; }
+    .au-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 16px; color: #252525; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 12px; font-weight: 700; }
     .au-divider::before, .au-divider::after { content: ''; flex: 1; height: 1px; background: #eef0f6; }
     .au-social { display: flex; gap: 12px; }
-    .au-soc { flex: 1; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; background: #fff; border: 1px solid #eaedf5; color: #14162b; font-family: "Instrument Sans", sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .au-soc { flex: 1; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; background: #fff; border: 1px solid #eaedf5; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
     .au-soc:active { background: #f7f7fb; }
-    .au-err { border-radius: 12px; padding: 11px 14px; font-family: "Instrument Sans", sans-serif; font-size: 13px; margin-bottom: 14px; display: none; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.28); color: #e11d48; }
-    .au-foot { text-align: center; margin-top: auto; padding-top: 22px; color: #8a8fa6; font-family: "Instrument Sans", sans-serif; font-size: 13px; }
-    .au-foot button { color: #1a34e8; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
+    .au-err { border-radius: 12px; padding: 11px 14px; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; display: none; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.28); color: #e11d48; }
+    .au-foot { text-align: center; margin-top: auto; padding-top: 22px; color: #6b7192; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; }
+    .au-foot button { color: #0020F6; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -109,19 +132,19 @@
     #onboarding {
       position: fixed; inset: 0; z-index: 10000;
       display: flex; flex-direction: column; overflow: hidden;
-      background: radial-gradient(ellipse 135% 620px at 30% 8%, #2a45f5 0%, #0c1240 75%);
+      background: radial-gradient(ellipse 135% 620px at 30% 8%, #0020F6 0%, #000B4D 75%);
       color: #fff;
       padding-top: calc(env(safe-area-inset-top) + 26px);
     }
     #onboarding.hidden { display: none; }
     .ob-glow { position: absolute; top: -100px; right: -90px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.10), transparent 70%); pointer-events: none; }
-    .ob-logo { padding: 8px 30px 0; font-family: "Space Grotesk", "Instrument Sans", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; position: relative; }
-    .ob-logo span { color: #9db1ff; }
-    .ob-title { padding: 30px 30px 0; font-family: "Space Grotesk", "Instrument Sans", sans-serif; font-weight: 700; font-size: clamp(34px, 10.5vw, 42px); line-height: 1.14; letter-spacing: -1px; position: relative; }
+    .ob-logo { padding: 8px 30px 0; font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; position: relative; }
+    .ob-logo span { color: #A3AEFF; }
+    .ob-title { padding: 30px 30px 0; font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 700; font-size: clamp(34px, 10.5vw, 42px); line-height: 1.14; letter-spacing: -1px; position: relative; }
     .ob-art { position: relative; flex: 1; margin-top: 10px; min-height: 0; }
     .ob-art svg { position: absolute; bottom: -10px; left: 0; width: 100%; height: 100%; }
     .ob-btnwrap { padding: 0 22px calc(env(safe-area-inset-bottom) + 40px); position: relative; }
-    .ob-btn { width: 100%; height: 58px; border-radius: 30px; background: #fff; color: #14162b; font-family: "Instrument Sans", sans-serif; font-size: 16px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 20px 40px -18px rgba(0,0,0,0.5); transition: transform .12s; }
+    .ob-btn { width: 100%; height: 58px; border-radius: 30px; background: #fff; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 20px 40px -18px rgba(0,0,0,0.5); transition: transform .12s; }
     .ob-btn:active { transform: scale(0.98); }
   </style>
 </head>
@@ -130,26 +153,26 @@
 <!-- Uvítací obrazovka — jen při úplně prvním otevření aplikace -->
 <div id="onboarding">
   <div class="ob-glow"></div>
-  <div class="ob-logo">Makej<span>.</span></div>
+  <div class="ob-logo">Makej<span>!</span></div>
   <div class="ob-title">Chytrý způsob,<br>jak najít<br>brigádu</div>
   <div class="ob-art">
     <svg viewBox="0 0 380 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kufřík">
       <defs>
         <linearGradient id="caseBody" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#8fa2ff"/><stop offset=".5" stop-color="#2540e0"/><stop offset="1" stop-color="#0d1a8f"/>
+          <stop offset="0" stop-color="#A3AEFF"/><stop offset=".5" stop-color="#0020F6"/><stop offset="1" stop-color="#0014A3"/>
         </linearGradient>
         <linearGradient id="caseLid" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#a9b8ff"/><stop offset="1" stop-color="#3a52e8"/>
+          <stop offset="0" stop-color="#A3AEFF"/><stop offset="1" stop-color="#0020F6"/>
         </linearGradient>
         <linearGradient id="handleBody" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#0d1a8f"/><stop offset="1" stop-color="#4a5ff2"/>
+          <stop offset="0" stop-color="#0014A3"/><stop offset="1" stop-color="#6F80FF"/>
         </linearGradient>
       </defs>
       <rect x="60" y="190" width="260" height="190" rx="26" fill="url(#caseBody)"/>
       <rect x="60" y="190" width="260" height="60" rx="26" fill="url(#caseLid)"/>
-      <rect x="60" y="238" width="260" height="14" fill="#0d1a8f" opacity=".35"/>
+      <rect x="60" y="238" width="260" height="14" fill="#0014A3" opacity=".35"/>
       <rect x="150" y="140" width="80" height="64" rx="16" fill="none" stroke="url(#handleBody)" stroke-width="14"/>
-      <rect x="176" y="270" width="28" height="40" rx="8" fill="#0d1a8f" opacity=".4"/>
+      <rect x="176" y="270" width="28" height="40" rx="8" fill="#0014A3" opacity=".4"/>
       <rect x="60" y="190" width="260" height="190" rx="26" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="3"/>
     </svg>
   </div>
@@ -171,9 +194,9 @@
   <!-- REGISTRACE -->
   <div class="au-view" id="au-register">
     <div class="au-head">
-      <div class="au-logo">Makej<span>.</span></div>
+      <div class="au-logo">Makej<span>!</span></div>
       <div class="au-h1">Vytvoř si účet</div>
-      <div class="au-sub">Začni brigádit během pár minut</div>
+      <div class="au-sub">Začni makat hned po založení</div>
     </div>
     <div class="au-body">
       <div class="au-err" id="reg-err"></div>
@@ -183,10 +206,8 @@
       <div class="au-field"><input class="au-input" type="email" id="reg-email" placeholder="jan.novak@email.cz" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" /></div>
       <div class="au-label">Heslo</div>
       <div class="au-field">
-        <input class="au-input" type="password" id="reg-password" placeholder="Alespoň 6 znaků" autocomplete="new-password" />
-        <button class="au-eye" type="button" data-eye="reg-password" aria-label="Zobrazit heslo">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M12 5C6.5 5 3 9.5 2 12c1 2.5 4.5 7 10 7s9-4.5 10-7c-1-2.5-4.5-7-10-7Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.7"/></svg>
-        </button>
+        <input class="au-input au-input--pw" type="password" id="reg-password" placeholder="Alespoň 6 znaků" autocomplete="new-password" />
+        <button type="button" class="au-pw-toggle" data-pw="reg-password" tabindex="-1">Zobrazit</button>
       </div>
       <div class="au-consent">
         <div class="au-check on" id="reg-consent" role="checkbox" aria-checked="true">
@@ -207,7 +228,7 @@
   <!-- PŘIHLÁŠENÍ -->
   <div class="au-view" id="au-login" style="display:none">
     <div class="au-head">
-      <div class="au-logo">Makej<span>.</span></div>
+      <div class="au-logo">Makej<span>!</span></div>
       <div class="au-h1">Vítej zpět</div>
       <div class="au-sub">Přihlas se a makej dál</div>
     </div>
@@ -217,10 +238,8 @@
       <div class="au-field"><input class="au-input" type="email" id="login-email" placeholder="jan.novak@email.cz" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" /></div>
       <div class="au-label">Heslo</div>
       <div class="au-field">
-        <input class="au-input" type="password" id="login-password" placeholder="Heslo" autocomplete="current-password" />
-        <button class="au-eye" type="button" data-eye="login-password" aria-label="Zobrazit heslo">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M12 5C6.5 5 3 9.5 2 12c1 2.5 4.5 7 10 7s9-4.5 10-7c-1-2.5-4.5-7-10-7Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.7"/></svg>
-        </button>
+        <input class="au-input au-input--pw" type="password" id="login-password" placeholder="Heslo" autocomplete="current-password" />
+        <button type="button" class="au-pw-toggle" data-pw="login-password" tabindex="-1">Zobrazit</button>
       </div>
       <button class="au-btn" id="login-submit" style="margin-top:6px">Přihlásit se</button>
       <div class="au-divider">nebo pokračuj přes</div>
@@ -257,10 +276,17 @@
   document.getElementById('go-register').addEventListener('click', () => showView('register'));
 
   // Zobrazení hesla
-  document.querySelectorAll('.au-eye').forEach(b => b.addEventListener('click', () => {
-    const inp = document.getElementById(b.getAttribute('data-eye'));
-    inp.type = inp.type === 'password' ? 'text' : 'password';
-  }));
+  // Heslo se odkryje jen po dobu držení — převzato z webu (script.js: setupHoldToShow)
+  document.querySelectorAll('.au-pw-toggle').forEach(btn => {
+    const input  = () => document.getElementById(btn.getAttribute('data-pw'));
+    const reveal = e => { e.preventDefault(); const i = input(); if (i) i.type = 'text'; };
+    const hide   = () => { const i = input(); if (i) i.type = 'password'; };
+    btn.addEventListener('pointerdown', reveal);
+    btn.addEventListener('pointerup', hide);
+    btn.addEventListener('pointerleave', hide);
+    btn.addEventListener('pointercancel', hide);
+    window.addEventListener('pointerup', hide);   // pojistka: puštění mimo tlačítko
+  });
 
   // Souhlas (checkbox)
   const consent = document.getElementById('reg-consent');
@@ -279,6 +305,20 @@
     el.style.color = ok ? '#16a34a' : '#e11d48';
   }
 
+  // Označení konkrétních polí, kde je chyba — hláška nahoře říká co, tohle kde.
+  // Značka zmizí, jakmile uživatel do pole začne psát.
+  function oznacPole(ids) {
+    document.querySelectorAll('.au-input--bad').forEach(i => i.classList.remove('au-input--bad'));
+    (ids || []).forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('au-input--bad');
+      el.addEventListener('input', () => el.classList.remove('au-input--bad'), { once: true });
+    });
+    const prvni = document.getElementById((ids || [])[0]);
+    if (prvni) prvni.focus();   // rovnou kurzor do prvního chybného pole
+  }
+
   function translateErr(msg) {
     if (msg.includes('Invalid login credentials')) return 'Nesprávný e-mail nebo heslo.';
     if (msg.includes('Email not confirmed')) return 'Nejdřív potvrď svůj e-mail.';
@@ -291,12 +331,21 @@
   // Registrace
   document.getElementById('reg-submit').addEventListener('click', async () => {
     setErr(regErr, '');
+    oznacPole([]);
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
-    if (!name || !email || !password) { setErr(regErr, 'Vyplň jméno, e-mail a heslo.'); return; }
-    if (password.length < 6) { setErr(regErr, 'Heslo musí mít alespoň 6 znaků.'); return; }
-    if (!consent.classList.contains('on')) { setErr(regErr, 'Musíš souhlasit s podmínkami a zpracováním údajů.'); return; }
+    if (!name || !email || !password) {
+      const chybi = [];
+      if (!name) chybi.push('reg-name');
+      if (!email) chybi.push('reg-email');
+      if (!password) chybi.push('reg-password');
+      setErr(regErr, chybi.length === 1 ? 'Vyplň chybějící údaj.' : 'Vyplň jméno, e-mail a heslo.');
+      oznacPole(chybi);
+      return;
+    }
+    if (password.length < 6) { setErr(regErr, 'Heslo musí mít alespoň 6 znaků.'); oznacPole(['reg-password']); return; }
+    if (!consent.classList.contains('on')) { setErr(regErr, 'Musíš souhlasit s podmínkami a zpracováním údajů.'); oznacPole([]); return; }
     const btn = document.getElementById('reg-submit');
     btn.disabled = true; btn.textContent = 'Vytvářím účet…';
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name, role: 'worker' } } });
@@ -311,13 +360,23 @@
   // Přihlášení
   async function doLogin() {
     setErr(loginErr, '');
+    oznacPole([]);
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!email || !password) { setErr(loginErr, 'Vyplň e-mail a heslo.'); return; }
+    if (!email || !password) {
+      const chybi = [];
+      if (!email) chybi.push('login-email');
+      if (!password) chybi.push('login-password');
+      setErr(loginErr, chybi.length === 1 ? 'Vyplň chybějící údaj.' : 'Vyplň e-mail a heslo.');
+      oznacPole(chybi);
+      return;
+    }
     const btn = document.getElementById('login-submit');
     btn.disabled = true; btn.textContent = 'Přihlašuji…';
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) { setErr(loginErr, translateErr(error.message)); btn.disabled = false; btn.textContent = 'Přihlásit se'; return; }
+    if (error) { setErr(loginErr, translateErr(error.message));
+      if (error.message.includes('Invalid login credentials')) oznacPole(['login-email','login-password']);
+      btn.disabled = false; btn.textContent = 'Přihlásit se'; return; }
     const role = data.user?.user_metadata?.role;
     if (role === 'employer') {
       setErr(loginErr, 'Tento účet je zaměstnavatelský. Přihlaš se jako brigádník.');
@@ -357,5 +416,29 @@
 <script type="text/babel" src="worker-profile.jsx"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-main.jsx"></script>
+
+<!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
+<script>
+(function () {
+  if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname)) return;
+  const files = ['index.html', 'app.jsx', 'worker-theme.jsx', 'worker-supabase.jsx',
+    'worker-swipe.jsx', 'worker-messages.jsx', 'worker-profile.jsx',
+    'worker-history.jsx', 'worker-main.jsx'];
+  const stamps = {};
+  async function check() {
+    for (const f of files) {
+      try {
+        const res = await fetch(f + '?t=' + Date.now(), { method: 'HEAD' });
+        const mod = res.headers.get('last-modified');
+        if (!mod) continue;
+        if (stamps[f] && stamps[f] !== mod) return location.reload();
+        stamps[f] = mod;
+      } catch (e) { /* server restartuje, zkusíme příště */ }
+    }
+  }
+  check();
+  setInterval(check, 1500);
+})();
+</script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Makej Worker — Light theme (redesign: Space Grotesk + Instrument Sans, modrá #1a34e8)
+// Makej Worker — Light theme (redesign: Inter, modrá #0020F6)
 // Přepisuje sdílené tokeny T (z app.jsx) na světlý vzhled dle redesign mockupu.
 // Běží jen na worker stránce → employer dashboard zůstává tmavý.
 
@@ -8,8 +8,8 @@ Object.assign(T, {
   cardSoft:  'rgba(16,24,64,0.04)',
   surfaceAlt:'#f4f6fc',           // jemná modro-šedá plocha (chipy)
   tint:      '#e9edff',           // modrý tint (ikonové boxy, badge)
-  primary:   '#1a34e8',
-  primaryDeep:'#0f1a80',
+  primary:   '#0020F6',
+  primaryDeep:'#0014A3',
   ink:       '#14162b',           // hlavní tmavý text
   inkSoft:   '#3a3f5c',
   light:     '#565c78',           // sekundární tmavý text
@@ -23,9 +23,10 @@ Object.assign(T, {
   border:    '#edf0f7',           // světlé okraje karet
   navBg:     '#14162b',           // tmavě-modrý navbar
   black:     '#14162b',           // primární tmavé tlačítko
-  heroGrad:  'radial-gradient(120% 130% at 78% 0%, #3d55ef, #0f1a80 82%)',
-  avatarGrad:'linear-gradient(150deg, #8b9bff, #4a5ff2)',
-  fontUI:    '"Instrument Sans", -apple-system, system-ui, sans-serif',
-  fontHead:  '"Space Grotesk", -apple-system, system-ui, sans-serif',
-  fontMono:  '"Space Grotesk", ui-monospace, monospace',
+  heroGrad:  'radial-gradient(120% 130% at 78% 0%, #0020F6, #0014A3 82%)',
+  avatarGrad:'linear-gradient(150deg, #6F80FF, #6F80FF)',
+  // Jednotné písmo pro celou appku — Inter pokrývá řezy 400–900 (Instrument Sans jen 400–700)
+  fontUI:    '"Inter", -apple-system, system-ui, sans-serif',
+  fontHead:  '"Inter", -apple-system, system-ui, sans-serif',
+  fontMono:  '"Inter", ui-monospace, monospace',
 });

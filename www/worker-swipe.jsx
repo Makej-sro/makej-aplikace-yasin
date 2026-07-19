@@ -11,6 +11,93 @@ const KRAJE_W = [
 ];
 const _krajName = id => (KRAJE_W.find(k => k.id === id) || {}).name || id;
 
+// ── Konec zásobníku — nikdy prázdná obrazovka, vždy nabídni další krok ──
+function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
+  // Odmítnuté načteme dopředu — tlačítko pak jen předá hotový seznam, nemá jak selhat
+  const [rejectedJobs, setRejectedJobs] = useStateW(null);   // null = ještě načítáme
+
+  useEffectW(() => {
+    let live = true;
+    sb.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id;
+      if (!uid) { if (live) setRejectedJobs([]); return; }
+      fetchRejectedJobsW(uid).then(list => { if (live) setRejectedJobs(list); });
+    });
+    return () => { live = false; };
+  }, []);
+
+  const rejected = rejectedJobs ? rejectedJobs.length : 0;
+
+  // Nejsilnější dostupná cesta ven: rozšířit kraje → jinak vrátit odmítnuté
+  const loading    = rejectedJobs === null;
+  const canWiden   = kraje.length > 0 && otherCount > 0;
+  const canRestore = !canWiden && rejected > 0;
+
+  // Texty bez rodu — vyhýbáme se příčestí minulému (prošel/la, odmítl/a)
+  const title = canWiden ? 'Ve vybraných krajích je hotovo' : 'Konec nabídek';
+
+  const subtitle = canWiden
+    ? <>Jinde v Česku ale brigády jsou.</>
+    : canRestore
+      ? <>Nové přibývají každý den. Zatím se můžeš vrátit k odmítnutým.</>
+      : loading
+        ? <>Moment…</>
+        : <>Nové brigády přibývají průběžně. Zkus to za chvíli.</>;
+
+  const btn = {
+    width: '100%', height: 50, borderRadius: 16, border: 'none', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    fontFamily: T.fontUI, fontSize: 14.5, fontWeight: 700,
+  };
+
+  return (
+    <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: '20px 22px' }}>
+      <div style={{
+        width: '100%', maxWidth: 380, padding: 26, borderRadius: 26,
+        background: '#fff', border: '1px solid ' + T.border,
+        boxShadow: '0 18px 40px -22px rgba(20,22,43,0.25)', textAlign: 'center',
+      }}>
+        <div style={{
+          width: 62, height: 62, borderRadius: 20, background: T.tint,
+          display: 'grid', placeItems: 'center', margin: '0 auto 16px',
+        }}>
+          <Icon name={canWiden ? 'map-point-bold' : 'check-circle-bold'} size={30} color={T.primary} />
+        </div>
+
+        <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, marginBottom: 8 }}>{title}</div>
+        <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.6, marginBottom: 20 }}>{subtitle}</div>
+
+        {canWiden && (
+          <button onClick={onClearKraje} style={{ ...btn, background: T.primary, color: '#fff', boxShadow: '0 12px 24px -10px rgba(0,32,246,0.7)' }}>
+            <Icon name="magnifer-linear" size={17} color="#fff" />
+            Zobrazit {otherCount} {_wPlural(otherCount, 'brigádu', 'brigády', 'brigád')} odjinud
+          </button>
+        )}
+
+        {canRestore && (
+          <button onClick={() => onRestored(rejectedJobs)} style={{ ...btn, background: T.primary, color: '#fff', boxShadow: '0 12px 24px -10px rgba(0,32,246,0.7)' }}>
+            Prohlédnout již odmítnuté
+          </button>
+        )}
+
+        {/* I když nic rozšířit nejde, obrazovka nikdy nezůstane bez akce */}
+        {!canWiden && !canRestore && !loading && (
+          <button onClick={() => onRestored(null)} style={{ ...btn, background: T.tint, color: T.primary }}>
+            <Icon name="refresh-bold" size={17} color={T.primary} />
+            Zkusit znovu
+          </button>
+        )}
+
+        {canWiden && kraje.length > 0 && (
+          <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, marginTop: 14 }}>
+            Filtr zůstane uložený — kdykoliv ho vrátíš nahoře.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WSwipe({ tick }) {
   const [jobs,       setJobs]       = useStateW(() => W_JOBS.map(jobToCard));
   const [topIdx,     setTopIdx]     = useStateW(0);
@@ -20,7 +107,6 @@ function WSwipe({ tick }) {
   const [actionAnim, setActionAnim] = useStateW(null); // 'like' | 'pass' | 'super'
   const [detailJob,  setDetailJob]  = useStateW(null);
   const [kraje,      setKraje]      = useStateW(() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } });
-  const [filterOpen, setFilterOpen] = useStateW(false);
   const userId  = useRefW(null);
   const dragRef = useRefW(drag);
 
@@ -41,6 +127,7 @@ function WSwipe({ tick }) {
     setTopIdx(0);
   }, [kraje]);
 
+  // Zatím bez ovládání v UI — čeká na společné tlačítko filtrů
   const toggleKraj = id => setKraje(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const currentJob   = jobs[topIdx] || null;
@@ -117,10 +204,9 @@ function WSwipe({ tick }) {
 
       {/* Header */}
       <div style={{ padding: '12px 20px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, letterSpacing: -0.7, lineHeight: 1 }}>Makej</div>
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, marginTop: 4 }}>{remaining} {_wPlural(remaining, 'nabídka', 'nabídky', 'nabídek')} v okolí</div>
-        </div>
+        {/* Počet nabídek zatím neukazujeme: `remaining` je odpočet do konce zásobníku,
+            ne velikost nabídky — a "v okolí" nesedí, dokud appka nezná polohu. */}
+        <div />
         <div title={`Level ${lvl.level} · ${lvl.title}`} style={{
           display: 'flex', alignItems: 'center', gap: 7,
           padding: '6px 12px 6px 6px', borderRadius: 22, marginRight: 50,
@@ -136,48 +222,21 @@ function WSwipe({ tick }) {
         </div>
       </div>
 
-      {/* Filtr krajů */}
-      <div style={{ padding: '0 20px 10px', flexShrink: 0, position: 'relative' }}>
-        <button onClick={() => setFilterOpen(o => !o)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 999, background: kraje.length ? 'rgba(0,32,246,0.10)' : '#fff', border: '1px solid ' + (kraje.length ? 'rgba(0,32,246,0.3)' : T.border), color: kraje.length ? T.primary : T.muted, fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          <Icon name="map-point-bold" size={15} color={kraje.length ? T.primary : T.muted} />
-          {kraje.length === 0 ? 'Všechny kraje' : kraje.length === 1 ? _krajName(kraje[0]) : kraje.length + ' krajů'}
-          <Icon name="alt-arrow-down-bold" size={13} color={kraje.length ? T.primary : T.muted} />
-        </button>
-        {filterOpen && (
-          <>
-            <div onClick={() => setFilterOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-            <div style={{ position: 'absolute', top: '100%', left: 20, zIndex: 41, marginTop: 6, width: 260, maxHeight: 340, overflowY: 'auto', background: '#fff', border: '1px solid ' + T.border, borderRadius: 14, boxShadow: '0 12px 30px rgba(20,22,40,0.16)', padding: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px 8px' }}>
-                <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Kde chceš pracovat</span>
-                {kraje.length > 0 && <button onClick={() => setKraje([])} style={{ background: 'none', border: 'none', color: T.primary, fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Vše</button>}
-              </div>
-              {KRAJE_W.map(k => {
-                const on = kraje.includes(k.id);
-                return (
-                  <button key={k.id} onClick={() => toggleKraj(k.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, background: on ? 'T.tint' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 18, height: 18, borderRadius: 5, border: '1.5px solid ' + (on ? T.primary : T.border), background: on ? T.primary : '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>{on && <Icon name="check-read-bold" size={12} color="#fff" />}</span>
-                    <span style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: on ? 700 : 500 }}>{k.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
+      {/* Filtr krajů má přijít do samostatného tlačítka filtrů, ne na hlavní plochu.
+          Stav `kraje` (i uložení do localStorage) zůstává funkční — chybí jen ovládání. */}
 
       {/* Card stack */}
       {visibleCards.length === 0 ? (
-        <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: '20px 40px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 64, marginBottom: 12 }}>{kraje.length ? '📍' : '🎉'}</div>
-            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{kraje.length ? 'Ve vybraných krajích nic není' : 'Konec zásobníku!'}</div>
-            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.6 }}>
-              {kraje.length
-                ? <>V {kraje.length === 1 ? 'tomto kraji' : 'těchto krajích'} teď nejsou žádné brigády.<br />Zkus přidat další kraj ve filtru nahoře.</>
-                : <>Prošel/la jsi všechny dostupné nabídky.<br />Zaměstnavatelé přidávají nové brigády každý den.</>}
-            </div>
-          </div>
-        </div>
+        <WDeckEnd
+          kraje={kraje}
+          otherCount={Math.max(0, W_JOBS.length - jobs.length)}
+          onClearKraje={() => setKraje([])}
+          onRestored={list => {
+            // Odmítnuté zobrazujeme bez filtru krajů — brigádník si o ně řekl výslovně
+            if (list && list.length) { setJobs(list.map(jobToCard)); setTopIdx(0); }
+            else { setJobs(_filterKraj(W_JOBS.map(jobToCard))); setTopIdx(0); }
+          }}
+        />
       ) : (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', minHeight: 0 }}>
         <div
@@ -247,7 +306,7 @@ function WSwipe({ tick }) {
             style={{
               width: 72, height: 72, borderRadius: 999, pointerEvents: 'auto',
               background: T.primary, border: 'none',
-              boxShadow: actionAnim === 'like' ? '0 0 0 8px rgba(26,52,232,0.22)' : '0 18px 32px -12px rgba(26,52,232,0.65)',
+              boxShadow: actionAnim === 'like' ? '0 0 0 8px rgba(0,32,246,0.22)' : '0 18px 32px -12px rgba(0,32,246,0.65)',
               display: 'grid', placeItems: 'center', cursor: 'pointer',
               transition: 'all .2s', outline: 'none',
             }}
@@ -285,8 +344,8 @@ function WSwipe({ tick }) {
               margin: '20px auto 0',
               padding: '12px 20px',
               borderRadius: 14,
-              background: 'rgba(91,107,255,0.15)',
-              border: '1px solid rgba(91,107,255,0.3)',
+              background: 'rgba(111,128,255,0.15)',
+              border: '1px solid rgba(111,128,255,0.3)',
               color: '#fff',
               fontFamily: T.fontUI,
               fontSize: 14,
@@ -355,7 +414,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
     >
       <div style={{
         position: 'absolute', inset: 0, borderRadius: 34, overflow: 'hidden',
-        background: heroImg ? `#0a18a8 url("${heroImg}") center / cover no-repeat` : T.heroGrad,
+        background: heroImg ? `#0014A3 url("${heroImg}") center / cover no-repeat` : T.heroGrad,
         boxShadow: '0 24px 50px rgba(20,22,40,0.18), 0 2px 8px rgba(20,22,40,0.06)',
       }}>
         {/* tečkovaná textura + velký prosvítající monogram, když není fotka */}
@@ -504,10 +563,10 @@ function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, stat
               onClick={() => window.wOpenEmployer && window.wOpenEmployer(job.employer_id, { name: job.company, color: job.accent, rating: job.rating, verified: job.verified })}
               title="Zobrazit profil firmy"
               style={{
-                width: 52, height: 52, borderRadius: 15, background: 'linear-gradient(135deg, '+T.primary+', #5b6bff)',
+                width: 52, height: 52, borderRadius: 15, background: 'linear-gradient(135deg, '+T.primary+', #6F80FF)',
                 color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer',
                 fontFamily: T.fontHead, fontWeight: 800, fontSize: 18, flexShrink: 0,
-                boxShadow: '0 8px 18px rgba(26,52,232,0.28)',
+                boxShadow: '0 8px 18px rgba(0,32,246,0.28)',
               }}>{job.logo}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <button

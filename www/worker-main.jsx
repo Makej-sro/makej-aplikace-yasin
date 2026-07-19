@@ -1,12 +1,99 @@
 // Makej Worker — Root app component
 
-// Relativní čas pro upozornění
+// ── Zvuk upozornění ──────────────────────────────────────────────
+// Tón se syntetizuje přes Web Audio, ne z MP3 — appka musí fungovat offline
+// a tohle nepřidá do balíčku ani bajt.
+let _wAudioCtx = null;
+
+function _wAudio() {
+  if (_wAudioCtx) return _wAudioCtx;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  try { _wAudioCtx = new Ctx(); } catch (e) { return null; }
+  return _wAudioCtx;
+}
+
+// iOS i Android pustí zvuk až po dotyku uživatele. Navíc iOS kontext znovu uspí
+// při přepnutí appky na pozadí — proto neposloucháme jen jednou, ale průběžně.
+if (typeof document !== 'undefined') {
+  const unlock = () => {
+    const ctx = _wAudio();
+    if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+  };
+  document.addEventListener('touchstart', unlock, { passive: true });
+  document.addEventListener('click', unlock);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) unlock(); });
+}
+
+function wSoundEnabled() {
+  try { return localStorage.getItem('makej-notif-sound') !== 'off'; } catch (e) { return true; }
+}
+
+// Jeden úder — základní tón + rychleji doznívající harmonické.
+// Právě ten rozdíl v délce doznívání dělá "udeřený kov" místo pípnutí.
+function _wStrike(ctx, dest, freq, at, gain) {
+  const partials = [
+    { mult: 1,    amp: 1.00, decay: 0.90 },   // základ — nese výšku tónu
+    { mult: 2.01, amp: 0.42, decay: 0.42 },   // lehce rozladěná oktáva → jiskra
+    { mult: 3.01, amp: 0.18, decay: 0.22 },   // horní harmonická → kovový úder
+    { mult: 5.4,  amp: 0.07, decay: 0.10 },   // krátký "klik" na začátku
+  ];
+  partials.forEach(p => {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * p.mult, at);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain * p.amp, at + 0.004);   // ostrý úder
+    g.gain.exponentialRampToValueAtTime(0.0001, at + p.decay);       // doznívání
+    osc.connect(g); g.connect(dest);
+    osc.start(at);
+    osc.stop(at + p.decay + 0.05);
+  });
+}
+
+function wPlayBell() {
+  if (!wSoundEnabled()) return;
+  const ctx = _wAudio();
+  if (!ctx) return;
+
+  // Tóny se musí naplánovat až když kontext běží. Kdyby se plánovaly během
+  // `suspended`, `currentTime` stojí — naplánovaný čas by byl minulost
+  // a zvuk by vyjel až při dalším doteku uživatele.
+  const fire = () => {
+    try {
+      const now = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.5, now);
+      master.connect(ctx.destination);
+      // Dva údery ve stoupavé kvartě — druhý o něco tišeji, ať to nezní jako budík
+      _wStrike(ctx, master, 1318.5, now,        0.34);   // E6
+      _wStrike(ctx, master, 1760.0, now + 0.10, 0.30);   // A6
+    } catch (e) { /* zvuk je doplněk — nikdy nesmí shodit upozornění */ }
+  };
+
+  if (ctx.state === 'running') { fire(); return; }
+  // iOS uspí kontext i po přepnutí appky na pozadí — proto to zkoušíme pokaždé
+  try { ctx.resume().then(fire).catch(() => {}); } catch (e) {}
+}
+
+// Čas upozornění — čerstvé relativně, starší s konkrétním datem a hodinou.
+// Po uložení do DB přežijí i několik dní, kdy "před 52 h" nikomu nic neřekne.
 function _wRelTime(ts) {
+  const d = new Date(ts);
   const s = Math.floor((Date.now() - ts) / 1000);
+  const cas = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+
   if (s < 60) return 'teď';
   if (s < 3600) return `před ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `před ${Math.floor(s / 3600)} h`;
-  return new Date(ts).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
+
+  const dnes  = new Date(); dnes.setHours(0, 0, 0, 0);
+  const vcera = new Date(dnes); vcera.setDate(vcera.getDate() - 1);
+  const den   = new Date(ts);   den.setHours(0, 0, 0, 0);
+
+  if (den.getTime() === dnes.getTime())  return `dnes ${cas}`;
+  if (den.getTime() === vcera.getTime()) return `včera ${cas}`;
+  return `${d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' })} ${cas}`;
 }
 
 // Vizuální styl podle typu upozornění (barvy sladěné se světlým tématem)
@@ -14,9 +101,9 @@ const W_NOTIF_STYLE = {
   review:  { accent: '#f5b23c', iconName: 'star-bold',        iconBg: 'rgba(245,178,60,0.16)', soft: 'rgba(245,178,60,0.08)' },
   success: { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
   match:   { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
-  shift:   { accent: '#1a34e8', iconName: 'calendar-bold',    iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
-  message: { accent: '#1a34e8', iconName: 'chat-round-bold',  iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
-  info:    { accent: '#1a34e8', iconName: 'bell-bold',        iconBg: 'rgba(26,52,232,0.12)',  soft: 'rgba(26,52,232,0.06)' },
+  shift:   { accent: '#0020F6', iconName: 'calendar-bold',    iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
+  message: { accent: '#0020F6', iconName: 'chat-round-bold',  iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
+  info:    { accent: '#0020F6', iconName: 'bell-bold',        iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
 };
 
 function WToast({ toasts, onRemove }) {
@@ -159,7 +246,7 @@ function WEmployerModal({ employerId, fallback, onClose }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4 }}>{name}</span>
-                {verified && <Icon name="verified-check-bold" size={15} color="#cdd4ff" />}
+                {verified && <Icon name="verified-check-bold" size={15} color="#A3AEFF" />}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontFamily: T.fontUI, fontSize: 13 }}>{industry || 'Zaměstnavatel'}</span>
@@ -267,7 +354,11 @@ function WorkerApp() {
   const [toasts, setToasts] = useStateW([]);
   const [notifs, setNotifs] = useStateW([]);      // upozornění pro zvoneček
   const [bellOpen, setBellOpen] = useStateW(false);
+  const [bellRing, setBellRing] = useStateW(false);   // krátké rozkývání při novém upozornění
   const [chatTarget, setChatTarget] = useStateW(null);
+  // Zvoneček je jen na záložce Práce — po odchodu jinam ho zavři, ať se
+  // panel neotevře sám při návratu.
+  useEffectW(() => { if (tab !== 'swipe') setBellOpen(false); }, [tab]);
   const [employerTarget, setEmployerTarget] = useStateW(null);
   const userId = useRefW(null);
   const tabRef = useRefW(tab);
@@ -281,6 +372,12 @@ function WorkerApp() {
   if (typeof window !== 'undefined') {
     window.wOpenChat = openChat;
     window.wOpenEmployer = (employerId, fallback) => { if (employerId) setEmployerTarget({ employerId, fallback }); };
+    // DOČASNÉ (test): projde stejnou cestou jako skutečné upozornění — toast, zvuk i zvoneček.
+    window.wTestNotif = () => {
+      const n = { type: 'match', title: 'Testovací upozornění', text: 'Takhle vypadá a zní upozornění v appce.', kind: 'chat' };
+      addNotif(n);
+      addToast({ ...n, action: { label: 'Zavřít', onClick: () => {} } });
+    };
   }
 
   // Uživatel může upozornění vypnout v profilu (Nastavení)
@@ -289,18 +386,32 @@ function WorkerApp() {
   }
 
   // Toast (objekt: { title, text, type, accent, avatar, action, ttl })
+  // Zvuk i rozkývání zvonečku patří sem, ne do addNotif — musí zaznít ve chvíli,
+  // kdy je upozornění vidět. addNotif se volá dřív (a někdy i bez toastu).
   function addToast(opts) {
     if (!notifsEnabled()) return;
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, ...opts }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), opts.ttl || 6000);
+    // Zvuk až ve chvíli, kdy prohlížeč toast opravdu vykreslil. Dvojité rAF:
+    // první snímek React teprve zapisuje DOM, až druhý je ten, na kterém je vidět.
+    const ring = () => { wPlayBell(); setBellRing(true); setTimeout(() => setBellRing(false), 700); };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(ring));
+    } else ring();
   }
 
-  // Upozornění do zvonečku (přežije, dokud je appka otevřená)
+  // Upozornění do zvonečku. Ukládá se i do DB, aby přežilo zavření appky —
+  // zobrazíme ho hned (optimisticky) a teprve pak čekáme na server.
   function addNotif(n) {
     if (!notifsEnabled()) return;
     const id = Date.now() + Math.random();
     setNotifs(prev => [{ id, ts: Date.now(), read: false, ...n }, ...prev].slice(0, 40));
+    const uid = userId.current;
+    if (uid) insertNotifW(uid, n).then(row => {
+      // nahraď dočasné id tím z databáze, ať se po refreshi nezduplikuje
+      if (row && row.id) setNotifs(prev => prev.map(x => (x.id === id ? { ...x, id: row.id } : x)));
+    });
   }
   const unreadNotifs = notifs.filter(n => !n.read).length;
 
@@ -310,13 +421,20 @@ function WorkerApp() {
       if (!session?.user || done) return;   // ještě nepřihlášen → počkej na SIGNED_IN
       done = true;
       userId.current = session.user.id;
-      fetchWorkerData(session.user.id).then(() => {
+      // Nejdřív uložená upozornění, ať zvoneček po otevření není prázdný
+      fetchNotifsW(session.user.id).then(saved => { if (saved.length) setNotifs(saved); });
+
+      fetchWorkerData(session.user.id).then(async () => {
         setLoaded(true);
         setTick(1);
         // Výzva k hodnocení dokončených brigád
         const toReview = W_HISTORY.filter(h => h.needsReview).length;
         if (toReview > 0) {
           const text = `Máš ${toReview} ${toReview === 1 ? 'dokončenou brigádu' : 'dokončené brigády'} k ohodnocení.`;
+          // Přidávalo by se při každém startu — s ukládáním by tak vznikal duplikát.
+          // Založ nové jen tehdy, když nepřečtená výzva ještě nevisí.
+          const saved = await fetchNotifsW(session.user.id);
+          if (saved.some(x => x.type === 'review' && !x.read)) return;
           addNotif({ type: 'review', title: 'Ohodnoť své brigády', text, kind: 'review' });
           setTimeout(() => addToast({
             type: 'review', title: 'Ohodnoť své brigády', text,
@@ -387,7 +505,7 @@ function WorkerApp() {
         const avatar  = { initials: thread.avatar, color: thread.color };
         const isShift = msg.type === 'shift_offer';
         const title   = isShift ? 'Nová nabídka směny' : company;
-        const text    = isShift ? `${company} ti nabídl/a směnu. Otevři chat.` : msg.text;
+        const text    = isShift ? `${company} ti nabízí směnu. Otevři chat.` : msg.text;
         addNotif({ type: isShift ? 'shift' : 'message', title, text, avatar: isShift ? null : avatar, kind: 'chat', matchId: msg.match_id });
         // aktualizuj náhledy v seznamu konverzací
         fetchWorkerData(id).then(() => setTick(t => t + 1));
@@ -410,11 +528,45 @@ function WorkerApp() {
   const unreadMessages = W_THREADS.reduce((s, t) => s + (t.unread || 0), 0);
   const reviewsToDo    = W_HISTORY.filter(h => h.needsReview).length;
 
+  // Přehled aktuálního stavu — když nejsou upozornění, ať zvoneček ukáže,
+  // co brigádníka reálně čeká, místo prázdné obrazovky.
+  const discussCount = W_HISTORY.filter(h => h.phase === 'discuss').length;
+  const nextShift    = W_HISTORY
+    .filter(h => h.phase === 'upcoming' && h.eventDate)
+    .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))[0] || null;
+
+  const statusRows = [
+    nextShift && {
+      key: 'shift', icon: 'calendar-minimalistic-bold',
+      title: 'Nejbližší směna',
+      text: [nextShift.company, nextShift.dateText].filter(Boolean).join(' · '),
+      go: () => setTab('history'),
+    },
+    discussCount > 0 && {
+      key: 'discuss', icon: 'chat-round-bold',
+      title: _wPlural(discussCount, 'Domlouváš 1 brigádu', `Domlouváš ${discussCount} brigády`, `Domlouváš ${discussCount} brigád`),
+      text: 'Čeká se na potvrzení termínu',
+      go: () => setTab('messages'),
+    },
+    unreadMessages > 0 && {
+      key: 'unread', icon: 'chat-round-dots-bold',
+      title: _wPlural(unreadMessages, '1 nepřečtená zpráva', `${unreadMessages} nepřečtené zprávy`, `${unreadMessages} nepřečtených zpráv`),
+      text: 'Otevři konverzaci',
+      go: () => setTab('messages'),
+    },
+    reviewsToDo > 0 && {
+      key: 'review', icon: 'star-bold',
+      title: _wPlural(reviewsToDo, '1 brigáda k ohodnocení', `${reviewsToDo} brigády k ohodnocení`, `${reviewsToDo} brigád k ohodnocení`),
+      text: 'Tvoje hodnocení pomůže ostatním',
+      go: () => setTab('history'),
+    },
+  ].filter(Boolean);
+
   const NAV = [
-    { id: 'swipe',    label: 'Práce',    icon: 'case-round-bold' },
+    { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
     { id: 'history',  label: 'Brigády',  icon: 'checklist-minimalistic-bold', badge: reviewsToDo },
-    { id: 'messages', label: 'Zprávy',   icon: 'chat-round-bold', badge: unreadMessages },
-    { id: 'profile',  label: 'Profil',   icon: 'user-bold' },
+    { id: 'messages', label: 'Zprávy',   img: 'icons/messages-icon.png', badge: unreadMessages },
+    { id: 'profile',  label: 'Profil',   img: 'icons/user.png' },
   ];
 
   let body;
@@ -424,7 +576,7 @@ function WorkerApp() {
         <div style={{ textAlign: 'center' }}>
           <div style={{
             width: 44, height: 44, borderRadius: 999,
-            border: '3px solid rgba(0,32,246,0.18)', borderTopColor: '#5B6BFF',
+            border: '3px solid rgba(0,32,246,0.18)', borderTopColor: '#6F80FF',
             animation: 'empSpin .75s linear infinite', margin: '0 auto',
           }} />
           <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 14 }}>Načítám brigády…</div>
@@ -449,13 +601,13 @@ function WorkerApp() {
       position: 'relative',
     }}>
       {/* Barevné skvrny — aby průhledné sklo (navbar) chytlo barvu */}
-      <div style={{ position: 'absolute', top: -140, left: -120, width: 440, height: 440, borderRadius: 999, background: 'radial-gradient(circle, rgba(26,52,232,0.18), transparent 62%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', top: '32%', right: -140, width: 420, height: 420, borderRadius: 999, background: 'radial-gradient(circle, rgba(139,155,255,0.22), transparent 62%)', filter: 'blur(55px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -80, left: '10%', right: '10%', height: 320, borderRadius: 999, background: 'radial-gradient(closest-side, rgba(91,107,255,0.28), transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', top: -140, left: -120, width: 440, height: 440, borderRadius: 999, background: 'radial-gradient(circle, rgba(0,32,246,0.18), transparent 62%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', top: '32%', right: -140, width: 420, height: 420, borderRadius: 999, background: 'radial-gradient(circle, rgba(111,128,255,0.22), transparent 62%)', filter: 'blur(55px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -80, left: '10%', right: '10%', height: 320, borderRadius: 999, background: 'radial-gradient(closest-side, rgba(111,128,255,0.28), transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
       {/* jemná tečkovaná textura */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.45,
-        backgroundImage: 'radial-gradient(rgba(26,52,232,0.05) 1px, transparent 1px)',
+        backgroundImage: 'radial-gradient(rgba(0,32,246,0.05) 1px, transparent 1px)',
         backgroundSize: '30px 30px',
       }} />
 
@@ -464,17 +616,41 @@ function WorkerApp() {
         {body}
       </div>
 
-      {/* Zvoneček upozornění */}
-      {loaded && (
-        <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500 }}>
+      {/* Zvoneček upozornění — jen na záložce Práce, jinde překrývá obsah */}
+      {loaded && tab === 'swipe' && (
+        <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* DOČASNÉ — testovací tlačítko, před buildem do App Store smazat.
+              Smazat i window.wTestNotif výše. */}
           <button
-            onClick={() => { setBellOpen(o => !o); if (!bellOpen) setNotifs(prev => prev.map(n => ({ ...n, read: true }))); }}
+            onClick={() => window.wTestNotif && window.wTestNotif()}
+            title="Vyzkoušet upozornění"
+            style={{
+              height: 40, padding: '0 12px', borderRadius: 14,
+              background: '#fff', border: '1px dashed ' + T.primary, color: T.primary,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
+              boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+            }}>
+            <Icon name="bell-bold" size={14} color={T.primary} />
+            Test
+          </button>
+
+          <button
+            onClick={() => {
+              setBellOpen(o => !o);
+              if (!bellOpen) {
+                setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+                if (userId.current) markNotifsReadW(userId.current);   // ať to platí i po refreshi
+              }
+            }}
             style={{
               width: 40, height: 40, borderRadius: 14, position: 'relative',
               background: '#fff', border: 'none', cursor: 'pointer',
               display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
             }}>
-            <Icon name="bell-bold" size={18} color="#4a4f6b" />
+            <span style={{ display: 'grid', placeItems: 'center', animation: bellRing ? 'wBellRing .7s cubic-bezier(.36,.07,.19,.97)' : 'none', transformOrigin: 'top center' }}>
+              <Icon name="bell-bold" size={18} color="#4a4f6b" />
+            </span>
             {unreadNotifs > 0 && (
               <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: T.destructive, color: '#fff', fontSize: 10, fontWeight: 800, fontFamily: T.fontUI, display: 'grid', placeItems: 'center', border: '2px solid #fff' }}>{unreadNotifs}</span>
             )}
@@ -490,13 +666,33 @@ function WorkerApp() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid ' + T.border }}>
                 <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800 }}>Upozornění</span>
-                {notifs.length > 0 && <button onClick={() => setNotifs([])} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
+                {notifs.length > 0 && <button onClick={() => { setNotifs([]); if (userId.current) sb.from('notifications').delete().eq('user_id', userId.current).then(({ error }) => { if (error) console.error('smazání upozornění:', error); }); }} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
               </div>
               {notifs.length === 0 ? (
-                <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 40, marginBottom: 8 }}>🔔</div>
-                  <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13 }}>Zatím žádná upozornění.</div>
-                </div>
+                statusRows.length > 0 ? (
+                  <div style={{ padding: 8 }}>
+                    <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 12px 8px' }}>Aktuálně</div>
+                    {statusRows.map(r => (
+                      <button key={r.key}
+                        onClick={() => { setBellOpen(false); r.go(); }}
+                        style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 11, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                          <Icon name={r.icon} size={18} color={T.primary} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
+                          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.text}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.55 }}>
+                      Nic nového. Až se firma ozve nebo potvrdí směnu, najdeš to tady.
+                    </div>
+                  </div>
+                )
               ) : (
                 <div style={{ padding: '8px' }}>
                   {notifs.map(n => {
@@ -562,12 +758,22 @@ function WorkerApp() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   padding: '0 6px', border: 'none', cursor: 'pointer',
                   background: active ? T.primary : 'transparent',
-                  boxShadow: active ? '0 12px 22px -8px rgba(26,52,232,0.75)' : 'none',
+                  boxShadow: active ? '0 12px 22px -8px rgba(0,32,246,0.75)' : 'none',
                   transition: 'flex-grow .4s cubic-bezier(.34,1.3,.5,1), background .28s ease, box-shadow .28s ease',
                   position: 'relative',
                 }}>
                 <div style={{ position: 'relative', flexShrink: 0, display: 'grid', placeItems: 'center' }}>
-                  <Icon name={n.icon} size={19} color={active ? '#fff' : T.light} />
+                  {n.img
+                    ? <span style={{
+                        display: 'block', width: 19, height: 19,
+                        background: active ? '#fff' : T.light,
+                        WebkitMaskImage: `url(${n.img})`, maskImage: `url(${n.img})`,
+                        WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+                        WebkitMaskPosition: 'center', maskPosition: 'center',
+                        WebkitMaskSize: 'contain', maskSize: 'contain',
+                        transition: 'background .28s ease',
+                      }} />
+                    : <Icon name={n.icon} size={19} color={active ? '#fff' : T.light} />}
                   {n.badge > 0 && (
                     <span style={{
                       position: 'absolute', top: -6, right: -8,

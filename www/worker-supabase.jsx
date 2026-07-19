@@ -83,14 +83,14 @@ function _wResolveEventDate(job, matchCreatedAt) {
 
 // ── Helpers ────────────────────────────────────────────────────
 function _wColor(str) {
-  const cols = ['#F4A261','#8AB4FF','#5BD68A','#E0B0FF','#FF6B35','#FFD166','#5B6BFF','#f43f5e'];
+  const cols = ['#F4A261','#8AB4FF','#5BD68A','#E0B0FF','#FF6B35','#FFD166','#6F80FF','#f43f5e'];
   let h = 0;
   for (let i = 0; i < (str || '').length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
   return cols[Math.abs(h) % cols.length];
 }
 
 // Jednotný podklad avatarů bez profilovky — značková modrá (jako navbar).
-const W_AVATAR_BG = 'linear-gradient(150deg, #8b9bff, #4a5ff2)';
+const W_AVATAR_BG = 'linear-gradient(150deg, #6F80FF, #6F80FF)';
 
 function _wFmtDate(dateStr) {
   if (!dateStr) return '';
@@ -419,9 +419,91 @@ async function cancelShiftW(matchId) {
   return true;
 }
 
+// ── Upozornění (tabulka notifications) ──────────────────────────
+// Sloupce: id, user_id, type, title, body, read, match_id, created_at
+// `kind` v appce (chat/review) v tabulce není — odvozuje se z typu.
+function _wNotifKind(type) { return type === 'review' ? 'review' : 'chat'; }
+
+const _W_NOTIF_TYPES = ['message', 'match', 'shift', 'review', 'success', 'info'];
+
+// Typ se ukládá do sloupce `type`. Dokud check constraint povoloval jen 'message',
+// běžela obezlička, která skutečný typ schovávala na začátek `body` jako "typ::text".
+// Constraint je rozšířený, takže se tak už nezapisuje — rozbalování zůstává jen
+// kvůli řádkům, které tímhle způsobem vznikly. Časem se dá smazat.
+function _wUnpackLegacy(body) {
+  const s = body || '';
+  const i = s.indexOf('::');
+  if (i > 0) {
+    const t = s.slice(0, i);
+    if (_W_NOTIF_TYPES.includes(t)) return { type: t, text: s.slice(i + 2) };
+  }
+  return null;
+}
+
+async function fetchNotifsW(userId) {
+  const { data, error } = await sb.from('notifications')
+    .select('*').eq('user_id', userId)
+    .order('created_at', { ascending: false }).limit(40);
+  if (error) { console.error('fetchNotifsW:', error); return []; }
+  return (data || []).map(r => {
+    // Nové řádky mají typ ve sloupci; u starých se ještě zkusí odloupnout z textu.
+    const legacy = r.type === 'message' ? _wUnpackLegacy(r.body) : null;
+    const type = legacy ? legacy.type : (_W_NOTIF_TYPES.includes(r.type) ? r.type : 'info');
+    const text = legacy ? legacy.text : (r.body || '');
+    return {
+      id: r.id,
+      ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+      read: !!r.read,
+      type,
+      title: r.title || '',
+      text,
+      matchId: r.match_id || null,
+      kind: _wNotifKind(type),
+    };
+  });
+}
+
+async function insertNotifW(userId, n) {
+  const { data, error } = await sb.from('notifications').insert({
+    user_id: userId,
+    type: _W_NOTIF_TYPES.includes(n.type) ? n.type : 'info',
+    title: n.title || '',
+    body: n.text || '',
+    match_id: n.matchId || null,
+    read: false,
+  }).select().single();
+  if (error) { console.error('insertNotifW:', error); return null; }
+  return data;
+}
+
+async function markNotifsReadW(userId) {
+  const { error } = await sb.from('notifications')
+    .update({ read: true }).eq('user_id', userId).eq('read', false);
+  if (error) { console.error('markNotifsReadW:', error); return false; }
+  return true;
+}
+
 async function createRejectionW(workerId, jobId) {
   const { error } = await sb.from('rejections').insert({ worker_id: workerId, job_id: jobId });
   if (error && error.code !== '23505') console.error('createRejectionW:', error);
+}
+
+// Odmítnuté nabídky pro "projít znovu" — jen čtení, historie odmítnutí zůstává.
+// Vrací pouze ty, které jsou pořád aktivní, aby počet na tlačítku odpovídal realitě.
+async function fetchRejectedJobsW(workerId) {
+  const { data: rej, error: rejErr } = await sb.from('rejections')
+    .select('job_id').eq('worker_id', workerId);
+  if (rejErr) { console.error('fetchRejectedJobsW (rejections):', rejErr); return []; }
+  const ids = (rej || []).map(r => r.job_id).filter(Boolean);
+  if (!ids.length) return [];
+
+  const { data: jobs, error } = await sb.from('jobs')
+    .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
+    .eq('status', 'active').in('id', ids);
+  if (error) { console.error('fetchRejectedJobsW (jobs):', error); return []; }
+
+  const nowMs = Date.now();
+  return (jobs || []).filter(j => !j.publish_at || new Date(j.publish_at).getTime() <= nowMs);
 }
 
 async function sendMessageW(matchId, senderId, text, type, metadata) {
@@ -442,7 +524,8 @@ async function updateProfileW(workerId, updates) {
 
 Object.assign(window, {
   W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS,
-  fetchWorkerData, createMatchW, createRejectionW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
+  fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
+  fetchNotifsW, insertNotifW, markNotifsReadW,
   fetchReviewRepliesW, postReviewReplyW,
   jobToCard, makejLevel, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,
 });

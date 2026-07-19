@@ -9,6 +9,7 @@ function WProfile({ tick, onSignOut }) {
   const [showAllReviews, setShowAllReviews] = useStateW(false);
   const [reviewsPageOpen, setReviewsPageOpen] = useStateW(false);
   const [notifsOn, setNotifsOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notifs') !== 'off'));
+  const [soundOn, setSoundOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notif-sound') !== 'off'));
   const [confirmDel, setConfirmDel] = useStateW(false);
   const [deleting, setDeleting] = useStateW(false);
 
@@ -16,6 +17,15 @@ function WProfile({ tick, onSignOut }) {
     setNotifsOn(v => {
       const nv = !v;
       try { localStorage.setItem('makej-notifs', nv ? 'on' : 'off'); } catch (e) {}
+      return nv;
+    });
+  }
+  function toggleSound() {
+    setSoundOn(v => {
+      const nv = !v;
+      try { localStorage.setItem('makej-notif-sound', nv ? 'on' : 'off'); } catch (e) {}
+      // Po zapnutí rovnou přehraj ukázku — uživatel slyší, co si zapnul
+      if (nv && typeof wPlayBell === 'function') wPlayBell();
       return nv;
     });
   }
@@ -82,7 +92,7 @@ function WProfile({ tick, onSignOut }) {
   const reviews = Array.isArray(W_REVIEWS) ? W_REVIEWS : [];
   const shownReviews = showAllReviews ? reviews : reviews.slice(0, 3);
 
-  const cardShadow = '0 4px 20px rgba(0,82,255,0.06)';
+  const cardShadow = '0 4px 20px rgba(0,32,246,0.06)';
   const STATS3 = [
     { value: rating > 0 ? rating.toFixed(1).replace('.', ',') : '—', label: 'Hodnocení', icon: 'star-bold', color: T.super, bg: '#fff4de' },
     { value: jobs, label: 'Brigády', icon: 'case-round-bold', color: T.primary, bg: T.tint },
@@ -111,7 +121,7 @@ function WProfile({ tick, onSignOut }) {
             background: T.avatarGrad,
             display: 'grid', placeItems: 'center',
             color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 20,
-            boxShadow: '0 14px 26px -14px rgba(26,52,232,0.5)',
+            boxShadow: '0 14px 26px -14px rgba(0,32,246,0.5)',
           }}>{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {editing ? (
@@ -168,17 +178,17 @@ function WProfile({ tick, onSignOut }) {
         ) : (
           <>
             {/* ── Výdělek — velká gradientová karta (radiální + tečky) ── */}
-            <div style={{ position: 'relative', overflow: 'hidden', background: T.heroGrad, borderRadius: 22, padding: '20px 22px', marginBottom: 16, boxShadow: '0 22px 44px -22px rgba(26,52,232,0.55)' }}>
+            <div style={{ position: 'relative', overflow: 'hidden', background: T.heroGrad, borderRadius: 22, padding: '20px 22px', marginBottom: 16, boxShadow: '0 22px 44px -22px rgba(0,32,246,0.55)' }}>
               <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.14) 1.2px, transparent 1.2px)', backgroundSize: '18px 18px', opacity: 0.5, pointerEvents: 'none' }} />
               <span style={{ position: 'absolute', right: -14, top: 2, fontFamily: T.fontHead, fontWeight: 800, fontSize: 90, lineHeight: 1, color: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }}>Kč</span>
               <div style={{ position: 'relative' }}>
-                <div style={{ color: '#bcc6f5', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.4, marginBottom: 8 }}>CELKEM VYDĚLÁNO</div>
+                <div style={{ color: '#A3AEFF', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.4, marginBottom: 8 }}>CELKEM VYDĚLÁNO</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
                   <span style={{ color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 40, letterSpacing: -0.5, lineHeight: 1 }}>{earned > 0 ? earned.toLocaleString('cs-CZ').replace(/,/g, ' ') : '0'}</span>
-                  <span style={{ color: '#bcc6f5', fontFamily: T.fontUI, fontWeight: 700, fontSize: 16 }}>Kč</span>
+                  <span style={{ color: '#A3AEFF', fontFamily: T.fontUI, fontWeight: 700, fontSize: 16 }}>Kč</span>
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.24)', borderRadius: 11, padding: '6px 11px', fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600, color: '#eaeeff' }}>
-                  {jobs} {_wPlural(jobs, 'brigáda', 'brigády', 'brigád')}<span style={{ width: 3, height: 3, borderRadius: 999, background: '#8ea0ff' }} />{hours} h odpracováno
+                  {jobs} {_wPlural(jobs, 'brigáda', 'brigády', 'brigád')}<span style={{ width: 3, height: 3, borderRadius: 999, background: '#6F80FF' }} />{hours} h odpracováno
                 </div>
               </div>
             </div>
@@ -296,6 +306,26 @@ function WProfile({ tick, onSignOut }) {
                   <span style={{ position: 'absolute', top: 3, left: notifsOn ? 23 : 3, width: 22, height: 22, borderRadius: 999, background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
                 </button>
               </div>
+
+              {/* Zvuk upozornění — jen když jsou upozornění vůbec zapnutá */}
+              {notifsOn && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderTop: '1px solid ' + T.border }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                    <Icon name="volume-loud-bold" size={18} color={T.primary} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>Zvuk</div>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5 }}>Cinknutí při novém upozornění</div>
+                  </div>
+                  <button onClick={toggleSound} title="Zapnout/vypnout zvuk" style={{
+                    width: 48, height: 28, borderRadius: 999, flexShrink: 0, cursor: 'pointer', position: 'relative',
+                    background: soundOn ? T.primary : 'rgba(18,18,26,0.18)', border: 'none', transition: 'background .2s',
+                  }}>
+                    <span style={{ position: 'absolute', top: 3, left: soundOn ? 23 : 3, width: 22, height: 22, borderRadius: 999, background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
+                  </button>
+                </div>
+              )}
+
 
               <div style={{ height: 1, background: T.border }} />
 
@@ -437,7 +467,7 @@ function WReviewsPage({ reviews, onClose }) {
           {reviews.map(r => {
             const thread = replies[r.id] || [];
             return (
-              <div key={r.id} style={{ background: '#fff', borderRadius: 20, padding: 18, boxShadow: '0 4px 20px rgba(0,82,255,0.06)' }}>
+              <div key={r.id} style={{ background: '#fff', borderRadius: 20, padding: 18, boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
                 {/* Hlavička recenze */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: r.text ? 12 : 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>

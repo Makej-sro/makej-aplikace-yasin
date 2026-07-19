@@ -1,6 +1,6 @@
 // Makej — interactive prototype
 // Worker app: swipe job offers, match modal, chat list & thread, profile.
-// Brand: deep blue (#0020F6 brand) + dark gradient app shell (#2a2ab5 → #050510).
+// Brand: deep blue (#0020F6 brand) + dark gradient app shell (#0014A3 → #050510).
 
 const { useState, useEffect, useRef, useMemo } = React;
 
@@ -130,11 +130,11 @@ const THREAD = [
 // Tokens
 // ─────────────────────────────────────────────────────────────
 const T = {
-  bg: 'linear-gradient(180deg, #2a2ab5 0%, #050510 100%)',
+  bg: 'linear-gradient(180deg, #0014A3 0%, #050510 100%)',
   card: '#16163b',
   cardSoft: 'rgba(255,255,255,0.06)',
   primary: '#0020F6',
-  primaryDeep: '#2D2CA7',
+  primaryDeep: '#0014A3',
   light: '#E8EBFF',
   text: '#ffffff',
   muted: '#9999cc',
@@ -270,7 +270,7 @@ function JobCard({ job, drag, onTap, isTop, depth = 0 }) {
                 </span>
               )}
               {job.verified && (
-                <Icon name="verified-check-bold" size={13} color="#5B6BFF" />
+                <Icon name="verified-check-bold" size={13} color="#6F80FF" />
               )}
             </div>
             <div style={{

@@ -89,7 +89,7 @@ function WHistory({ tick, onReviewed }) {
                 <div key={it.id} style={{
                   position: 'relative', padding: 22, borderRadius: 24, overflow: 'hidden',
                   background: T.heroGrad,
-                  boxShadow: '0 22px 44px -22px rgba(26,52,232,0.55)',
+                  boxShadow: '0 22px 44px -22px rgba(0,32,246,0.55)',
                 }}>
                   <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.14) 1.2px, transparent 1.2px)', backgroundSize: '18px 18px', opacity: 0.5, pointerEvents: 'none' }} />
                   <div style={{ position: 'relative' }}>
@@ -101,11 +101,11 @@ function WHistory({ tick, onReviewed }) {
                       <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,0.16)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.3)', display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{it.avatar}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, lineHeight: 1.2 }}>{it.jobTitle}</div>
-                        <div style={{ color: '#bcc6f5', fontFamily: T.fontUI, fontSize: 12, marginTop: 2 }}>{it.company} · {it.dateText}</div>
+                        <div style={{ color: '#A3AEFF', fontFamily: T.fontUI, fontSize: 12, marginTop: 2 }}>{it.company} · {it.dateText}</div>
                       </div>
                     </button>
-                    <div style={{ color: '#d5dcff', fontFamily: T.fontUI, fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
-                      Jak jsi byl/a spokojený/á? Tvoje hodnocení pomůže ostatním brigádníkům.
+                    <div style={{ color: '#A3AEFF', fontFamily: T.fontUI, fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
+                      Jaká byla brigáda? Tvoje hodnocení pomůže ostatním brigádníkům.
                     </div>
                     <button onClick={() => setReview(it)} style={{
                       width: '100%', height: 48, borderRadius: 14,
