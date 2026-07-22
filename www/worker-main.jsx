@@ -428,6 +428,11 @@ function WorkerApp() {
   const posledniZvuk = useRefW(0);                    // kdy naposled cinklo — proti salvě
   const videnaNotif  = useRefW(new Set());            // id už zpracovaných oznámení
   const [chatTarget, setChatTarget] = useStateW(null);
+  // Odznak u Zpráv se počítá z W_THREADS, které Zprávy mění mimo React.
+  // Tohle jen vynutí překreslení, až se něco označí za přečtené — narozdíl
+  // od `tick` přitom nepřenačte vlákna, takže z otevřeného chatu nezmizí
+  // zpráva, která zatím dorazila jen realtimem.
+  const [precteno, setPrecteno] = useStateW(0);
   // Zvoneček je jen na záložce Práce — po odchodu jinam ho zavři, ať se
   // panel neotevře sám při návratu.
   useEffectW(() => { if (tab !== 'swipe') setBellOpen(false); }, [tab]);
@@ -704,6 +709,8 @@ function WorkerApp() {
     window.location.href = '/';
   }
 
+  // Počítá se při každém překreslení — proto ten stav `precteno` výš, který
+  // překreslení vyvolá, když Zprávy sáhnou na W_THREADS mimo React.
   const unreadMessages = W_THREADS.reduce((s, t) => s + (t.unread || 0), 0);
   const reviewsToDo    = W_HISTORY.filter(h => h.needsReview).length;
 
@@ -767,7 +774,7 @@ function WorkerApp() {
   } else if (tab === 'history') {
     body = <WCalendar tick={tick} onReviewed={refreshWorker} />;
   } else if (tab === 'messages') {
-    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} />;
+    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={() => setPrecteno(p => p + 1)} />;
   } else if (tab === 'profile') {
     body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
   }
@@ -987,7 +994,6 @@ function WorkerApp() {
                       color: active ? T.primary : '#fff',
                       fontSize: 9, fontWeight: 800, fontFamily: T.fontHead,
                       display: 'grid', placeItems: 'center',
-                      border: active ? 'none' : '2px solid rgba(255,255,255,0.85)',
                     }}>{n.badge}</span>
                   )}
                 </div>

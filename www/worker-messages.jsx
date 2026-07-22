@@ -16,7 +16,99 @@ function WIkonaPng({ src, size, color }) {
   );
 }
 
-function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
+// Fotka v bublině. Bucket je neveřejný, takže se adresa musí nejdřív podepsat —
+// než se podpis vrátí, drží místo šedý obdélník, ať zpráva neposkakuje.
+function WPrilohaFotka({ priloha, nahravam, chyba, onOtevri }) {
+  const [url, setUrl] = useStateW(priloha.nahled || null);
+
+  useEffectW(() => {
+    if (priloha.nahled) { setUrl(priloha.nahled); return; }
+    if (!priloha.cesta) return;
+    let zivy = true;
+    wOdkazPrilohy(priloha.cesta).then(u => { if (zivy) setUrl(u); });
+    return () => { zivy = false; };
+  }, [priloha.cesta, priloha.nahled]);
+
+  return (
+    <div
+      onClick={() => url && !nahravam && onOtevri && onOtevri(url)}
+      style={{
+        position: 'relative', width: 220, maxWidth: '100%',
+        minHeight: url ? 0 : 150,
+        borderRadius: 18, overflow: 'hidden', background: T.surfaceAlt,
+        border: '1px solid ' + T.border,
+        cursor: url && !nahravam ? 'zoom-in' : 'default',
+      }}>
+      {url && (
+        <img src={url} alt={priloha.nazev || 'Fotka'} style={{
+          display: 'block', width: '100%', height: 'auto',
+          opacity: nahravam ? 0.55 : 1, transition: 'opacity .25s',
+        }} />
+      )}
+      {nahravam && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+          background: 'rgba(255,255,255,0.35)',
+        }}>
+          <span style={{
+            width: 26, height: 26, borderRadius: 999,
+            border: '2.5px solid rgba(255,255,255,0.7)', borderTopColor: T.primary,
+            animation: 'wSpin .7s linear infinite',
+          }} />
+        </div>
+      )}
+      {chyba && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 12,
+          background: 'rgba(255,255,255,0.9)', color: T.destructive,
+          fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, textAlign: 'center',
+        }}>{chyba}</div>
+      )}
+    </div>
+  );
+}
+
+// Ostatní přílohy (dokumenty) — zatím se neposílají, ale kdyby dorazily
+// z firemního dashboardu, ať se neztratí a jdou stáhnout.
+function WPrilohaSoubor({ priloha }) {
+  async function stahni() {
+    const url = await wOdkazPrilohy(priloha.cesta);
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+  return (
+    <button onClick={stahni} style={{
+      display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+      padding: '11px 14px', borderRadius: 14, cursor: 'pointer',
+      background: '#fff', border: '1px solid ' + T.border, maxWidth: 240,
+    }}>
+      <WIkonaPng src="attachment.png" size={18} color={T.primary} />
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', color: T.ink, fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{priloha.nazev}</span>
+        {priloha.velikost > 0 && <span style={{ display: 'block', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11 }}>{wVelikostPrilohy(priloha.velikost)}</span>}
+      </span>
+    </button>
+  );
+}
+
+// Fotka přes celou obrazovku po klepnutí
+function WLupa({ url, onClose }) {
+  useEffectW(() => {
+    const esc = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, []);
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 160, background: 'rgba(0,0,0,0.92)',
+      display: 'grid', placeItems: 'center', padding: 16, cursor: 'zoom-out',
+      animation: 'wPop .2s ease',
+    }}>
+      <img src={url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10 }} />
+    </div>
+  );
+}
+
+function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onRead }) {
   const [threads,  setThreads]  = useStateW(() => [...W_THREADS]);
   // Na mobilu začínáme seznamem — vlákno se otevře až po kliknutí (nebo přes chatTarget)
   const [active,   setActive]   = useStateW(null);
@@ -25,7 +117,6 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
   useEffectW(() => {
     if (chatTarget) {
       setActive(chatTarget);
-      setThreads(prev => prev.map(x => x.id === chatTarget ? { ...x, unread: 0 } : x));
       onChatOpened && onChatOpened();
     }
   }, [chatTarget]);
@@ -33,12 +124,30 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
   const [sending,  setSending]  = useStateW(false);
   const [q,        setQ]        = useStateW('');
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
-  const [prilohyHint, setPrilohyHint]   = useStateW(false); // DOČASNÉ — přílohy nejsou hotové
+  const [prilohyHint, setPrilohyHint]   = useStateW(false); // DOČASNÉ — hlasovky nejsou hotové
+  const [lupa,     setLupa]     = useStateW(null);          // fotka přes celou obrazovku
+  const [chybaPrilohy, setChybaPrilohy] = useStateW('');
+  const souborInput = useRefW(null);
   const scrollRef = useRefW(null);
   const userId    = useRefW(null);
   const activeRef = useRefW(active);
 
   useEffectW(() => { activeRef.current = active; }, [active]);
+
+  // Přečteno je jen to, co má člověk opravdu otevřené. Dřív se tučné písmo
+  // shodilo už při vstupu do záložky, protože se nikde nedrželo — teď se
+  // značka posouvá výhradně u otevřeného vlákna, a to i u zpráv, které
+  // dorazí během čtení. Podmínka na značku hlídá, aby se efekt nezacyklil.
+  useEffectW(() => {
+    if (!active) return;
+    const t = threads.find(x => x.id === active);
+    if (!t) return;
+    const ts = wPosledniTs(t.msgs);
+    if (!ts || wPrectenoDo(active) >= new Date(ts).getTime()) return;
+    wOznacPrecteno(active, ts);
+    setThreads(prev => prev.map(x => x.id === active ? { ...x, unread: 0 } : x));
+    onRead && onRead();
+  }, [active, threads]);
 
   // Otevřený chat schová spodní nav bar — jinak leží přes psací pole.
   // Při odchodu ze Zpráv ho vždy vrať, i když vlákno zůstalo otevřené.
@@ -68,7 +177,9 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
     const chan = sb.channel('w-msgs-global')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const msg = payload.new;
-        const preview = msg.type === 'shift_offer' ? 'Nabídka směny' : msg.type === 'interview_offer' ? 'Pozvánka na pohovor' : msg.text;
+        const preview = msg.file_url ? wNahledPrilohy(msg)
+          : msg.type === 'shift_offer' ? 'Nabídka směny'
+          : msg.type === 'interview_offer' ? 'Pozvánka na pohovor' : msg.text;
         setThreads(prev => prev.map(t => {
           if (t.id !== msg.match_id) return t;
           const isMine = msg.sender_id === userId.current;
@@ -95,14 +206,17 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
           const from = msg.sender_id === userId.current ? 'me' : 'them';
           const isShift = msg.type === 'shift_offer' && msg.metadata;
           const isInterview = msg.type === 'interview_offer' && msg.metadata;
-          const newMsg = isShift
-            ? { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), id: msg.id }
+          const jePriloha = !!msg.file_url;
+          const newMsg = jePriloha
+            ? { from, kind: 'file', file: _wPrilohaZRadku(msg), t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
+            : isShift
+            ? { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
             : isInterview
-            ? { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), id: msg.id }
-            : { from, text: msg.text, t: _wFmtTime(msg.created_at), id: msg.id };
+            ? { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
+            : { from, text: msg.text, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
           return {
             ...t,
-            last: isShift ? 'Nabídka směny' : isInterview ? 'Pozvánka na pohovor' : msg.text,
+            last: jePriloha ? wNahledPrilohy(msg) : isShift ? 'Nabídka směny' : isInterview ? 'Pozvánka na pohovor' : msg.text,
             msgs: [...t.msgs, newMsg],
           };
         }));
@@ -126,10 +240,53 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
     }).select().single();
     if (data) {
       setThreads(prev => prev.map(t => t.id !== active ? t : {
-        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id, t: _wFmtTime(data.created_at) } : m),
+        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id, t: _wFmtTime(data.created_at), ts: data.created_at } : m),
       }));
     }
     setSending(false);
+  }
+
+  // Fotka se ukáže v chatu hned z paměti telefonu a teprve pak putuje na server.
+  // Kdyby nahrání selhalo, bublina zmizí a důvod se napíše nad psacím polem —
+  // tiché zmizení fotky by vypadalo, že se odeslala.
+  async function handleFotka(file) {
+    if (!file || !active || !userId.current) return;
+    setChybaPrilohy('');
+    const tempId = 'tmp-img-' + Date.now();
+    const nahled = URL.createObjectURL(file);
+    const docasna = {
+      from: 'me', kind: 'file', nahravam: true, id: tempId,
+      file: { typ: 'image', nahled, nazev: file.name, velikost: file.size },
+      t: _wFmtTime(new Date().toISOString()),
+    };
+    setThreads(prev => prev.map(t => t.id !== active ? t : {
+      ...t, last: 'Fotka', msgs: [...t.msgs, docasna],
+    }));
+
+    const vysledek = await wPosliPrilohu(active, userId.current, file);
+
+    if (!vysledek.ok) {
+      URL.revokeObjectURL(nahled);
+      setThreads(prev => prev.map(t => t.id !== active ? t : {
+        ...t, msgs: t.msgs.filter(m => m.id !== tempId),
+      }));
+      setChybaPrilohy(vysledek.error);
+      return;
+    }
+
+    const z = vysledek.zprava;
+    setThreads(prev => prev.map(t => t.id !== active ? t : {
+      ...t,
+      // Realtime odběr může tutéž zprávu přinést dřív — ať tu není dvakrát
+      msgs: t.msgs.some(m => m.id === z.id)
+        ? t.msgs.filter(m => m.id !== tempId)
+        : t.msgs.map(m => m.id !== tempId ? m : {
+            ...m, id: z.id, nahravam: false, ts: z.created_at,
+            t: _wFmtTime(z.created_at),
+            // Náhled z telefonu si necháme — je po ruce a ušetří stahování
+            file: { ..._wPrilohaZRadku(z), nahled },
+          }),
+    }));
   }
 
   async function handleRespondToShift(response) {
@@ -147,7 +304,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
     }).select().single();
     if (data) {
       setThreads(prev => prev.map(t => t.id !== active ? t : {
-        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id } : m),
+        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id, ts: data.created_at } : m),
       }));
     }
   }
@@ -167,7 +324,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
     }).select().single();
     if (data) {
       setThreads(prev => prev.map(t => t.id !== active ? t : {
-        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id } : m),
+        ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id, ts: data.created_at } : m),
       }));
     }
   }
@@ -255,7 +412,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
               <div key={t.id}>
                 {/* Řádek jako v iMessage: všechny stejné, nepřečtené pozná modrá
                     tečka vlevo — ne jiné pozadí, to seznam roztrhalo na kusy. */}
-                <button onClick={() => { setActive(t.id); setThreads(prev => prev.map(x => x.id === t.id ? { ...x, unread: 0 } : x)); }} style={{
+                {/* Značku přečtení posune efekt výš — tady stačí vlákno otevřít */}
+                <button onClick={() => setActive(t.id)} style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 12,
                   padding: '11px 8px 11px 4px', textAlign: 'left', borderRadius: 16,
                   background: 'transparent', border: 'none', position: 'relative',
@@ -389,6 +547,19 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
                 );
               }
               const mine = m.from === 'me';
+              if (m.kind === 'file') {
+                // Příloha nemá bublinu — obrázek je sám o sobě dost výrazný
+                return (
+                  <div key={m.id || i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
+                    {m.file.typ === 'image'
+                      ? <WPrilohaFotka priloha={m.file} nahravam={m.nahravam} onOtevri={setLupa} />
+                      : <WPrilohaSoubor priloha={m.file} />}
+                    <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, marginTop: 4, textAlign: mine ? 'right' : 'left' }}>
+                      {m.nahravam ? 'Odesílám…' : m.t}
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={m.id || i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '68%' }}>
                   <div style={{
@@ -408,8 +579,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
 
           {/* Psací pole — jeden oválek, uvnitř text i odesílací tlačítko (jako Instagram) */}
           <div style={{ padding: '10px 14px calc(12px + env(safe-area-inset-bottom))', borderTop: '1px solid ' + T.border, flexShrink: 0, background: '#fff' }}>
-            {/* DOČASNÉ: přílohy zatím nemají kam ukládat (chybí Supabase Storage
-                i sloupec v `messages`). Radši to řekni, než tiše nic neudělat. */}
+            {/* DOČASNÉ: hlasovky čekají na nativní projekt kvůli oprávnění
+                k mikrofonu. Radši to řekni, než tiše nic neudělat. */}
             {prilohyHint && (
               <div onClick={() => setPrilohyHint(false)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
@@ -417,9 +588,32 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
                 background: T.tint, color: T.primary,
                 fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600,
               }}>
-                Přílohy a hlasovky se teprve dodělávají.
+                Hlasovky se teprve dodělávají.
               </div>
             )}
+            {chybaPrilohy && (
+              <div onClick={() => setChybaPrilohy('')} style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+                padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
+                background: 'rgba(220,38,38,0.08)', color: T.destructive,
+                fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600,
+              }}>
+                {chybaPrilohy}
+              </div>
+            )}
+            {/* Skrytý výběr souboru — sponka na něj jen klepne. `accept` pustí
+                fotoaparát i galerii, na počítači obrázky ze složek. */}
+            <input
+              ref={souborInput}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files && e.target.files[0];
+                e.target.value = '';        // ať jde stejná fotka poslat i podruhé
+                if (f) handleFotka(f);
+              }}
+            />
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '5px 5px 5px 18px', borderRadius: 999,
@@ -457,7 +651,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
                 </button>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingRight: 6 }}>
-                  <button onClick={() => setPrilohyHint(true)} title="Přiložit soubor nebo fotku" style={ikonaTlacitko}>
+                  <button onClick={() => souborInput.current && souborInput.current.click()} title="Přiložit fotku" style={ikonaTlacitko}>
                     <WIkonaPng src="attachment.png" size={21} color={T.muted} />
                   </button>
                   <button onClick={() => setPrilohyHint(true)} title="Nahrát hlasovou zprávu" style={ikonaTlacitko}>
@@ -469,6 +663,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
           </div>
         </div>
       )}
+
+      {lupa && <WLupa url={lupa} onClose={() => setLupa(null)} />}
 
       {confirmShift && (
         <WShiftConfirmDialog

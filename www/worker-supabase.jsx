@@ -12,6 +12,181 @@ const W_THREADS  = [];   // one per accepted match
 const W_HISTORY  = [];   // all matches (pending/upcoming/completed) for "Moje brigády"
 const W_REVIEWS  = [];   // recenze, které dostal brigádník (o něm)
 
+// ── Kam má brigádník konverzaci přečtenou ──────────────────────
+// Značka se drží v telefonu. V tabulce `messages` na to zatím sloupec není,
+// takže bez tohohle by se stav ztratil při každém přepnutí záložky i po
+// načtení appky — a tučné písmo by zmizelo dřív, než si zprávu vůbec otevřeš.
+// Ukládá se čas poslední přečtené zprávy (ze serveru, ne z hodin telefonu).
+const W_PRECTENO_KEY = 'makej_precteno';
+
+function _wPrectenoVse() {
+  try { return JSON.parse(localStorage.getItem(W_PRECTENO_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+
+function wPrectenoDo(matchId) {
+  const v = _wPrectenoVse()[matchId];
+  const ms = v ? new Date(v).getTime() : 0;
+  return isNaN(ms) ? 0 : ms;
+}
+
+// Posune značku na `ts` (čas zprávy ze serveru). Dozadu se nikdy nevrací.
+function wOznacPrecteno(matchId, ts) {
+  if (!matchId || !ts) return;
+  const nove = new Date(ts).getTime();
+  if (isNaN(nove) || nove <= wPrectenoDo(matchId)) return;
+  const vse = _wPrectenoVse();
+  vse[matchId] = new Date(nove).toISOString();
+  try { localStorage.setItem(W_PRECTENO_KEY, JSON.stringify(vse)); } catch (e) {}
+  // Sraz i globální kopii, ze které se počítá odznak ve spodní liště
+  const t = W_THREADS.find(x => x.id === matchId);
+  if (t) t.unread = 0;
+}
+
+// Kolik zpráv od firmy dorazilo až za značkou přečtení
+function wNeprectene(matchId, msgs) {
+  const doKdy = wPrectenoDo(matchId);
+  return (msgs || []).filter(m => m.from === 'them' && m.ts && new Date(m.ts).getTime() > doKdy).length;
+}
+
+// ── Přílohy v chatu ────────────────────────────────────────────
+// Bucket `chat-prilohy` je neveřejný, takže se obrázek nenačte prostou adresou.
+// Ke každému se musí vyžádat podepsaný odkaz s omezenou platností — proto ta
+// mezipaměť níž, ať se pro jednu fotku nepodepisuje při každém překreslení.
+const W_BUCKET_PRILOHY   = 'chat-prilohy';
+const W_PRILOHA_MAX      = 10 * 1024 * 1024;   // 10 MB (až po zmenšení)
+const W_PRILOHA_PLATNOST = 3600;               // sekund
+
+const _W_PODPISY = new Map();   // cesta → { url, doKdy }
+
+async function wOdkazPrilohy(cesta) {
+  if (!cesta) return null;
+  const ted = Date.now();
+  const drzeny = _W_PODPISY.get(cesta);
+  // Minutová rezerva, ať odkaz nevyprší zrovna během načítání
+  if (drzeny && drzeny.doKdy > ted + 60000) return drzeny.url;
+  const { data, error } = await sb.storage
+    .from(W_BUCKET_PRILOHY).createSignedUrl(cesta, W_PRILOHA_PLATNOST);
+  if (error || !data) { console.error('wOdkazPrilohy:', error); return null; }
+  _W_PODPISY.set(cesta, { url: data.signedUrl, doKdy: ted + W_PRILOHA_PLATNOST * 1000 });
+  return data.signedUrl;
+}
+
+// Fotka z telefonu má běžně 4–5 MB. Než poputuje na server, zmenší se —
+// šetří to data brigádníkovi i místo v úložišti. Malé obrázky nechá být,
+// aby se zbytečně nezhoršila kvalita překódováním.
+function wZmensiObrazek(file, maxHrana) {
+  const max = maxHrana || 1600;
+  return new Promise(resolve => {
+    if (!/^image\//.test(file.type) || file.type === 'image/gif') { resolve(null); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const pomer = Math.min(1, max / Math.max(img.width, img.height));
+      if (pomer === 1 && file.size < 900 * 1024) { resolve(null); return; }
+      const c = document.createElement('canvas');
+      c.width  = Math.round(img.width  * pomer);
+      c.height = Math.round(img.height * pomer);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => resolve(b), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+// Diakritika a mezery v názvu dělají v cestě neplechu
+function _wBezpecnyNazev(n) {
+  return (n || 'soubor')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/\.[^.]*$/, '')
+    .slice(-50) || 'soubor';
+}
+
+// Nejčastější důvod selhání bude chybějící oprávnění v úložišti.
+// Ať je to poznat z hlášky, a ne až z konzole.
+function _wChybaUlozeni(e) {
+  const s = ((e && (e.message || e.error)) || '').toLowerCase();
+  if (s.includes('row-level security') || s.includes('unauthorized') || s.includes('policy') || s.includes('violates'))
+    return 'Úložiště nahrání odmítlo — appka nemá oprávnění zapisovat.';
+  if (s.includes('bucket not found')) return 'Úložiště na přílohy nebylo nalezeno.';
+  if (s.includes('exceeded') || s.includes('payload') || s.includes('too large')) return 'Soubor je moc velký.';
+  return 'Nahrání se nepovedlo. Zkus to prosím znovu.';
+}
+
+// Nahraje přílohu do úložiště a teprve pak založí zprávu. Vrací { ok, error, zprava }.
+async function wPosliPrilohu(matchId, userId, file) {
+  if (!matchId || !userId || !file) return { ok: false, error: 'Chybí konverzace nebo soubor.' };
+  const jeObrazek = /^image\//.test(file.type);
+  const zmenseny  = jeObrazek ? await wZmensiObrazek(file) : null;
+  const telo      = zmenseny || file;
+  if (telo.size > W_PRILOHA_MAX) return { ok: false, error: 'Soubor je moc velký (max 10 MB).' };
+
+  const pripona = zmenseny ? 'jpg' : ((file.name || '').split('.').pop() || 'dat').toLowerCase();
+  // Složka podle konverzace — na ni se dá navěsit pravidlo „vidí jen ti dva“
+  const cesta = `${matchId}/${userId}-${Date.now()}-${_wBezpecnyNazev(file.name)}.${pripona}`;
+
+  const { error: chybaUlozeni } = await sb.storage.from(W_BUCKET_PRILOHY).upload(cesta, telo, {
+    contentType: zmenseny ? 'image/jpeg' : (file.type || 'application/octet-stream'),
+    upsert: false,
+  });
+  if (chybaUlozeni) {
+    console.error('wPosliPrilohu (úložiště):', chybaUlozeni);
+    return { ok: false, error: _wChybaUlozeni(chybaUlozeni) };
+  }
+
+  const { data, error } = await sb.from('messages').insert({
+    match_id: matchId, sender_id: userId, text: '',
+    file_url: cesta,
+    file_type: jeObrazek ? 'image' : 'file',
+    file_name: file.name || 'příloha',
+    file_size: telo.size,
+  }).select().single();
+  if (error) {
+    console.error('wPosliPrilohu (messages):', error);
+    // Zpráva nevznikla → ať v úložišti nezůstane soubor, ke kterému nikdo nedojde
+    try { await sb.storage.from(W_BUCKET_PRILOHY).remove([cesta]); } catch (e) {}
+    return { ok: false, error: 'Zprávu s přílohou se nepodařilo uložit.' };
+  }
+  return { ok: true, zprava: data };
+}
+
+// Řádek zprávy → tvar přílohy pro zobrazení
+function _wPrilohaZRadku(msg) {
+  return {
+    cesta:    msg.file_url,
+    typ:      msg.file_type || 'file',
+    nazev:    msg.file_name || 'Příloha',
+    velikost: msg.file_size || 0,
+    delka:    msg.duration  || 0,
+  };
+}
+
+// Co se ukáže v seznamu konverzací místo textu
+function wNahledPrilohy(msg) {
+  if (msg.file_type === 'image') return 'Fotka';
+  if (msg.file_type === 'audio') return 'Hlasová zpráva';
+  return msg.file_name || 'Příloha';
+}
+
+function wVelikostPrilohy(b) {
+  if (!b) return '';
+  return b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' kB'
+                         : (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
+}
+
+// Čas poslední zprávy ve vlákně — tím se značka posouvá při otevření
+function wPosledniTs(msgs) {
+  let max = null;
+  (msgs || []).forEach(m => {
+    if (!m.ts) return;
+    if (!max || new Date(m.ts).getTime() > new Date(max).getTime()) max = m.ts;
+  });
+  return max;
+}
+
 // ── Stupně důvěry ──────────────────────────────────────────────
 // Nahradilo XP levely s vymyšlenými tituly. Stupeň se počítá jen z toho,
 // co jde ověřit v datech: kolik brigád má člověk odpracovaných, kolik
@@ -394,14 +569,20 @@ async function fetchWorkerData(workerId) {
         .map(msg => {
           const isMe    = msg.sender_id === workerId;
           const from    = isMe ? 'me' : 'them';
-          if (msg.type === 'shift_offer' && msg.metadata) return { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), id: msg.id };
-          if (msg.type === 'interview_offer' && msg.metadata) return { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), id: msg.id };
-          return { from, text: msg.text, t: _wFmtTime(msg.created_at), id: msg.id };
+          // `t` je čas pro oko, `ts` syrové razítko ze serveru — podle něj se pozná,
+          // co je za značkou přečtení (hodiny telefonu se na to spolehnout nedají)
+          if (msg.file_url) return { from, kind: 'file', file: _wPrilohaZRadku(msg), t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
+          if (msg.type === 'shift_offer' && msg.metadata) return { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
+          if (msg.type === 'interview_offer' && msg.metadata) return { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
+          return { from, text: msg.text, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
         });
 
       const lastMsg = threadMsgs[threadMsgs.length - 1];
       const lastPreview = lastMsg
-        ? (lastMsg.kind === 'shift' ? 'Nabídka směny' : lastMsg.kind === 'interview' ? 'Pozvánka na pohovor' : lastMsg.text)
+        ? (lastMsg.kind === 'shift' ? 'Nabídka směny'
+         : lastMsg.kind === 'interview' ? 'Pozvánka na pohovor'
+         : lastMsg.kind === 'file' ? (lastMsg.file.typ === 'image' ? 'Fotka' : lastMsg.file.nazev)
+         : lastMsg.text)
         : 'Nová shoda!';
       const lastTime = lastMsg
         ? _wFmtTime(messages.find(m => m.id === lastMsg.id)?.created_at || '')
@@ -419,7 +600,8 @@ async function fetchWorkerData(workerId) {
         rating: Number(employer.rating || 0),
         verified: !!employer.verified,
         last: lastPreview, time: lastTime,
-        unread: 0, online: false,
+        // Nepřečtené se nepamatují v databázi — počítají se ze značky v telefonu
+        unread: wNeprectene(match.id, threadMsgs), online: false,
         msgs: threadMsgs,
       };
     });
