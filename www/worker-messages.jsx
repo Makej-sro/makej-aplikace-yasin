@@ -1,6 +1,22 @@
 // Makej Worker — Messages (chat)
 
-function WMessages({ tick, chatTarget, onChatOpened }) {
+// Ikona z PNG obarvená maskou — obrázky jsou černé na průhledném, takže
+// se z nich bere jen tvar a barva se dá měnit jedním parametrem.
+function WIkonaPng({ src, size, color }) {
+  const s = size || 19;
+  return (
+    <span style={{
+      width: s, height: s, display: 'block',
+      background: color || '#fff',
+      WebkitMaskImage: `url(icons/${src})`, maskImage: `url(icons/${src})`,
+      WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center', maskPosition: 'center',
+      WebkitMaskSize: 'contain', maskSize: 'contain',
+    }} />
+  );
+}
+
+function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen }) {
   const [threads,  setThreads]  = useStateW(() => [...W_THREADS]);
   // Na mobilu začínáme seznamem — vlákno se otevře až po kliknutí (nebo přes chatTarget)
   const [active,   setActive]   = useStateW(null);
@@ -17,11 +33,19 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
   const [sending,  setSending]  = useStateW(false);
   const [q,        setQ]        = useStateW('');
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
+  const [prilohyHint, setPrilohyHint]   = useStateW(false); // DOČASNÉ — přílohy nejsou hotové
   const scrollRef = useRefW(null);
   const userId    = useRefW(null);
   const activeRef = useRefW(active);
 
   useEffectW(() => { activeRef.current = active; }, [active]);
+
+  // Otevřený chat schová spodní nav bar — jinak leží přes psací pole.
+  // Při odchodu ze Zpráv ho vždy vrať, i když vlákno zůstalo otevřené.
+  useEffectW(() => {
+    onThreadOpen && onThreadOpen(!!active);
+    return () => { onThreadOpen && onThreadOpen(false); };
+  }, [active]);
 
   // Sync threads when tick changes (new data loaded)
   useEffectW(() => {
@@ -44,7 +68,7 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
     const chan = sb.channel('w-msgs-global')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const msg = payload.new;
-        const preview = msg.type === 'shift_offer' ? '📅 Nabídka směny' : msg.type === 'interview_offer' ? '🗓️ Pozvánka na pohovor' : msg.text;
+        const preview = msg.type === 'shift_offer' ? 'Nabídka směny' : msg.type === 'interview_offer' ? 'Pozvánka na pohovor' : msg.text;
         setThreads(prev => prev.map(t => {
           if (t.id !== msg.match_id) return t;
           const isMine = msg.sender_id === userId.current;
@@ -78,7 +102,7 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
             : { from, text: msg.text, t: _wFmtTime(msg.created_at), id: msg.id };
           return {
             ...t,
-            last: isShift ? '📅 Nabídka směny' : isInterview ? '🗓️ Pozvánka na pohovor' : msg.text,
+            last: isShift ? 'Nabídka směny' : isInterview ? 'Pozvánka na pohovor' : msg.text,
             msgs: [...t.msgs, newMsg],
           };
         }));
@@ -155,13 +179,48 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
     : threads;
 
   if (threads.length === 0) {
+    // Nový účet. Místo prázdné plochy vysvětli, jak se sem chat dostane,
+    // a nabídni cestu dál — sem se nikdo neproklikne omylem.
+    const krok = { display: 'flex', gap: 12, alignItems: 'flex-start' };
+    const cislo = {
+      width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+      background: T.tint, color: T.primary, display: 'grid', placeItems: 'center',
+      fontFamily: T.fontHead, fontSize: 12, fontWeight: 800,
+    };
     return (
-      <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: '20px 32px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 12 }}>💬</div>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Zatím žádné zprávy</div>
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.6 }}>
-            Swajpuj brigády a jakmile tě zaměstnavatel přijme,<br />otevře se chat přímo tady.
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '24px 20px 40px' }}>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, marginBottom: 18 }}>Zprávy</div>
+
+          <div style={{ background: '#fff', borderRadius: 22, padding: '22px 20px', boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
+            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, marginBottom: 4 }}>
+              Zatím tu nemáš žádnou konverzaci
+            </div>
+            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.55, marginBottom: 20 }}>
+              Chat se otevře sám, jakmile firmu zaujmeš. Psát jí předtím nemusíš.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                'Projdi nabídky na záložce Práce a ty zajímavé posuň doprava.',
+                'Firma uvidí tvůj profil a rozhodne se.',
+                'Když tě přijme, objeví se tady chat a přijde ti upozornění.',
+              ].map((t, i) => (
+                <div key={i} style={krok}>
+                  <span style={cislo}>{i + 1}</span>
+                  <span style={{ flex: 1, color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.5 }}>{t}</span>
+                </div>
+              ))}
+            </div>
+
+            {onGoJobs && (
+              <button onClick={onGoJobs} style={{
+                width: '100%', marginTop: 22, height: 50, borderRadius: 16,
+                background: T.primary, color: '#fff', border: 'none', cursor: 'pointer',
+                fontFamily: T.fontHead, fontSize: 15, fontWeight: 800,
+                boxShadow: '0 14px 28px -14px rgba(0,32,246,0.55)',
+              }}>Projít brigády</button>
+            )}
           </div>
         </div>
       </div>
@@ -194,22 +253,32 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
             const unread = t.unread > 0;
             return (
               <div key={t.id}>
+                {/* Řádek jako v iMessage: všechny stejné, nepřečtené pozná modrá
+                    tečka vlevo — ne jiné pozadí, to seznam roztrhalo na kusy. */}
                 <button onClick={() => { setActive(t.id); setThreads(prev => prev.map(x => x.id === t.id ? { ...x, unread: 0 } : x)); }} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 13,
-                  padding: unread ? '14px' : '14px 10px', textAlign: 'left', borderRadius: 20,
-                  background: unread ? '#fff' : 'transparent',
-                  border: unread ? '1px solid ' + T.border : 'none',
-                  boxShadow: unread ? '0 14px 30px -24px rgba(16,24,64,0.5)' : 'none',
-                  position: 'relative',
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '11px 8px 11px 4px', textAlign: 'left', borderRadius: 16,
+                  background: 'transparent', border: 'none', position: 'relative',
                   cursor: 'pointer', color: 'inherit', fontFamily: 'inherit',
+                  WebkitTapHighlightColor: 'transparent',
                 }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                    background: unread ? T.primary : 'transparent',
+                  }} />
                   <div style={{
-                    position: 'relative',
-                    width: 50, height: 50, borderRadius: 16, background: T.avatarGrad,
+                    position: 'relative', overflow: 'hidden',
+                    width: 52, height: 52, borderRadius: 999, background: t.color || T.avatarGrad,
                     display: 'grid', placeItems: 'center',
-                    color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 16, flexShrink: 0,
-                  }}>{t.avatar}
-                    {t.online && <span style={{ position: 'absolute', bottom: -1, right: -1, width: 14, height: 14, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
+                    color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 17, flexShrink: 0,
+                  }}>
+                    <span>{t.avatar}</span>
+                    {t.logoUrl && (
+                      <img src={t.logoUrl} alt=""
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                    {t.online && <span style={{ position: 'absolute', bottom: 1, right: 1, width: 13, height: 13, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3 }}>
@@ -227,8 +296,10 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
                     </div>
                   </div>
                 </button>
-                {!unread && idx < filtered.length - 1 && !(filtered[idx + 1] && filtered[idx + 1].unread > 0) && (
-                  <div style={{ height: 1, background: T.border, margin: '0 10px 0 73px' }} />
+                {/* Dělicí linka pod každým řádkem kromě posledního, zarovnaná
+                    pod text — jako v iMessage. Dřív u nepřečtených chyběla. */}
+                {idx < filtered.length - 1 && (
+                  <div style={{ height: 1, background: T.border, margin: '0 8px 0 76px' }} />
                 )}
               </div>
             );
@@ -242,12 +313,7 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Thread header */}
           <div style={{ padding: '14px 60px 14px 8px', borderBottom: '1px solid ' + T.border, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, background: '#fff' }}>
-            <button
-              onClick={() => setActive(null)}
-              title="Zpět na konverzace"
-              style={{ width: 38, height: 38, borderRadius: 999, border: 'none', background: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }}>
-              <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}><Icon name="alt-arrow-right-bold" size={20} color={T.ink} /></span>
-            </button>
+            <WZpet onClick={() => setActive(null)} title="Zpět na konverzace" />
             <button
               onClick={() => window.wOpenEmployer && window.wOpenEmployer(thread.employerId, { name: thread.name, color: thread.color, rating: thread.rating, verified: thread.verified })}
               title="Zobrazit profil firmy"
@@ -340,32 +406,66 @@ function WMessages({ tick, chatTarget, onChatOpened }) {
             })}
           </div>
 
-          {/* Input */}
-          <div style={{ padding: '14px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: '1px solid ' + T.border, display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0, background: '#fff' }}>
-            <input
-              placeholder="Napište zprávu…"
-              value={msgInput}
-              onChange={e => setMsgInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              style={{
-                flex: 1, padding: '14px 18px', borderRadius: 999,
-                background: T.bg, border: '1px solid ' + T.border,
-                color: T.ink, fontSize: 14, outline: 'none', fontFamily: T.fontUI,
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={sending || !msgInput.trim()}
-              style={{
-                width: 48, height: 48, borderRadius: 999,
-                background: T.primary,
-                border: 'none', color: '#fff', cursor: 'pointer',
-                display: 'grid', placeItems: 'center', flexShrink: 0,
-                boxShadow: '0 6px 16px rgba(0,32,246,0.28)',
-                opacity: (sending || !msgInput.trim()) ? 0.5 : 1,
+          {/* Psací pole — jeden oválek, uvnitř text i odesílací tlačítko (jako Instagram) */}
+          <div style={{ padding: '10px 14px calc(12px + env(safe-area-inset-bottom))', borderTop: '1px solid ' + T.border, flexShrink: 0, background: '#fff' }}>
+            {/* DOČASNÉ: přílohy zatím nemají kam ukládat (chybí Supabase Storage
+                i sloupec v `messages`). Radši to řekni, než tiše nic neudělat. */}
+            {prilohyHint && (
+              <div onClick={() => setPrilohyHint(false)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+                padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
+                background: T.tint, color: T.primary,
+                fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600,
               }}>
-              <Icon name="plain-bold" size={16} color="#fff" />
-            </button>
+                Přílohy a hlasovky se teprve dodělávají.
+              </div>
+            )}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '5px 5px 5px 18px', borderRadius: 999,
+              background: T.surfaceAlt, border: '1px solid ' + T.border,
+            }}>
+              <input
+                placeholder="Napiš zprávu…"
+                value={msgInput}
+                onChange={e => setMsgInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                style={{
+                  flex: 1, minWidth: 0, padding: '10px 0', border: 'none', background: 'transparent',
+                  color: T.ink, fontSize: 15, outline: 'none', fontFamily: T.fontUI,
+                }}
+              />
+              {/* Prázdné pole → sponka a mikrofon. Jakmile něco napíšeš →
+                  vlaštovka. Stejné střídání jako na Instagramu. */}
+              {msgInput.trim() ? (
+                <button
+                  onClick={handleSend}
+                  disabled={sending}
+                  title="Odeslat"
+                  style={{
+                    width: 40, height: 40, borderRadius: 999, flexShrink: 0,
+                    background: T.primary, border: 'none', cursor: 'pointer',
+                    display: 'grid', placeItems: 'center', padding: 0,
+                    opacity: sending ? 0.5 : 1, transition: 'opacity .18s',
+                  }}>
+                  {/* Vlaštovka má hmotu vychýlenou doprava nahoru (těžiště +20/−21 px
+                      na plátně 512), takže na geometrickém středu vypadá posunutá.
+                      Tenhle posun ji srovná opticky. */}
+                  <span style={{ display: 'block', transform: 'translate(-0.8px, 0.9px)' }}>
+                    <WIkonaPng src="send.png" size={21} color="#fff" />
+                  </span>
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingRight: 6 }}>
+                  <button onClick={() => setPrilohyHint(true)} title="Přiložit soubor nebo fotku" style={ikonaTlacitko}>
+                    <WIkonaPng src="attachment.png" size={21} color={T.muted} />
+                  </button>
+                  <button onClick={() => setPrilohyHint(true)} title="Nahrát hlasovou zprávu" style={ikonaTlacitko}>
+                    <WIkonaPng src="voice.png" size={23} color={T.muted} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -573,3 +673,11 @@ function WInterviewCard({ msg, isMe, alreadyResponded, onAccept, onReject }) {
     </div>
   );
 }
+
+// Holá ikona v psacím poli — bez pozadí, jako přílohy na Instagramu
+const ikonaTlacitko = {
+  width: 34, height: 34, borderRadius: 999, flexShrink: 0,
+  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+  display: 'grid', placeItems: 'center',
+  WebkitTapHighlightColor: 'transparent',
+};

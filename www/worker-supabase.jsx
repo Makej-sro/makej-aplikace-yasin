@@ -12,33 +12,165 @@ const W_THREADS  = [];   // one per accepted match
 const W_HISTORY  = [];   // all matches (pending/upcoming/completed) for "Moje brigády"
 const W_REVIEWS  = [];   // recenze, které dostal brigádník (o něm)
 
-// ── Level systém ───────────────────────────────────────────────
-// Prahy (kumulativní XP pro dosažení levelu) — musí odpovídat SQL makej_level_from_xp
-const W_LEVEL_THRESHOLDS = [0, 150, 400, 800, 1400, 2200, 3200, 4500, 6000, 8000];
-const W_LEVEL_TITLES = [
-  'Nováček', 'Brigádník', 'Zkušený', 'Šikula', 'Profík',
-  'Expert', 'Mistr', 'Es', 'Legenda', 'Král brigád',
+// ── Stupně důvěry ──────────────────────────────────────────────
+// Nahradilo XP levely s vymyšlenými tituly. Stupeň se počítá jen z toho,
+// co jde ověřit v datech: kolik brigád má člověk odpracovaných, kolik
+// potvrzených směn zrušil a jak ho hodnotí firmy. Je to signál pro
+// zaměstnavatele, ne herní skóre — proto žádné XP a jen čtyři stupně.
+const W_TIERS = [
+  { key: 'novy',       nazev: 'Nový',       barva: '#6b7192', brigady: 0,  spolehlivost: 0,  hodnoceni: 0   },
+  { key: 'overeny',    nazev: 'Ověřený',    barva: '#0020F6', brigady: 3,  spolehlivost: 90, hodnoceni: 0   },
+  { key: 'spolehlivy', nazev: 'Spolehlivý', barva: '#16a34a', brigady: 10, spolehlivost: 95, hodnoceni: 4.5 },
+  { key: 'top',        nazev: 'Top',        barva: '#F5A623', brigady: 30, spolehlivost: 98, hodnoceni: 4.8 },
 ];
 
-// Vrátí { level, title, xpInLevel, xpForLevel, toNext, progress, isMax }
-function makejLevel(xp) {
-  const x = Math.max(0, Number(xp) || 0);
-  let level = 1;
-  for (let i = 0; i < W_LEVEL_THRESHOLDS.length; i++) {
-    if (x >= W_LEVEL_THRESHOLDS[i]) level = i + 1;
-  }
-  const isMax = level >= W_LEVEL_THRESHOLDS.length;
-  const base  = W_LEVEL_THRESHOLDS[level - 1];
-  const next  = isMax ? base : W_LEVEL_THRESHOLDS[level];
-  const xpInLevel  = x - base;
-  const xpForLevel = isMax ? 0 : (next - base);
-  const toNext     = isMax ? 0 : (next - x);
-  const progress   = isMax ? 1 : Math.max(0, Math.min(1, xpInLevel / xpForLevel));
-  return {
-    level, title: W_LEVEL_TITLES[level - 1] || 'Makáč',
-    xp: x, xpInLevel, xpForLevel, toNext, progress, isMax,
-    nextTitle: isMax ? null : (W_LEVEL_TITLES[level] || null),
+// Statistiky pro stupeň — plní se ve fetchWorkerData z tabulky matches
+const W_TRUST = { dokoncene: 0, zrusene: 0, spolehlivost: null };
+
+function _wSplnenoPro(t, s) {
+  return s.dokoncene >= t.brigady
+    && (t.spolehlivost === 0 || (s.spolehlivost === null ? true : s.spolehlivost >= t.spolehlivost))
+    && (t.hodnoceni === 0 || s.hodnoceni >= t.hodnoceni);
+}
+
+// Vrátí { tier, index, dalsi, splneno, pozadavky, jeMax }
+function makejTrust(stats) {
+  const s = {
+    dokoncene:    Math.max(0, Number(stats && stats.dokoncene) || 0),
+    zrusene:      Math.max(0, Number(stats && stats.zrusene) || 0),
+    hodnoceni:    Math.max(0, Number(stats && stats.hodnoceni) || 0),
+    spolehlivost: (stats && stats.spolehlivost != null) ? Number(stats.spolehlivost) : null,
   };
+
+  // Nejvyšší stupeň, na který dosáhne (stupně se plní odspodu)
+  let index = 0;
+  for (let i = 0; i < W_TIERS.length; i++) if (_wSplnenoPro(W_TIERS[i], s)) index = i;
+
+  const jeMax = index >= W_TIERS.length - 1;
+  const dalsi = jeMax ? null : W_TIERS[index + 1];
+
+  // Co konkrétně chybí do dalšího stupně — ať uživatel nehádá
+  const pozadavky = dalsi ? [
+    {
+      klic: 'brigady', popis: 'Dokončené brigády',
+      ted: s.dokoncene, cil: dalsi.brigady,
+      splneno: s.dokoncene >= dalsi.brigady,
+      text: s.dokoncene + ' z ' + dalsi.brigady,
+    },
+    dalsi.spolehlivost > 0 && {
+      klic: 'spolehlivost', popis: 'Spolehlivost',
+      ted: s.spolehlivost, cil: dalsi.spolehlivost,
+      splneno: s.spolehlivost === null || s.spolehlivost >= dalsi.spolehlivost,
+      text: (s.spolehlivost === null ? '—' : s.spolehlivost + ' %') + ' z ' + dalsi.spolehlivost + ' %',
+    },
+    dalsi.hodnoceni > 0 && {
+      klic: 'hodnoceni', popis: 'Hodnocení od firem',
+      ted: s.hodnoceni, cil: dalsi.hodnoceni,
+      splneno: s.hodnoceni >= dalsi.hodnoceni,
+      text: (s.hodnoceni > 0 ? s.hodnoceni.toFixed(1).replace('.', ',') : 'zatím žádné')
+            + ' z ' + dalsi.hodnoceni.toFixed(1).replace('.', ','),
+    },
+  ].filter(Boolean) : [];
+
+  // Postup do dalšího stupně = průměr splnění jednotlivých požadavků
+  const progress = dalsi && pozadavky.length
+    ? pozadavky.reduce((a, p) => a + (p.cil ? Math.min(1, (p.ted || 0) / p.cil) : 1), 0) / pozadavky.length
+    : 1;
+
+  return {
+    tier: W_TIERS[index], index, dalsi, jeMax, pozadavky, progress,
+    stupnu: W_TIERS.length, stats: s,
+  };
+}
+
+// ── Výdělky ────────────────────────────────────────────────────
+// Kolik brigádník dostal za jednu odpracovanou brigádu.
+// Hodinovka × délka směny, u paušálu (Kč/směna, Kč/den) rovnou částka.
+function _wVydelek(h) {
+  const sazba = Number(h && h.pay) || 0;
+  if (!sazba) return 0;
+  const naHodinu = /(\/\s*hod|kč\/h|\/h)/i.test(h.payUnit || 'Kč/h');
+  if (!naHodinu) return Math.round(sazba);
+  const [od, doo] = String(h.timeText || '').split('–').map(s => s.trim());
+  const hod = _wShiftHours(od, doo);
+  return Math.round(sazba * (hod || 8));   // bez časů počítáme běžnou 8h směnu
+}
+
+// Statistiky výdělků ze skutečně odpracovaných brigád (W_HISTORY, phase 'completed').
+// Vše se počítá z jednotlivých brigád, aby celkový součet vždy seděl s rozpisem.
+function makejVydelky(history) {
+  const hotove = (Array.isArray(history) ? history : [])
+    .filter(h => h.phase === 'completed')
+    .map(h => ({ ...h, castka: _wVydelek(h), hodin: (() => {
+      const [od, doo] = String(h.timeText || '').split('–').map(s => s.trim());
+      return _wShiftHours(od, doo) || 8;
+    })() }))
+    .sort((a, b) => (a.eventDate < b.eventDate ? 1 : -1));   // od nejnovější
+
+  const celkem = hotove.reduce((a, h) => a + h.castka, 0);
+  const hodin  = hotove.reduce((a, h) => a + h.hodin, 0);
+
+  // Po měsících — posledních 6, včetně měsíců bez výdělku (jinak by graf lhal)
+  const dnes = new Date();
+  const mesice = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(dnes.getFullYear(), dnes.getMonth() - i, 1);
+    const klic = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    mesice.push({ klic, rok: d.getFullYear(), mesic: d.getMonth(), castka: 0, pocet: 0 });
+  }
+  const podleKlice = {};
+  mesice.forEach(m => { podleKlice[m.klic] = m; });
+  hotove.forEach(h => {
+    const m = podleKlice[String(h.eventDate || '').slice(0, 7)];
+    if (m) { m.castka += h.castka; m.pocet += 1; }
+  });
+
+  // Podle firem — kde si vydělal nejvíc
+  const firmy = {};
+  hotove.forEach(h => {
+    const f = firmy[h.company] || (firmy[h.company] = { company: h.company, castka: 0, pocet: 0 });
+    f.castka += h.castka; f.pocet += 1;
+  });
+  const podleFirem = Object.values(firmy).sort((a, b) => b.castka - a.castka);
+
+  return {
+    hotove, celkem, hodin,
+    pocet: hotove.length,
+    naBrigadu: hotove.length ? Math.round(celkem / hotove.length) : 0,
+    naHodinu:  hodin ? Math.round(celkem / hodin) : 0,
+    mesice, podleFirem,
+    tentoMesic: mesice[mesice.length - 1],          // poslední v řadě je běžící měsíc
+    nejlepsiMesic: mesice.reduce((a, m) => (!a || m.castka > a.castka ? m : a), null),
+  };
+}
+
+// Měsíční přehled mezi dvěma měsíci včetně ('RRRR-MM'). Prázdné měsíce
+// zůstávají v řadě — bez nich by graf tvrdil, že se pracovalo nepřetržitě.
+function makejMesice(hotove, odKlic, doKlic) {
+  const [oy, om] = String(odKlic).split('-').map(Number);
+  const [dy, dm] = String(doKlic).split('-').map(Number);
+  if (!oy || !om || !dy || !dm) return [];
+  const konec = dy * 12 + (dm - 1);
+  const mesice = [];
+  let y = oy, m = om - 1;
+  while (y * 12 + m <= konec && mesice.length < 120) {
+    mesice.push({ klic: y + '-' + String(m + 1).padStart(2, '0'), rok: y, mesic: m, castka: 0, pocet: 0 });
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  const podle = {};
+  mesice.forEach(x => { podle[x.klic] = x; });
+  (hotove || []).forEach(h => {
+    const b = podle[String(h.eventDate || '').slice(0, 7)];
+    if (b) { b.castka += h.castka; b.pocet += 1; }
+  });
+  return mesice;
+}
+
+// Posune měsíční klíč o N měsíců zpět: ('2026-07', 5) → '2026-02'
+function _wMesicZpet(klic, n) {
+  const [y, m] = String(klic).split('-').map(Number);
+  const c = y * 12 + (m - 1) - n;
+  return Math.floor(c / 12) + '-' + String((c % 12) + 1).padStart(2, '0');
 }
 
 // Je datum brigády už minulé? (event_date je ISO 'YYYY-MM-DD')
@@ -269,7 +401,7 @@ async function fetchWorkerData(workerId) {
 
       const lastMsg = threadMsgs[threadMsgs.length - 1];
       const lastPreview = lastMsg
-        ? (lastMsg.kind === 'shift' ? '📅 Nabídka směny' : lastMsg.kind === 'interview' ? '🗓️ Pozvánka na pohovor' : lastMsg.text)
+        ? (lastMsg.kind === 'shift' ? 'Nabídka směny' : lastMsg.kind === 'interview' ? 'Pozvánka na pohovor' : lastMsg.text)
         : 'Nová shoda!';
       const lastTime = lastMsg
         ? _wFmtTime(messages.find(m => m.id === lastMsg.id)?.created_at || '')
@@ -280,6 +412,8 @@ async function fetchWorkerData(workerId) {
         employerId: job.employer_id || employer.id || null,
         confirmed: match.status === 'confirmed',   // směna už potvrzena
         name: company, avatar: logo,
+        // Logo, které si firma nahrála v dashboardu. Když chybí, zůstanou iniciály.
+        logoUrl: employer.logo_url || employer.avatar_url || null,
         color: W_AVATAR_BG,
         role: job.title || '',
         rating: Number(employer.rating || 0),
@@ -331,6 +465,16 @@ async function fetchWorkerData(workerId) {
 
     W_HISTORY.length = 0;
     history.forEach(h => W_HISTORY.push(h));
+
+    // ── Podklady pro stupeň důvěry ────────────────────────────────
+    // Dokončená = potvrzená směna, jejíž den už uplynul.
+    // Zrušená   = matches.status 'cancelled' (ruší se jen potvrzené směny).
+    W_TRUST.dokoncene = history.filter(h => h.phase === 'completed').length;
+    W_TRUST.zrusene   = allMatches.filter(m => m.status === 'cancelled').length;
+    const zavazku = W_TRUST.dokoncene + W_TRUST.zrusene;
+    W_TRUST.spolehlivost = zavazku === 0
+      ? null                                                    // ještě není z čeho počítat
+      : Math.round((W_TRUST.dokoncene / zavazku) * 100);
 
     return true;
   } catch (err) {
@@ -445,22 +589,26 @@ async function fetchNotifsW(userId) {
     .select('*').eq('user_id', userId)
     .order('created_at', { ascending: false }).limit(40);
   if (error) { console.error('fetchNotifsW:', error); return []; }
-  return (data || []).map(r => {
-    // Nové řádky mají typ ve sloupci; u starých se ještě zkusí odloupnout z textu.
-    const legacy = r.type === 'message' ? _wUnpackLegacy(r.body) : null;
-    const type = legacy ? legacy.type : (_W_NOTIF_TYPES.includes(r.type) ? r.type : 'info');
-    const text = legacy ? legacy.text : (r.body || '');
-    return {
-      id: r.id,
-      ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-      read: !!r.read,
-      type,
-      title: r.title || '',
-      text,
-      matchId: r.match_id || null,
-      kind: _wNotifKind(type),
-    };
-  });
+  return (data || []).map(_wNotifZRadku);
+}
+
+// Řádek z tabulky notifications → tvar, který používá zvoneček.
+// Sdílené s realtime odběrem, aby se to nerozešlo.
+function _wNotifZRadku(r) {
+  // Nové řádky mají typ ve sloupci; u starých se ještě zkusí odloupnout z textu.
+  const legacy = r.type === 'message' ? _wUnpackLegacy(r.body) : null;
+  const type = legacy ? legacy.type : (_W_NOTIF_TYPES.includes(r.type) ? r.type : 'info');
+  const text = legacy ? legacy.text : (r.body || '');
+  return {
+    id: r.id,
+    ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+    read: !!r.read,
+    type,
+    title: r.title || '',
+    text,
+    matchId: r.match_id || null,
+    kind: _wNotifKind(type),
+  };
 }
 
 async function insertNotifW(userId, n) {
@@ -525,9 +673,9 @@ async function updateProfileW(workerId, updates) {
 }
 
 Object.assign(window, {
-  W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS,
+  W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS, W_TRUST, W_TIERS,
   fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
-  fetchNotifsW, insertNotifW, markNotifsReadW,
+  fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
   fetchReviewRepliesW, postReviewReplyW,
-  jobToCard, makejLevel, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,
+  jobToCard, makejTrust, makejVydelky, makejMesice, _wMesicZpet, _wVydelek, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,
 });

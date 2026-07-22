@@ -97,71 +97,139 @@ function _wRelTime(ts) {
 }
 
 // Vizuální styl podle typu upozornění (barvy sladěné se světlým tématem)
-const W_NOTIF_STYLE = {
-  review:  { accent: '#f5b23c', iconName: 'star-bold',        iconBg: 'rgba(245,178,60,0.16)', soft: 'rgba(245,178,60,0.08)' },
-  success: { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
-  match:   { accent: '#1f9d5c', iconName: 'heart-bold',       iconBg: 'rgba(31,157,92,0.14)',  soft: 'rgba(31,157,92,0.07)' },
-  shift:   { accent: '#0020F6', iconName: 'calendar-bold',    iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
-  message: { accent: '#0020F6', iconName: 'chat-round-bold',  iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
-  info:    { accent: '#0020F6', iconName: 'bell-bold',        iconBg: 'rgba(0,32,246,0.12)',  soft: 'rgba(0,32,246,0.06)' },
-};
+// Čtvereček vlevo v upozornění — monogram firmy, nebo značka Makej.
+function WNotifZnacka({ avatar, size }) {
+  const s = size || 38;
+  const spolecne = {
+    width: s, height: s, borderRadius: Math.round(s * 0.29), flexShrink: 0,
+    display: 'grid', placeItems: 'center',
+    position: 'relative', overflow: 'hidden',   // kvůli logu přes iniciály
+    color: '#fff', fontFamily: T.fontHead, fontWeight: 800,
+    // Jemný šedý stín a světlá hrana, ať čtvereček neleží na ploše natvrdo
+    border: '1px solid rgba(255,255,255,0.35)',
+    boxShadow: '0 3px 8px -2px rgba(20,22,40,0.28), 0 1px 2px rgba(20,22,40,0.12)',
+  };
+  if (avatar) {
+    return (
+      <div style={{ ...spolecne, background: avatar.color, fontSize: Math.round(s * 0.34) }}>
+        {/* Iniciály leží vespod, logo se přes ně položí. Když se obrázek nenačte
+            (smazaný, bez signálu), schová se a iniciály zase prosvítají. */}
+        <span>{avatar.initials}</span>
+        {avatar.logo && (
+          <img src={avatar.logo} alt=""
+            onError={e => { e.currentTarget.style.display = 'none'; }}
+            style={{
+              position: 'absolute', inset: 0, width: '100%', height: '100%',
+              objectFit: 'cover', borderRadius: 'inherit',
+            }} />
+        )}
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...spolecne, background: T.primary }}>
+      {/* Obojí v jednom prvku — jako dvě děti gridu by se „M" a „!" rozpadly pod sebe */}
+      <span style={{ fontSize: Math.round(s * 0.42), letterSpacing: -0.5, lineHeight: 1, whiteSpace: 'nowrap' }}>
+        M<span style={{ color: '#8fa0ff' }}>!</span>
+      </span>
+    </div>
+  );
+}
+
+// Jeden banner. Chová se jako systémové upozornění v telefonu:
+// klepnutím se otevře, co upozornění nabízí, tahem nahoru se odsune.
+function WToastItem({ t, onRemove }) {
+  const [dy, setDy]   = useStateW(0);        // posun prstem
+  const [pryc, setPryc] = useStateW(false);  // odsunuto → dojede animace a zmizí
+  const tah = useRefW(null);
+
+  function otevri() {
+    if (t.action && t.action.onClick) t.action.onClick();
+    onRemove(t.id);
+  }
+
+  function zmiz() {
+    setPryc(true);
+    setTimeout(() => onRemove(t.id), 220);
+  }
+
+  function start(e) {
+    const p = e.touches && e.touches[0];
+    tah.current = p ? { y: p.clientY, x: p.clientX, cas: Date.now(), tahal: false } : null;
+  }
+  function pohyb(e) {
+    const z = tah.current, p = e.touches && e.touches[0];
+    if (!z || !p) return;
+    const d = p.clientY - z.y;
+    if (Math.abs(d) > 4) z.tahal = true;
+    setDy(d < 0 ? d : d * 0.25);   // dolů klade odpor, nahoru jde volně
+  }
+  function konec() {
+    const z = tah.current;
+    tah.current = null;
+    if (!z) return;
+    if (dy < -45) { zmiz(); return; }         // dost daleko nahoru → odsunout
+    setDy(0);
+    if (!z.tahal && Date.now() - z.cas < 600) otevri();   // klepnutí, ne tah
+  }
+
+  return (
+    <div
+      onClick={e => { if (!('ontouchstart' in window)) otevri(); }}
+      onTouchStart={start} onTouchMove={pohyb} onTouchEnd={konec}
+      style={{
+        display: 'flex', gap: 11, alignItems: 'center',
+        padding: '12px 14px',
+        borderRadius: 20,
+        background: 'rgba(255,255,255,0.82)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+        border: '0.5px solid rgba(255,255,255,0.9)',
+        boxShadow: '0 12px 32px -10px rgba(20,22,40,0.3), 0 2px 6px rgba(20,22,40,0.06)',
+        cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+        transform: 'translateY(' + (pryc ? -140 : dy) + 'px)',
+        opacity: pryc ? 0 : 1,
+        transition: tah.current ? 'none' : 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s',
+        animation: pryc ? 'none' : 'wToastIn .42s cubic-bezier(.16,1,.3,1)',
+      }}>
+      {/* Odesílatel, ne piktogram: monogram firmy, a když firmu neznáme, značka Makej.
+          Barevné ikonky v pastelových čtverečcích působily obecně. */}
+      <WNotifZnacka avatar={t.avatar} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
+          <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, flexShrink: 0 }}>teď</span>
+        </div>
+        {t.text && (
+          <div style={{
+            color: T.light, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 2, lineHeight: 1.4,
+            overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+            WebkitLineClamp: t.pocet > 1 ? 1 : 2, WebkitBoxOrient: 'vertical',
+          }}>{t.text}</div>
+        )}
+        {/* Sloučené zprávy od jedné firmy — text patří té poslední */}
+        {t.pocet > 1 && (
+          <div style={{ color: T.primary, fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, marginTop: 3 }}>
+            {_wPlural(t.pocet, '1 nová zpráva', t.pocet + ' nové zprávy', t.pocet + ' nových zpráv')}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function WToast({ toasts, onRemove }) {
   if (!toasts.length) return null;
   return (
     <div style={{
-      position: 'fixed', top: 62, right: 14,
-      zIndex: 9000, display: 'flex', flexDirection: 'column', gap: 9,
-      width: 'min(320px, calc(100vw - 28px))',
+      position: 'fixed', top: 'calc(8px + env(safe-area-inset-top))', left: 10, right: 10,
+      zIndex: 9000, display: 'flex', flexDirection: 'column', gap: 8,
+      maxWidth: 460, margin: '0 auto',
     }}>
-      {toasts.map(t => {
-        const st = W_NOTIF_STYLE[t.type] || W_NOTIF_STYLE.info;
-        const accent = t.accent || st.accent;
-        const dur = ((t.ttl || 6000) / 1000).toFixed(2);
-        return (
-          <div key={t.id} style={{
-            position: 'relative', overflow: 'hidden',
-            background: 'linear-gradient(180deg, ' + st.soft + ' 0%, #fff 44%)',
-            border: '1px solid ' + T.border, borderRadius: 14,
-            padding: '11px 12px 12px',
-            boxShadow: '0 1px 0 rgba(255,255,255,0.7) inset, 0 12px 28px -12px rgba(20,22,40,0.28), 0 4px 10px rgba(20,22,40,0.05)',
-            animation: 'wToastIn .42s cubic-bezier(.16,1,.3,1)',
-          }}>
-            <button onClick={() => onRemove(t.id)} aria-label="Zavřít" style={{
-              position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 999,
-              display: 'grid', placeItems: 'center',
-              background: 'rgba(20,22,43,0.05)', border: 'none', color: T.muted, cursor: 'pointer',
-              fontSize: 11, lineHeight: 1, transition: 'background .15s, color .15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(20,22,43,0.1)'; e.currentTarget.style.color = T.ink; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(20,22,43,0.05)'; e.currentTarget.style.color = T.muted; }}
-            >✕</button>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              {t.avatar
-                ? <div style={{ width: 38, height: 38, borderRadius: 11, background: t.avatar.color, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 13, flexShrink: 0, boxShadow: '0 4px 10px -3px ' + accent + '55' }}>{t.avatar.initials}</div>
-                : <div style={{ width: 38, height: 38, borderRadius: 11, background: st.iconBg, display: 'grid', placeItems: 'center', flexShrink: 0, boxShadow: 'inset 0 0 0 1px ' + accent + '22' }}><Icon name={st.iconName} size={18} color={accent} /></div>}
-              <div style={{ flex: 1, minWidth: 0, paddingRight: 14 }}>
-                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.01em' }}>{t.title}</div>
-                {t.text && <div style={{ color: T.light, fontFamily: T.fontUI, fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>{t.text}</div>}
-                {t.action && (
-                  <button onClick={() => { t.action.onClick(); onRemove(t.id); }} style={{
-                    marginTop: 9, padding: '8px 15px', borderRadius: 10,
-                    background: t.action.dark ? T.black : accent, border: 'none', color: '#fff',
-                    fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
-                    boxShadow: '0 5px 12px -4px ' + accent + '66',
-                  }}>{t.action.label}</button>
-                )}
-              </div>
-            </div>
-            {/* odpočet do automatického zmizení */}
-            <div style={{
-              position: 'absolute', left: 0, bottom: 0, height: 2.5, width: '100%',
-              background: accent, opacity: 0.85, transformOrigin: 'left',
-              animation: 'wToastBar ' + dur + 's linear forwards',
-            }} />
-          </div>
-        );
-      })}
+      {/* `verze` v klíči: další zpráva od téže firmy banner vykreslí znovu,
+          takže viditelně vyjede a nahradí předchozí text */}
+      {toasts.map(t => <WToastItem key={t.id + ':' + (t.verze || 0)} t={t} onRemove={onRemove} />)}
     </div>
   );
 }
@@ -354,7 +422,11 @@ function WorkerApp() {
   const [toasts, setToasts] = useStateW([]);
   const [notifs, setNotifs] = useStateW([]);      // upozornění pro zvoneček
   const [bellOpen, setBellOpen] = useStateW(false);
+  const [testOpen, setTestOpen] = useStateW(false);   // DOČASNÉ — nabídka testovacích upozornění
+  const [chatOpen, setChatOpen] = useStateW(false);   // otevřený chat → schovat spodní nav
   const [bellRing, setBellRing] = useStateW(false);   // krátké rozkývání při novém upozornění
+  const posledniZvuk = useRefW(0);                    // kdy naposled cinklo — proti salvě
+  const videnaNotif  = useRefW(new Set());            // id už zpracovaných oznámení
   const [chatTarget, setChatTarget] = useStateW(null);
   // Zvoneček je jen na záložce Práce — po odchodu jinam ho zavři, ať se
   // panel neotevře sám při návratu.
@@ -372,11 +444,39 @@ function WorkerApp() {
   if (typeof window !== 'undefined') {
     window.wOpenChat = openChat;
     window.wOpenEmployer = (employerId, fallback) => { if (employerId) setEmployerTarget({ employerId, fallback }); };
-    // DOČASNÉ (test): projde stejnou cestou jako skutečné upozornění — toast, zvuk i zvoneček.
-    window.wTestNotif = () => {
-      const n = { type: 'match', title: 'Testovací upozornění', text: 'Takhle vypadá a zní upozornění v appce.', kind: 'chat' };
-      addNotif(n);
-      addToast({ ...n, action: { label: 'Zavřít', onClick: () => {} } });
+    // DOČASNÉ (test): pošle vybraný druh upozornění stejnou cestou jako ten
+    // skutečný — toast, zvuk i zvoneček. Data jsou vzorová, chování opravdové.
+    window.wTestNotif = (druh) => {
+      // Vezmi skutečnou firmu z konverzací, ať test vypadá jako ostrý provoz
+      const t = W_THREADS[0];
+      const firma  = t ? (t.name || 'Zaměstnavatel') : 'Albert';
+      const avatar = t ? { initials: t.avatar, color: t.color, logo: t.logoUrl } : { initials: 'AL', color: _wColor('test') };
+      const mid    = t ? t.id : null;
+      const otevri = mid ? () => openChat(mid) : () => setTab('messages');
+
+      const vzory = {
+        message: {
+          n: { type: 'message', title: firma, text: 'Dobrý den, měl byste zájem o směnu v pátek?', avatar, kind: 'chat', matchId: mid },
+          akce: { label: 'Odpovědět', onClick: otevri },
+        },
+        shift: {
+          n: { type: 'shift', title: 'Nabídka směny', text: `${firma} ti nabízí směnu.`, avatar, kind: 'chat', matchId: mid },
+          akce: { label: 'Zobrazit směnu', onClick: otevri },
+        },
+        match: {
+          n: { type: 'match', title: 'Máš shodu', text: `${firma} má zájem o tvůj profil.`, avatar, kind: 'chat', matchId: mid },
+          akce: { label: 'Napsat zprávu', dark: true, onClick: otevri },
+        },
+        review: {
+          n: { type: 'review', title: 'Ohodnoť své brigády', text: 'Máš 2 dokončené brigády k ohodnocení.', kind: 'review' },
+          akce: { label: 'Otevřít kalendář', onClick: () => setTab('history') },
+        },
+      };
+
+      // Jen zápis do databáze — banner i zvoneček se vrátí přes realtime,
+      // takže test ověří přesně tu cestu, co jede v ostrém provozu.
+      const v = vzory[druh] || vzory.message;
+      addNotif(v.n);
     };
   }
 
@@ -388,30 +488,78 @@ function WorkerApp() {
   // Toast (objekt: { title, text, type, accent, avatar, action, ttl })
   // Zvuk i rozkývání zvonečku patří sem, ne do addNotif — musí zaznít ve chvíli,
   // kdy je upozornění vidět. addNotif se volá dřív (a někdy i bez toastu).
+  // Nejvýš tři bannery naráz — víc by přes sebe zakrylo obrazovku
+  const W_MAX_TOASTU = 3;
+
   function addToast(opts) {
     if (!notifsEnabled()) return;
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, ...opts }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), opts.ttl || 6000);
+    const ttl  = opts.ttl || 6000;
+    const klic = opts.groupKey || null;
+
+    setToasts(prev => {
+      const expires = Date.now() + ttl;
+      // Další zpráva od stejné firmy nepřidává banner — sloučí se do stávajícího
+      // a přičte se počet. Jinak by salva zpráv zaplavila celou obrazovku.
+      if (klic) {
+        const i = prev.findIndex(t => t.groupKey === klic);
+        if (i !== -1) {
+          const stary = prev[i];
+          // `verze` roste s každou další zprávou a jde do Reactího klíče, takže
+          // se banner vykreslí znovu a viditelně vyjede. Bez toho by se jen tiše
+          // přepsal text a vypadalo by to, že se nic nestalo.
+          const novy = {
+            ...stary, ...opts, id: stary.id, groupKey: klic,
+            pocet: (stary.pocet || 1) + 1, verze: (stary.verze || 0) + 1, expires,
+          };
+          // přesuň dospodu, ať je nejčerstvější nejníž, a resetuj odpočet
+          return [...prev.slice(0, i), ...prev.slice(i + 1), novy].slice(-W_MAX_TOASTU);
+        }
+      }
+      return [...prev, { id: Date.now() + Math.random(), pocet: 1, groupKey: klic, ...opts, expires }].slice(-W_MAX_TOASTU);
+    });
+
     // Zvuk až ve chvíli, kdy prohlížeč toast opravdu vykreslil. Dvojité rAF:
     // první snímek React teprve zapisuje DOM, až druhý je ten, na kterém je vidět.
-    const ring = () => { wPlayBell(); setBellRing(true); setTimeout(() => setBellRing(false), 700); };
+    let uzZvonilo = false;
+    const ring = () => {
+      if (uzZvonilo) return;
+      uzZvonilo = true;
+      // Při salvě zpráv zvoní jen jednou — pět cinknutí za sebou je otrava
+      const ted = Date.now();
+      if (ted - posledniZvuk.current < 1500) return;
+      posledniZvuk.current = ted;
+      wPlayBell();
+      setBellRing(true);
+      setTimeout(() => setBellRing(false), 700);
+    };
+    // Dvojité rAF sladí zvuk s okamžikem, kdy je banner opravdu vykreslený.
+    // V okně na pozadí ale prohlížeč rAF pozastaví, takže by nezaznělo nic —
+    // proto běží souběžně i časovač a platí ten, kdo přijde první.
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(() => requestAnimationFrame(ring));
-    } else ring();
+    }
+    setTimeout(ring, 120);
   }
+
+  // Bannery mizí podle vlastní platnosti, ne přes časovač na každý zvlášť —
+  // díky tomu jde sloučenému banneru odpočet prostě prodloužit.
+  useEffectW(() => {
+    if (!toasts.length) return;
+    const iv = setInterval(() => {
+      setToasts(prev => prev.filter(t => !t.expires || t.expires > Date.now()));
+    }, 350);
+    return () => clearInterval(iv);
+  }, [toasts.length > 0]);
 
   // Upozornění do zvonečku. Ukládá se i do DB, aby přežilo zavření appky —
   // zobrazíme ho hned (optimisticky) a teprve pak čekáme na server.
+  // Zvoneček plní výhradně databáze — přidané řádky se vrátí přes realtime odběr
+  // níž. Od chvíle, kdy zprávy zakládá trigger v databázi, nesmí appka zapisovat
+  // vlastní kopii, jinak by u každé zprávy vzniklo oznámení dvakrát.
   function addNotif(n) {
     if (!notifsEnabled()) return;
-    const id = Date.now() + Math.random();
-    setNotifs(prev => [{ id, ts: Date.now(), read: false, ...n }, ...prev].slice(0, 40));
     const uid = userId.current;
-    if (uid) insertNotifW(uid, n).then(row => {
-      // nahraď dočasné id tím z databáze, ať se po refreshi nezduplikuje
-      if (row && row.id) setNotifs(prev => prev.map(x => (x.id === id ? { ...x, id: row.id } : x)));
-    });
+    if (uid) insertNotifW(uid, n);
   }
   const unreadNotifs = notifs.filter(n => !n.read).length;
 
@@ -430,16 +578,15 @@ function WorkerApp() {
         // Výzva k hodnocení dokončených brigád
         const toReview = W_HISTORY.filter(h => h.needsReview).length;
         if (toReview > 0) {
-          const text = `Máš ${toReview} ${toReview === 1 ? 'dokončenou brigádu' : 'dokončené brigády'} k ohodnocení.`;
+          const text = 'Máš ' + _wPlural(toReview,
+            '1 dokončenou brigádu', toReview + ' dokončené brigády', toReview + ' dokončených brigád')
+            + ' k ohodnocení.';
           // Přidávalo by se při každém startu — s ukládáním by tak vznikal duplikát.
           // Založ nové jen tehdy, když nepřečtená výzva ještě nevisí.
           const saved = await fetchNotifsW(session.user.id);
           if (saved.some(x => x.type === 'review' && !x.read)) return;
+          // Banner přijde přes realtime, až se řádek objeví v databázi
           addNotif({ type: 'review', title: 'Ohodnoť své brigády', text, kind: 'review' });
-          setTimeout(() => addToast({
-            type: 'review', title: 'Ohodnoť své brigády', text,
-            action: { label: 'Otevřít Moje brigády', onClick: () => setTab('history') },
-          }), 900);
         }
       });
     }
@@ -475,10 +622,9 @@ function WorkerApp() {
           const thread = W_THREADS.find(t => t.id === payload.new.id);
           const company = thread?.name || 'Zaměstnavatel';
           const mid     = payload.new.id;
-          const avatar  = thread ? { initials: thread.avatar, color: thread.color } : null;
-          addNotif({ type: 'match', title: 'Máte shodu! 🎉', text: `${company} má zájem o tvůj profil. Napiš jim!`, avatar, kind: 'chat', matchId: mid });
-          addToast({ type: 'match', title: 'Máte shodu! 🎉', text: `${company} má zájem o tvůj profil. Napiš jim!`, avatar,
-            action: { label: 'Napsat zprávu', dark: true, onClick: () => openChat(mid) } });
+          const avatar  = thread ? { initials: thread.avatar, color: thread.color, logo: thread.logoUrl } : null;
+          const zprava = { type: 'match', title: 'Máš shodu', text: `${company} má zájem o tvůj profil.`, avatar };
+          addNotif({ ...zprava, kind: 'chat', matchId: mid });
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, async () => {
@@ -490,7 +636,52 @@ function WorkerApp() {
     return () => { try { sb.removeChannel(channel); } catch (e) {} };
   }, [loaded]);
 
-  // Realtime: příchozí zprávy → upozornění (zvoneček + toast)
+  // Realtime: nová oznámení v databázi → zvoneček.
+  // Sem chodí i to, co založil trigger u zpráv, i to, co appka vloží sama
+  // (shoda, výzva k hodnocení). Díky tomu je zvoneček vždycky obraz databáze.
+  useEffectW(() => {
+    if (!loaded || !userId.current) return;
+    const id = userId.current;
+
+    const chan = sb.channel('w-notifrow-' + id)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: 'user_id=eq.' + id,
+      }, (payload) => {
+        if (!payload.new || !notifsEnabled()) return;
+        const n = _wNotifZRadku(payload.new);
+
+        // Jestli je oznámení nové, se ptáme reference, ne výsledku setNotifs.
+        // React tu funkci nespouští hned — u druhé zprávy v řadě by se
+        // vyhodnotila až po překreslení a banner by nikdy nevyjel.
+        if (videnaNotif.current.has(n.id)) return;
+        videnaNotif.current.add(n.id);
+        if (videnaNotif.current.size > 200) videnaNotif.current = new Set([n.id]);
+
+        setNotifs(prev => (prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 40)));
+
+        // Banner jede ze stejné události jako zvoneček. Dřív visel na odběru
+        // tabulky `messages` a mlčel, i když oznámení dorazilo — jedna cesta
+        // pro obojí tenhle rozpor odstraňuje.
+        const chat = n.kind === 'chat' && n.matchId;
+        if (chat && tabRef.current === 'messages') return;   // v chatu banner překáží
+
+        const thread = chat ? W_THREADS.find(t => t.id === n.matchId) : null;
+        addToast({
+          type: n.type, title: n.title, text: n.text,
+          avatar: thread ? { initials: thread.avatar, color: thread.color, logo: thread.logoUrl } : null,
+          groupKey: chat ? 'chat-' + n.matchId : null,
+          action: chat
+            ? { label: n.type === 'shift' ? 'Zobrazit směnu' : 'Odpovědět', onClick: () => openChat(n.matchId) }
+            : (n.kind === 'review' ? { label: 'Otevřít kalendář', onClick: () => setTab('history') } : null),
+        });
+      })
+      .subscribe();
+
+    return () => { try { sb.removeChannel(chan); } catch (e) {} };
+  }, [loaded]);
+
+  // Realtime: příchozí zprávy → banner (zvoneček plní odběr výše)
   useEffectW(() => {
     if (!loaded || !userId.current) return;
     const id = userId.current;
@@ -499,21 +690,9 @@ function WorkerApp() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new;
         if (!msg || msg.sender_id === id) return;                 // vlastní zprávy ignoruj
-        const thread = W_THREADS.find(t => t.id === msg.match_id);
-        if (!thread) return;                                       // není to můj chat
-        const company = thread.name || 'Zaměstnavatel';
-        const avatar  = { initials: thread.avatar, color: thread.color };
-        const isShift = msg.type === 'shift_offer';
-        const title   = isShift ? 'Nová nabídka směny' : company;
-        const text    = isShift ? `${company} ti nabízí směnu. Otevři chat.` : msg.text;
-        addNotif({ type: isShift ? 'shift' : 'message', title, text, avatar: isShift ? null : avatar, kind: 'chat', matchId: msg.match_id });
-        // aktualizuj náhledy v seznamu konverzací
+        // Zvoneček i banner obstarává odběr tabulky `notifications` výš.
+        // Tady zbývá jen srovnat náhledy v seznamu konverzací.
         fetchWorkerData(id).then(() => setTick(t => t + 1));
-        // toast jen když nejsem zrovna ve Zprávách
-        if (tabRef.current !== 'messages') {
-          addToast({ type: isShift ? 'shift' : 'message', title, text, avatar: isShift ? null : avatar,
-            action: { label: isShift ? 'Zobrazit směnu' : 'Napsat zprávu', onClick: () => openChat(msg.match_id) } });
-        }
       })
       .subscribe();
 
@@ -588,29 +767,20 @@ function WorkerApp() {
   } else if (tab === 'history') {
     body = <WCalendar tick={tick} onReviewed={refreshWorker} />;
   } else if (tab === 'messages') {
-    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} />;
+    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} />;
   } else if (tab === 'profile') {
-    body = <WProfile tick={tick} onSignOut={handleSignOut} />;
+    body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
   }
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
       width: '100%', height: '100%',
-      background: 'linear-gradient(180deg, #eef1fb 0%, #f5f7fd 42%, #eaecfd 100%)',
+      // Klidná jednolitá plocha. Barevné skvrny ani tečkovaná textura tu
+      // dřív byly kvůli průhlednému nav baru — ten si teď kryje sám.
+      background: T.bg,
       position: 'relative',
     }}>
-      {/* Barevné skvrny — aby průhledné sklo (navbar) chytlo barvu */}
-      <div style={{ position: 'absolute', top: -140, left: -120, width: 440, height: 440, borderRadius: 999, background: 'radial-gradient(circle, rgba(0,32,246,0.18), transparent 62%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', top: '32%', right: -140, width: 420, height: 420, borderRadius: 999, background: 'radial-gradient(circle, rgba(111,128,255,0.22), transparent 62%)', filter: 'blur(55px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -80, left: '10%', right: '10%', height: 320, borderRadius: 999, background: 'radial-gradient(closest-side, rgba(111,128,255,0.28), transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
-      {/* jemná tečkovaná textura */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.45,
-        backgroundImage: 'radial-gradient(rgba(0,32,246,0.05) 1px, transparent 1px)',
-        backgroundSize: '30px 30px',
-      }} />
-
       {/* Main content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
         {body}
@@ -620,20 +790,54 @@ function WorkerApp() {
       {loaded && tab === 'swipe' && (
         <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* DOČASNÉ — testovací tlačítko, před buildem do App Store smazat.
-              Smazat i window.wTestNotif výše. */}
-          <button
-            onClick={() => window.wTestNotif && window.wTestNotif()}
-            title="Vyzkoušet upozornění"
-            style={{
-              height: 40, padding: '0 12px', borderRadius: 14,
-              background: '#fff', border: '1px dashed ' + T.primary, color: T.primary,
-              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
-              boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-            }}>
-            <Icon name="bell-bold" size={14} color={T.primary} />
-            Test
-          </button>
+              Smazat i window.wTestNotif a stav testOpen výše. */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setTestOpen(o => !o)}
+              title="Vyzkoušet upozornění"
+              style={{
+                height: 40, padding: '0 12px', borderRadius: 14,
+                background: testOpen ? T.primary : '#fff',
+                border: '1px dashed ' + T.primary, color: testOpen ? '#fff' : T.primary,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
+                boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+              }}>
+              <Icon name="bell-bold" size={14} color={testOpen ? '#fff' : T.primary} />
+              Test
+            </button>
+
+            {testOpen && (<>
+              <div onClick={() => setTestOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
+              <div style={{
+                position: 'absolute', top: 48, left: 0, width: 236,
+                background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
+                boxShadow: '0 24px 50px rgba(20,22,40,0.2)', padding: 6,
+                animation: 'wPop .2s cubic-bezier(.2,.8,.2,1)',
+              }}>
+                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.7, padding: '7px 10px 8px' }}>
+                  Které vyzkoušet
+                </div>
+                {[
+                  { k: 'message', popis: 'Zpráva od firmy',   detail: 'Titulek = jméno firmy' },
+                  { k: 'shift',   popis: 'Nabídka směny',     detail: 'Firma posílá termín' },
+                  { k: 'match',   popis: 'Máš shodu',         detail: 'Firma přijala tvůj zájem' },
+                  { k: 'review',  popis: 'Ohodnoť brigády',   detail: 'Bez firmy → značka Makej' },
+                ].map(p => (
+                  <button key={p.k}
+                    onClick={() => { setTestOpen(false); window.wTestNotif && window.wTestNotif(p.k); }}
+                    style={{
+                      width: '100%', textAlign: 'left', display: 'block',
+                      padding: '9px 10px', borderRadius: 11, marginBottom: 1,
+                      background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800 }}>{p.popis}</div>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11.5, marginTop: 1 }}>{p.detail}</div>
+                  </button>
+                ))}
+              </div>
+            </>)}
+          </div>
 
           <button
             onClick={() => {
@@ -696,14 +900,11 @@ function WorkerApp() {
               ) : (
                 <div style={{ padding: '8px' }}>
                   {notifs.map(n => {
-                    const st = W_NOTIF_STYLE[n.type] || W_NOTIF_STYLE.info;
                     return (
                       <button key={n.id}
                         onClick={() => { setBellOpen(false); if (n.kind === 'chat' && n.matchId) openChat(n.matchId); else if (n.kind === 'review') setTab('history'); }}
                         style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
-                        {n.avatar
-                          ? <div style={{ width: 40, height: 40, borderRadius: 11, background: n.avatar.color, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n.avatar.initials}</div>
-                          : <div style={{ width: 40, height: 40, borderRadius: 11, background: st.iconBg, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name={st.iconName} size={18} color={st.accent} /></div>}
+                        <WNotifZnacka avatar={n.avatar} size={40} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
                           {n.text && <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.text}</div>}
@@ -729,19 +930,22 @@ function WorkerApp() {
         />
       )}
 
-      {/* Bottom navigation — tmavě-modrý pill, aktivní tab modrý s popiskem */}
-      {loaded && (
+      {/* Bottom navigation — tmavě-modrý pill, aktivní tab modrý s popiskem.
+          V otevřeném chatu se schová: překrývala by psací pole. */}
+      {loaded && !chatOpen && (
         <nav style={{
           display: 'flex', alignItems: 'center', gap: 4,
           margin: '4px 16px',
           marginBottom: 'calc(10px + env(safe-area-inset-bottom))',
           padding: 7,
-          background: 'rgba(255,255,255,0.5)',
+          // Na klidném pozadí už sklo nemá co chytat, takže si drží vlastní
+          // krytí — jinak by se bar s plochou slil.
+          background: 'rgba(255,255,255,0.78)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: '0.5px solid rgba(255,255,255,0.6)',
+          border: '0.5px solid rgba(255,255,255,0.9)',
           borderRadius: 26,
-          boxShadow: 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4), 0 18px 40px -18px rgba(20,22,43,0.3)',
+          boxShadow: 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4), 0 16px 34px -14px rgba(20,22,43,0.22)',
           flexShrink: 0,
           position: 'relative', zIndex: 10,
         }}>

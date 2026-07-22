@@ -3,7 +3,7 @@
 // Běží jen na worker stránce → employer dashboard zůstává tmavý.
 
 Object.assign(T, {
-  bg:        '#f5f7fd',           // světle modro-bílé pozadí obrazovek
+  bg:        '#f7f8fc',           // klidná skoro bílá plocha — karty na ní zůstanou čitelné
   card:      '#ffffff',           // bílé karty
   cardSoft:  'rgba(16,24,64,0.04)',
   surfaceAlt:'#f4f6fc',           // jemná modro-šedá plocha (chipy)
@@ -30,3 +30,45 @@ Object.assign(T, {
   fontHead:  '"Inter", -apple-system, system-ui, sans-serif',
   fontMono:  '"Inter", ui-monospace, monospace',
 });
+
+// ── Tlačítko „Zpět" ────────────────────────────────────────────
+// Jediná podoba pro celou aplikaci: chevron z webu (icons/chevron.png,
+// tentýž soubor jako v přihlašovacím okně) + popisek, obojí zmodrá
+// a šipka se posune o 2 px doleva. Na počítači při najetí myší,
+// na mobilu při doteku — hover se na telefonu nikdy nespustí.
+// Používej všude, kde se jde o krok zpět. Nekopíruj styl ručně.
+function WZpet({ onClick, label, title }) {
+  const [aktivni, setAktivni] = React.useState(false);
+  const klid = 'rgba(10,13,46,0.55)';
+  return (
+    <button
+      onClick={onClick}
+      title={title || 'Zpět'}
+      onMouseEnter={() => setAktivni(true)}
+      onMouseLeave={() => setAktivni(false)}
+      onTouchStart={() => setAktivni(true)}
+      onTouchEnd={() => setAktivni(false)}
+      onTouchCancel={() => setAktivni(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6.5, flexShrink: 0,
+        border: 'none', background: 'none', cursor: 'pointer',
+        padding: '8px 10px 8px 8px',
+        color: aktivni ? T.primary : klid,
+        fontFamily: T.fontUI, fontSize: 13.6, fontWeight: 600,
+        transition: 'color .2s ease',
+        WebkitTapHighlightColor: 'transparent',
+      }}>
+      <span style={{
+        width: 13, height: 13, flexShrink: 0,
+        background: aktivni ? T.primary : klid,
+        transform: aktivni ? 'translateX(-2px)' : 'none',
+        transition: 'background-color .2s ease, transform .2s ease',
+        WebkitMaskImage: 'url(icons/chevron.png)', maskImage: 'url(icons/chevron.png)',
+        WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center', maskPosition: 'center',
+        WebkitMaskSize: 'contain', maskSize: 'contain',
+      }} />
+      {label || 'Zpět'}
+    </button>
+  );
+}

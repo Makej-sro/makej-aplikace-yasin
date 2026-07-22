@@ -16,14 +16,14 @@ function WHistory({ tick, onReviewed, embedded }) {
   const completed   = items.filter(i => i.phase === 'completed' && !i.needsReview);
 
   if (items.length === 0) {
+    // Pod kalendářem — bez emoji a bez prázdné plochy, viz stejný stav ve Zprávách
     return (
-      <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: '20px 32px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 12 }}>🗓️</div>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Zatím žádné brigády</div>
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.6 }}>
-            Jakmile tě zaměstnavatel přijme na brigádu,<br />uvidíš ji tady i s detaily a termínem.
-          </div>
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px', boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
+        <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, marginBottom: 4 }}>
+          Zatím tu nemáš žádnou brigádu
+        </div>
+        <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.55 }}>
+          Až tě firma přijme, objeví se brigáda v kalendáři i tady — s termínem, časem a místem.
         </div>
       </div>
     );

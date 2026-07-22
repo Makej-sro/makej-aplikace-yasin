@@ -142,7 +142,7 @@ function WSwipe({ tick }) {
   useEffectW(() => {
     if (currentJob && currentJob.id && typeof logJobViewW === 'function') logJobViewW(currentJob.id);
   }, [currentJob && currentJob.id]);
-  const lvl          = makejLevel(W_PROFILE.xp);
+  const trust        = makejTrust({ ...W_TRUST, hodnoceni: Number(W_PROFILE.rating) || 0 });
   const remaining    = Math.max(0, jobs.length - topIdx);
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
@@ -212,18 +212,19 @@ function WSwipe({ tick }) {
         {/* Počet nabídek zatím neukazujeme: `remaining` je odpočet do konce zásobníku,
             ne velikost nabídky — a "v okolí" nesedí, dokud appka nezná polohu. */}
         <div />
-        <div title={`Level ${lvl.level} · ${lvl.title}`} style={{
+        <div title={'Stupeň důvěry: ' + trust.tier.nazev} style={{
           display: 'flex', alignItems: 'center', gap: 7,
           padding: '6px 12px 6px 6px', borderRadius: 22, marginRight: 50,
           background: T.navBg, flexShrink: 0,
         }}>
           <span style={{
             width: 24, height: 24, borderRadius: 999, flexShrink: 0,
-            background: T.primary,
+            background: trust.tier.barva,
             display: 'grid', placeItems: 'center',
-            color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 12,
-          }}>{lvl.level}</span>
-          <span style={{ color: '#fff', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700 }}>{lvl.title}</span>
+          }}>
+            <Icon name={trust.index === 0 ? 'user-bold' : 'verified-check-bold'} size={13} color="#fff" />
+          </span>
+          <span style={{ color: '#fff', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700 }}>{trust.tier.nazev}</span>
         </div>
       </div>
 
