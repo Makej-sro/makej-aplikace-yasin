@@ -209,7 +209,16 @@ const _wPrepinacKnob = on => ({
 function WDatumPicker({ value, onChange }) {
   const [open, setOpen] = useStateW(false);
   const [dmy, setDmy]   = useStateW(() => _wRozlozDatum(value));
+  const ref = useRefW(null);
   useEffectW(() => { setDmy(_wRozlozDatum(value)); }, [value]);
+  useEffectW(() => {
+    if (!open) return;
+    // Zavře jen KLEPNUTÍ mimo (click). Tažení prstem (scroll) klik nevyvolá,
+    // takže se dá scrollovat a picker zůstane otevřený a posouvá se se stránkou.
+    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [open]);
 
   const dniVMesici = new Date(dmy.y, dmy.m + 1, 0).getDate();
   const DNY = [];
@@ -224,7 +233,7 @@ function WDatumPicker({ value, onChange }) {
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)} style={{
         ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
@@ -232,8 +241,7 @@ function WDatumPicker({ value, onChange }) {
         <Icon name="calendar-bold" size={17} color={value ? T.primary : T.mutedSoft} />
         <span style={{ flex: 1 }}>{value ? _wFmtDatum(value) : 'Vyber datum narození'}</span>
       </button>
-      {open && (<>
-        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+      {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 61, marginTop: 10, padding: '10px 0 12px',
           background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
@@ -247,7 +255,99 @@ function WDatumPicker({ value, onChange }) {
           <div style={{ height: 1, background: T.border, margin: '8px 14px' }} />
           <WWheel items={_W_ROKY} index={Math.max(0, _W_ROKY.indexOf(dmy.y))} itemW={86} onIndex={i => zmen({ y: _W_ROKY[i] })} />
         </div>
-      </>)}
+      )}
+    </div>
+  );
+}
+
+// ── Vzdělání: stupeň + obor (výběr ze seznamu). Skládá se do jednoho pole `education`
+//    ve tvaru „Stupeň — Obor" (žádná změna DB, stejný princip jako u jména).
+const _W_STUPNE = [
+  'Základní',
+  'Střední odborné (výuční list)',
+  'Středoškolské s maturitou',
+  'Vyšší odborné (VOŠ)',
+  'Vysokoškolské (Bc.)',
+  'Vysokoškolské (Ing./Mgr.)',
+  'Vysokoškolské (Ph.D.)',
+];
+const _W_OBORY = [
+  'Gastronomie a pohostinství',
+  'Obchod a služby',
+  'Ekonomie a administrativa',
+  'IT a programování',
+  'Technika a strojírenství',
+  'Elektrotechnika',
+  'Stavebnictví',
+  'Doprava a logistika',
+  'Zdravotnictví a péče',
+  'Sociální práce',
+  'Pedagogika',
+  'Právo a veřejná správa',
+  'Marketing a média',
+  'Umění a design',
+  'Cestovní ruch',
+  'Zemědělství a potravinářství',
+  'Kadeřnictví a kosmetika',
+  'Bezpečnost',
+  'Přírodní vědy',
+  'Humanitní obory',
+  'Jiný obor',
+];
+function _wSlozVzdelani(stupen, obor) {
+  return [stupen, obor].filter(Boolean).join(' — ');
+}
+function _wRozlozVzdelani(text) {
+  const t = (text || '').trim();
+  if (!t) return { stupen: '', obor: '' };
+  const parts = t.split(' — ');
+  const stupen = _W_STUPNE.includes(parts[0]) ? parts[0] : '';
+  const obor = _W_OBORY.includes(parts[1]) ? parts[1]
+             : (!stupen && _W_OBORY.includes(parts[0]) ? parts[0] : '');
+  return { stupen, obor };
+}
+
+// Univerzální výběr ze seznamu (klepnu → rozbalí se seznam, vyberu jednu položku).
+// Bez blokujícího překryvu: klepnutí mimo NEBO posun prstem po stránce roletku zavře,
+// takže se dá normálně scrollovat. Scroll uvnitř samotného seznamu ji nezavře.
+function WVyberPicker({ value, onChange, items, placeholder }) {
+  const [open, setOpen] = useStateW(false);
+  const ref = useRefW(null);
+  useEffectW(() => {
+    if (!open) return;
+    // Zavře jen KLEPNUTÍ mimo (click). Tažení prstem (scroll) klik nevyvolá,
+    // takže se dá scrollovat a roletka zůstane otevřená a posouvá se se stránkou.
+    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
+      }}>
+        <span style={{ flex: 1 }}>{value || placeholder}</span>
+        <span style={{ color: T.mutedSoft, fontSize: 12, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 61, marginTop: 10,
+          background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
+          boxShadow: '0 18px 40px -14px rgba(20,22,40,0.28)',
+          animation: 'wPop .18s cubic-bezier(.2,.8,.2,1)', overflow: 'hidden',
+          maxHeight: 264, overflowY: 'auto',
+        }}>
+          {items.map(it => (
+            <button key={it} onClick={() => { onChange(it === value ? '' : it); setOpen(false); }} style={{
+              display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none',
+              background: it === value ? 'rgba(18,18,26,0.05)' : 'transparent', cursor: 'pointer',
+              fontFamily: T.fontUI, fontSize: 14.5, fontWeight: it === value ? 800 : 500,
+              color: it === value ? T.primary : T.ink,
+            }}>{it}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -255,7 +355,7 @@ function WDatumPicker({ value, onChange }) {
 function WProfile({ tick, onSignOut, onGoTab }) {
   const [editing, setEditing] = useStateW(false);
   const [saving,  setSaving]  = useStateW(false);
-  const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], education: '', cv_url: '' });
+  const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], stupen: '', obor: '', cv_url: '' });
   const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
   const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
@@ -308,6 +408,7 @@ function WProfile({ tick, onSignOut, onGoTab }) {
   // Jeden řádek `name` se rozloží do kolonek jména.
   function formZProfilu() {
     const j = _wRozlozJmeno(W_PROFILE.name || W_PROFILE.full_name || '');
+    const vz = _wRozlozVzdelani(W_PROFILE.education);
     return {
       titul: j.titul, titulZa: j.titulZa, jmeno: j.jmeno, druhe: j.druhe, prijmeni: j.prijmeni, rodne: j.rodne,
       datum: (W_PROFILE.birth_date || '').slice(0, 10),
@@ -320,7 +421,7 @@ function WProfile({ tick, onSignOut, onGoTab }) {
       auto:    !!W_PROFILE.has_car,
       bio:  W_PROFILE.bio  || '',
       skills: Array.isArray(W_PROFILE.skills) ? [...W_PROFILE.skills] : [],
-      education: W_PROFILE.education || '',
+      stupen: vz.stupen, obor: vz.obor,
       cv_url: W_PROFILE.cv_url || '',
     };
   }
@@ -355,7 +456,7 @@ function WProfile({ tick, onSignOut, onGoTab }) {
       phone: form.telCislo.trim() ? (form.telPredvolba + ' ' + form.telCislo.trim()) : null,
       drivers_license: form.ridicak,
       has_car: form.auto,
-      skills: form.skills, education: form.education.trim(),
+      skills: form.skills, education: _wSlozVzdelani(form.stupen, form.obor),
       cv_url: form.cv_url.trim(),
     });
     setSaving(false);
@@ -495,7 +596,7 @@ function WProfile({ tick, onSignOut, onGoTab }) {
               </div>
               <input value={form.prijmeni} onChange={e => setForm(f => ({ ...f, prijmeni: e.target.value }))} placeholder="Příjmení" style={{ ...fieldStyle, marginTop: 8 }} />
               <WTitulPicker value={form.titulZa} onChange={v => setForm(f => ({ ...f, titulZa: v }))}
-                placeholder="Titul za (nepovinné)" obal={{ marginTop: 8 }} shakeSignal={titulShake} />
+                placeholder="Titul za" obal={{ marginTop: 8 }} shakeSignal={titulShake} />
               {/* Datum narození — vlastní „revolver" (stejný jako v kalendáři),
                   tři kolečka den · měsíc · rok, roluješ do středu. */}
               <div style={{ marginTop: 14 }}>
@@ -561,7 +662,10 @@ function WProfile({ tick, onSignOut, onGoTab }) {
             </div>
             <div>
               <div style={labelStyle}>Vzdělání</div>
-              <input value={form.education} onChange={e => setForm(f => ({ ...f, education: e.target.value }))} placeholder="Např. SŠ / VŠ — obor, ročník…" style={fieldStyle} />
+              <div style={{ display: 'grid', gap: 10 }}>
+                <WVyberPicker value={form.stupen} onChange={v => setForm(f => ({ ...f, stupen: v }))} items={_W_STUPNE} placeholder="Stupeň vzdělání" />
+                <WVyberPicker value={form.obor} onChange={v => setForm(f => ({ ...f, obor: v }))} items={_W_OBORY} placeholder="Obor" />
+              </div>
             </div>
             <div>
               <div style={labelStyle}>Životopis <span style={{ color: T.mutedSoft, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· nepovinné</span></div>
