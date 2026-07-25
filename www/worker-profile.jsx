@@ -1,10 +1,264 @@
 // Makej Worker — Profile (mobilní design, App Store build)
 
+// ── Jméno na profilu ────────────────────────────────────────────
+// Tabulka profiles má jen jeden sloupec `name`. V editaci ho rozložíme do
+// kolonek (titul, jméno, druhé jméno, příjmení, rodné příjmení) a při uložení
+// zase složíme do jednoho řádku „Titul Jméno Druhé Příjmení [(roz. Rodné)]".
+// Zobrazený profil pak čte pořád jen ten jeden řádek — vše na jednom místě.
+const _W_TITULY = [
+  '',
+  // Před jménem — bakalářské a magisterské
+  'Bc.', 'BcA.', 'Ing.', 'Ing. arch.', 'Mgr.', 'MgA.',
+  // Před jménem — doktorské („malý doktorát")
+  'MUDr.', 'MDDr.', 'MVDr.', 'JUDr.', 'PhDr.', 'RNDr.', 'PharmDr.',
+  'ThLic.', 'ThDr.', 'ThMgr.', 'PaedDr.', 'PhMr.', 'RSDr.', 'Dr.',
+  // Před jménem — vědecko-pedagogické
+  'doc.', 'prof.',
+  // Za jménem — doktorské a vědecké hodnosti
+  'Ph.D.', 'Th.D.', 'CSc.', 'DrSc.', 'DSc.',
+  // Za jménem — vyšší odborné a mezinárodní / profesní
+  'DiS.', 'MBA', 'LL.M.', 'MSc.',
+];
+
+// Bez diakritiky — pro našeptávání i porovnání se seznamem sprostých slov.
+function _bezDiakritiky(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Během psaní jen ořízne délku a zjevné nesmysly (čísla, emoji, symboly).
+// Na výsledný titul se ale stejně bere jen to, co je v seznamu (viz WTitulPicker).
+const _W_TITUL_MAX = 16;
+function _wCistTitul(s) {
+  return (s || '').replace(/[^\p{L}. ]/gu, '').replace(/\s+/g, ' ').replace(/^\s+/, '').slice(0, _W_TITUL_MAX);
+}
+
+// Platný titul = prázdný (žádný) nebo přesně ze seznamu (bez ohledu na diakritiku).
+// Neplatný drží pole červené a nepustí uložení, dokud se neopraví.
+function _wPlatnyTitul(v) {
+  const s = (v || '').trim();
+  if (!s) return true;
+  const low = _bezDiakritiky(s.toLowerCase());
+  return _W_TITULY.some(t => t && _bezDiakritiky(t.toLowerCase()) === low);
+}
+
+// Srovná titul na oficiální tvar ze seznamu („mudr." → „MUDr.").
+function _wNormTitul(v) {
+  const s = (v || '').trim();
+  if (!s) return '';
+  const low = _bezDiakritiky(s.toLowerCase());
+  return _W_TITULY.find(t => t && _bezDiakritiky(t.toLowerCase()) === low) || s;
+}
+
+// Telefonní předvolby — celá EU + Ukrajina (občané EU smějí v ČR pracovat bez
+// povolení; Ukrajinci jsou na brigádách taky hodně). Nejčastější nahoře.
+const _W_PREDVOLBY = [
+  { kod: '+420', vlajka: '🇨🇿' }, { kod: '+421', vlajka: '🇸🇰' },
+  { kod: '+380', vlajka: '🇺🇦' }, { kod: '+48', vlajka: '🇵🇱' },
+  { kod: '+32', vlajka: '🇧🇪' }, { kod: '+359', vlajka: '🇧🇬' },
+  { kod: '+45', vlajka: '🇩🇰' }, { kod: '+372', vlajka: '🇪🇪' },
+  { kod: '+358', vlajka: '🇫🇮' }, { kod: '+33', vlajka: '🇫🇷' },
+  { kod: '+385', vlajka: '🇭🇷' }, { kod: '+353', vlajka: '🇮🇪' },
+  { kod: '+39', vlajka: '🇮🇹' }, { kod: '+357', vlajka: '🇨🇾' },
+  { kod: '+370', vlajka: '🇱🇹' }, { kod: '+371', vlajka: '🇱🇻' },
+  { kod: '+352', vlajka: '🇱🇺' }, { kod: '+36', vlajka: '🇭🇺' },
+  { kod: '+356', vlajka: '🇲🇹' }, { kod: '+49', vlajka: '🇩🇪' },
+  { kod: '+31', vlajka: '🇳🇱' }, { kod: '+351', vlajka: '🇵🇹' },
+  { kod: '+43', vlajka: '🇦🇹' }, { kod: '+40', vlajka: '🇷🇴' },
+  { kod: '+30', vlajka: '🇬🇷' }, { kod: '+386', vlajka: '🇸🇮' },
+  { kod: '+34', vlajka: '🇪🇸' }, { kod: '+46', vlajka: '🇸🇪' },
+];
+function _wRozlozTel(p) {
+  const s = (p || '').trim();
+  // Nejdřív delší předvolby, ať kratší omylem nezabere delší číslo
+  const podle = _W_PREDVOLBY.map(x => x.kod).sort((a, b) => b.length - a.length);
+  for (let i = 0; i < podle.length; i++) {
+    if (s.startsWith(podle[i])) return { predvolba: podle[i], cislo: s.slice(podle[i].length).trim() };
+  }
+  return { predvolba: '+420', cislo: s };
+}
+
+function _wSlozJmeno(f) {
+  const jadro = [f.titul, f.jmeno, f.druhe, f.prijmeni]
+    .map(x => (x || '').trim()).filter(Boolean).join(' ');
+  const za    = (f.titulZa || '').trim();
+  const rodne = (f.rodne || '').trim();
+  let out = jadro;
+  if (za)    out += (out ? ', ' : '') + za;          // „Novák, Ph.D."
+  if (rodne) out += (out ? ' ' : '') + '(roz. ' + rodne + ')';
+  return out;
+}
+
+function _wRozlozJmeno(cele) {
+  const out = { titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '' };
+  let s = (cele || '').trim();
+  const m = s.match(/\(roz\.?\s*([^)]+)\)\s*$/i);   // „(roz. X)" na konci
+  if (m) { out.rodne = m[1].trim(); s = s.slice(0, m.index).trim(); }
+  // Titul za jménem: „, Ph.D." na konci (musí být ze seznamu)
+  const mz = s.match(/,\s*([^,]+)$/);
+  if (mz && _W_TITULY.includes(mz[1].trim())) { out.titulZa = mz[1].trim(); s = s.slice(0, mz.index).trim(); }
+  const casti = s.split(/\s+/).filter(Boolean);
+  // Titul může být jedno- i dvouslovný („Ing. arch."), nebo vlastní — ten
+  // poznáme podle tečky na konci (běžné české tituly ji mají), ať se po
+  // znovuotevření nesloučí do jména. Vždy necháme aspoň příjmení.
+  if (casti.length >= 2 && _W_TITULY.includes(casti[0] + ' ' + casti[1])) {
+    out.titul = casti.shift() + ' ' + casti.shift();
+  } else if (casti.length && _W_TITULY.includes(casti[0])) {
+    out.titul = casti.shift();
+  } else {
+    const t = [];
+    while (casti.length > 1 && /\.$/.test(casti[0])) t.push(casti.shift());
+    if (t.length) out.titul = t.join(' ');
+  }
+  if (casti.length) out.jmeno = casti.shift();
+  if (casti.length) out.prijmeni = casti.pop();     // poslední slovo = příjmení
+  if (casti.length) out.druhe = casti.join(' ');    // co zbylo mezi = druhé jméno
+  return out;
+}
+
+// Políčko titulu s našeptáváním. Přijme jen titul ze seznamu — cokoli jiného
+// (překlep, vymyšlené, vulgarita) se při opuštění pole zahodí. Používá se
+// dvakrát: „Titul před" jménem a „Titul za" jménem.
+function WTitulPicker({ value, onChange, placeholder, obal, shakeSignal }) {
+  const [open,  setOpen]  = useStateW(false);
+  const [chyba, setChyba] = useStateW(false);   // dotčeno a pořád neplatné → drž červené
+  const [chvej, setChvej] = useStateW(false);   // jednorázové cuknutí
+  const q = _bezDiakritiky((value || '').trim().toLowerCase());
+  const navrhy = _W_TITULY.filter(Boolean).filter(t => _bezDiakritiky(t.toLowerCase()).startsWith(q));
+
+  // Když se pokusíš uložit s neplatným titulem, rodič šťouchne přes shakeSignal
+  useEffectW(() => {
+    if (shakeSignal && !_wPlatnyTitul(value)) { setChyba(true); setChvej(true); }
+  }, [shakeSignal]);
+
+  function zkontroluj() {
+    setOpen(false);
+    const raw = (value || '').trim();
+    if (!raw) { onChange(''); setChyba(false); return; }
+    const low = _bezDiakritiky(raw.toLowerCase());
+    const presne = _W_TITULY.find(t => t && _bezDiakritiky(t.toLowerCase()) === low);
+    const zacina = _W_TITULY.filter(Boolean).filter(t => _bezDiakritiky(t.toLowerCase()).startsWith(low));
+    const v = presne || (zacina.length === 1 ? zacina[0] : null);
+    if (v) { onChange(v); setChyba(false); }
+    // Neplatné → nech napsané, zčervenej a zatřes; červená zůstane, než se opraví
+    else   { setChyba(true); setChvej(true); }
+  }
+
+  return (
+    <div style={{ position: 'relative', ...(obal || {}) }}>
+      <input value={value}
+        onFocus={() => setOpen(true)}
+        onBlur={zkontroluj}
+        onAnimationEnd={() => setChvej(false)}
+        onChange={e => { const nv = _wCistTitul(e.target.value); onChange(nv); setOpen(true); if (_wPlatnyTitul(nv)) setChyba(false); }}
+        placeholder={placeholder}
+        style={{ ...fieldStyle, width: '100%',
+          border: '1px solid ' + (chyba ? T.destructive : T.border),
+          background: chyba ? 'rgba(226,86,74,0.07)' : '#fff',
+          color: chyba ? T.destructive : T.ink,
+          animation: chvej ? 'wShake .45s ease' : 'none',
+        }} />
+      {open && navrhy.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 30,
+          minWidth: '100%', width: 176, background: '#fff', border: '1px solid ' + T.border,
+          borderRadius: 12, boxShadow: '0 12px 30px rgba(16,24,64,0.18)',
+          maxHeight: 220, overflowY: 'auto', padding: 4,
+        }}>
+          {navrhy.map(t => (
+            <div key={t}
+              onMouseDown={e => { e.preventDefault(); onChange(t); setOpen(false); setChyba(false); }}
+              style={{ padding: '9px 12px', borderRadius: 8, cursor: 'pointer', color: T.ink, fontFamily: T.fontUI, fontSize: 14, WebkitTapHighlightColor: 'transparent' }}>
+              {t}
+            </div>
+          ))}
+        </div>
+      )}
+      {chyba && <div style={{ color: T.destructive, fontFamily: T.fontUI, fontSize: 12, marginTop: 6 }}>Vyber titul ze seznamu.</div>}
+    </div>
+  );
+}
+
+// Datum narození ve stejném stylu jako výběr v Kalendáři — tři vodorovná
+// „kolečka" (WWheel z worker-calendar) den · měsíc · rok, roluješ do středu.
+// (_W_MESICE se sdílí s výpisem měsíců níž v souboru.)
+const _W_ROKY = (() => {
+  const letos = new Date().getFullYear();
+  const a = [];
+  for (let r = letos; r >= 1920; r--) a.push(r);   // od nejnovějšího
+  return a;
+})();
+function _wRozlozDatum(v) {
+  const mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+  return mm ? { y: +mm[1], m: +mm[2] - 1, d: +mm[3] } : { y: 2005, m: 0, d: 1 };
+}
+function _wFmtDatum(v) {
+  const mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+  return mm ? (+mm[3] + '. ' + (+mm[2]) + '. ' + mm[1]) : '';
+}
+
+// Přepínač (on/off) ve stylu Nastavení — pro řidičák a auto.
+const _wPrepinac = on => ({
+  width: 48, height: 28, borderRadius: 999, flexShrink: 0, cursor: 'pointer', position: 'relative',
+  background: on ? T.primary : 'rgba(18,18,26,0.18)', border: 'none', transition: 'background .2s',
+});
+const _wPrepinacKnob = on => ({
+  position: 'absolute', top: 3, left: on ? 23 : 3, width: 22, height: 22, borderRadius: 999,
+  background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s',
+});
+
+function WDatumPicker({ value, onChange }) {
+  const [open, setOpen] = useStateW(false);
+  const [dmy, setDmy]   = useStateW(() => _wRozlozDatum(value));
+  useEffectW(() => { setDmy(_wRozlozDatum(value)); }, [value]);
+
+  const dniVMesici = new Date(dmy.y, dmy.m + 1, 0).getDate();
+  const DNY = [];
+  for (let d = 1; d <= dniVMesici; d++) DNY.push(d);
+
+  function zmen(nove) {
+    const next = { ...dmy, ...nove };
+    const dim = new Date(next.y, next.m + 1, 0).getDate();
+    if (next.d > dim) next.d = dim;   // 31. → kratší měsíc → sklouzni na poslední den
+    setDmy(next);
+    onChange(next.y + '-' + String(next.m + 1).padStart(2, '0') + '-' + String(next.d).padStart(2, '0'));
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
+      }}>
+        <Icon name="calendar-bold" size={17} color={value ? T.primary : T.mutedSoft} />
+        <span style={{ flex: 1 }}>{value ? _wFmtDatum(value) : 'Vyber datum narození'}</span>
+      </button>
+      {open && (<>
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 61, marginTop: 10, padding: '10px 0 12px',
+          background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
+          boxShadow: '0 18px 40px -14px rgba(20,22,40,0.28)',
+          animation: 'wPop .18s cubic-bezier(.2,.8,.2,1)', overflow: 'hidden',
+        }}>
+          {/* Den se přemountuje při změně měsíce/roku, ať se srovná na platný počet dnů */}
+          <WWheel key={'den-' + dmy.y + '-' + dmy.m} items={DNY} index={dmy.d - 1} itemW={62} onIndex={i => zmen({ d: i + 1 })} />
+          <div style={{ height: 1, background: T.border, margin: '8px 14px' }} />
+          <WWheel items={_W_MESICE} index={dmy.m} itemW={116} onIndex={i => zmen({ m: i })} />
+          <div style={{ height: 1, background: T.border, margin: '8px 14px' }} />
+          <WWheel items={_W_ROKY} index={Math.max(0, _W_ROKY.indexOf(dmy.y))} itemW={86} onIndex={i => zmen({ y: _W_ROKY[i] })} />
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 function WProfile({ tick, onSignOut, onGoTab }) {
   const [editing, setEditing] = useStateW(false);
   const [saving,  setSaving]  = useStateW(false);
-  const [form,    setForm]    = useStateW({ name: '', bio: '', skills: [], education: '', cv_url: '' });
+  const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], education: '', cv_url: '' });
+  const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
+  const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
   const [userId,  setUserId]  = useStateW(null);
   const [showAllReviews, setShowAllReviews] = useStateW(false);
   const [reviewsPageOpen, setReviewsPageOpen] = useStateW(false);
@@ -43,18 +297,35 @@ function WProfile({ tick, onSignOut, onGoTab }) {
   useEffectW(() => {
     sb.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id || null);
+      const em = session?.user?.email || '';
+      setUctuEmail(em);
+      // Když profil nemá vyplněný e-mail, předvyplň ten z účtu
+      if (em) setForm(f => f.email ? f : { ...f, email: W_PROFILE.email || em });
     });
   }, []);
 
-  useEffectW(() => {
-    setForm({
-      name: W_PROFILE.name || W_PROFILE.full_name || '',
+  // Formulář se plní z uloženého profilu — a přesně sem se vrací i „Zrušit".
+  // Jeden řádek `name` se rozloží do kolonek jména.
+  function formZProfilu() {
+    const j = _wRozlozJmeno(W_PROFILE.name || W_PROFILE.full_name || '');
+    return {
+      titul: j.titul, titulZa: j.titulZa, jmeno: j.jmeno, druhe: j.druhe, prijmeni: j.prijmeni, rodne: j.rodne,
+      datum: (W_PROFILE.birth_date || '').slice(0, 10),
+      kraj:  W_PROFILE.kraj || '',
+      mesto: W_PROFILE.city || '',
+      telPredvolba: _wRozlozTel(W_PROFILE.phone).predvolba,
+      telCislo:     _wRozlozTel(W_PROFILE.phone).cislo,
+      email:   W_PROFILE.email || '',
+      ridicak: !!W_PROFILE.drivers_license,
+      auto:    !!W_PROFILE.has_car,
       bio:  W_PROFILE.bio  || '',
       skills: Array.isArray(W_PROFILE.skills) ? [...W_PROFILE.skills] : [],
       education: W_PROFILE.education || '',
       cv_url: W_PROFILE.cv_url || '',
-    });
-  }, [tick]);
+    };
+  }
+
+  useEffectW(() => { setForm(formZProfilu()); }, [tick]);
 
   function addSkill() {
     const s = skillInput.trim();
@@ -68,13 +339,34 @@ function WProfile({ tick, onSignOut, onGoTab }) {
 
   async function handleSave() {
     if (!userId || saving) return;
+    // Špatně vyplněný titul nepustí uložit — políčka zčervenají a cuknou, čeká se na opravu
+    if (!_wPlatnyTitul(form.titul) || !_wPlatnyTitul(form.titulZa)) {
+      setTitulShake(n => n + 1);
+      return;
+    }
     setSaving(true);
+    const norm = { ...form, titul: _wNormTitul(form.titul), titulZa: _wNormTitul(form.titulZa) };
     await updateProfileW(userId, {
-      name: form.name, bio: form.bio,
+      name: _wSlozJmeno(norm), bio: form.bio,
+      birth_date: form.datum || null,
+      kraj: form.kraj || null,
+      city: form.mesto.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.telCislo.trim() ? (form.telPredvolba + ' ' + form.telCislo.trim()) : null,
+      drivers_license: form.ridicak,
+      has_car: form.auto,
       skills: form.skills, education: form.education.trim(),
       cv_url: form.cv_url.trim(),
     });
     setSaving(false);
+    setEditing(false);
+  }
+
+  // Zrušit — zahodí rozdělané změny (vrátí formulář na uložený stav) a zavře úpravy.
+  // Zobrazený profil čte z W_PROFILE, takže se nic neuloženého nikam nepromítne.
+  function handleCancel() {
+    setForm(formZProfilu());
+    setSkillInput('');
     setEditing(false);
   }
 
@@ -132,17 +424,37 @@ function WProfile({ tick, onSignOut, onGoTab }) {
 
         {/* ── Header: nadpis „Profil" + ikona úpravy (odsazená od zvonečku) ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingRight: 50 }}>
-          <div style={{ flex: 1, color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Můj profil</div>
-          <button onClick={() => setEditing(e => !e)} title={editing ? 'Zrušit úpravy' : 'Upravit profil'} style={{
-            width: 40, height: 40, borderRadius: 14, background: '#fff', border: 'none',
-            boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)', display: 'grid', placeItems: 'center', cursor: 'pointer',
-          }}>
-            <Icon name={editing ? 'close-circle-bold' : 'pen-2-bold'} size={17} color="#4a4f6b" />
-          </button>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Můj profil</div>
+          {/* Úpravy jen přes tlačítko vedle nadpisu. V klidu „Upravit",
+              v úpravách zelené „Hotovo" (uloží) + šedé „Zrušit" (zahodí). */}
+          {editing ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <button onClick={handleCancel} title="Zahodit změny" style={{
+                padding: '8px 15px', borderRadius: 999, cursor: 'pointer',
+                background: '#efeff1', border: '1px solid ' + T.border, color: '#252525',
+                fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
+                WebkitTapHighlightColor: 'transparent',
+              }}>Zrušit</button>
+              <button onClick={handleSave} disabled={saving} title="Uložit změny" style={{
+                padding: '8px 17px', borderRadius: 999, cursor: 'pointer',
+                background: T.green, border: 'none', color: '#fff',
+                fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
+                opacity: saving ? 0.6 : 1, boxShadow: '0 6px 14px rgba(31,157,92,0.30)',
+                WebkitTapHighlightColor: 'transparent',
+              }}>{saving ? 'Ukládám…' : 'Hotovo'}</button>
+            </div>
+          ) : (
+            <button onClick={() => setEditing(true)} title="Upravit profil" style={{
+              flexShrink: 0, padding: '8px 16px', borderRadius: 999, cursor: 'pointer',
+              background: T.tint, border: '1px solid rgba(0,32,246,0.16)', color: T.primary,
+              fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
+              WebkitTapHighlightColor: 'transparent',
+            }}>Upravit</button>
+          )}
         </div>
 
-        {/* ── Avatar + jméno + stupeň ── */}
-        <div onClick={() => !editing && setEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, cursor: editing ? 'default' : 'pointer' }}>
+        {/* ── Avatar + jméno + stupeň (úpravy jen přes tlačítko nahoře) ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{
             width: 62, height: 62, borderRadius: 999, flexShrink: 0,
             background: T.avatarGrad,
@@ -152,9 +464,13 @@ function WProfile({ tick, onSignOut, onGoTab }) {
           }}>{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {editing ? (
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} onClick={e => e.stopPropagation()}
-                placeholder="Jméno a příjmení"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 11, background: '#fff', border: '1px solid ' + T.border, color: T.ink, fontFamily: T.fontHead, fontWeight: 800, fontSize: 20, outline: 'none' }} />
+              /* Živý náhled — mění se, jak vyplňuješ kolonky jména níž */
+              <div>
+                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>
+                  {_wSlozJmeno(form) || 'Tvoje jméno'}
+                </div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, marginTop: 3 }}>Uprav jméno v kolonkách níž</div>
+              </div>
             ) : (<>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, letterSpacing: -0.4 }}>{name}</span>
@@ -167,6 +483,63 @@ function WProfile({ tick, onSignOut, onGoTab }) {
         {editing ? (
           /* ── EDIT MODE ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div>
+              <div style={labelStyle}>Osobní údaje</div>
+              {/* Pořadí kolonek odshora dolů = jak se jméno čte:
+                  titul před · jméno · příjmení · titul za.
+                  Tituly našeptávají a berou jen hodnoty ze seznamu. */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <WTitulPicker value={form.titul} onChange={v => setForm(f => ({ ...f, titul: v }))}
+                  placeholder="Titul před" obal={{ width: 132, flexShrink: 0 }} shakeSignal={titulShake} />
+                <input value={form.jmeno} onChange={e => setForm(f => ({ ...f, jmeno: e.target.value }))} placeholder="Jméno" style={{ ...fieldStyle, flex: 1, minWidth: 0 }} />
+              </div>
+              <input value={form.prijmeni} onChange={e => setForm(f => ({ ...f, prijmeni: e.target.value }))} placeholder="Příjmení" style={{ ...fieldStyle, marginTop: 8 }} />
+              <WTitulPicker value={form.titulZa} onChange={v => setForm(f => ({ ...f, titulZa: v }))}
+                placeholder="Titul za (nepovinné)" obal={{ marginTop: 8 }} shakeSignal={titulShake} />
+              {/* Datum narození — vlastní „revolver" (stejný jako v kalendáři),
+                  tři kolečka den · měsíc · rok, roluješ do středu. */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, marginBottom: 5, marginLeft: 2 }}>Datum narození</div>
+                <WDatumPicker value={form.datum} onChange={v => setForm(f => ({ ...f, datum: v }))} />
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, marginBottom: 5, marginLeft: 2 }}>Kde působíš</div>
+                <select value={form.kraj} onChange={e => setForm(f => ({ ...f, kraj: e.target.value }))}
+                  style={{ ...fieldStyle, width: '100%', cursor: 'pointer', color: form.kraj ? T.ink : T.mutedSoft }}>
+                  <option value="" style={{ color: '#111' }}>Vyber kraj</option>
+                  {KRAJE_W.map(k => <option key={k.id} value={k.id} style={{ color: '#111' }}>{k.name}</option>)}
+                </select>
+                <input value={form.mesto} onChange={e => setForm(f => ({ ...f, mesto: e.target.value }))} placeholder="Město (nepovinné)" style={{ ...fieldStyle, marginTop: 8 }} />
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Kontaktní údaje</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={form.telPredvolba} onChange={e => setForm(f => ({ ...f, telPredvolba: e.target.value }))}
+                  style={{ ...fieldStyle, width: 104, flexShrink: 0, cursor: 'pointer' }}>
+                  {_W_PREDVOLBY.map(p => <option key={p.kod} value={p.kod}>{p.vlajka + ' ' + p.kod}</option>)}
+                </select>
+                <input type="tel" inputMode="tel" value={form.telCislo} onChange={e => setForm(f => ({ ...f, telCislo: e.target.value }))} placeholder="Telefonní číslo" style={{ ...fieldStyle, flex: 1, minWidth: 0 }} />
+              </div>
+              <input type="email" inputMode="email" autoCapitalize="none" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder={uctuEmail || 'E-mail'} style={{ ...fieldStyle, marginTop: 8 }} />
+            </div>
+            <div>
+              <div style={labelStyle}>Doprava</div>
+              <div style={{ ...KARTA, padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '15px 18px' }}>
+                  <div style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>Řidičský průkaz sk. B</div>
+                  <button onClick={() => setForm(f => ({ ...f, ridicak: !f.ridicak }))} title="Mám / nemám řidičák" style={_wPrepinac(form.ridicak)}>
+                    <span style={_wPrepinacKnob(form.ridicak)} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '15px 18px', borderTop: '1px solid ' + T.border }}>
+                  <div style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>Vlastní auto</div>
+                  <button onClick={() => setForm(f => ({ ...f, auto: !f.auto }))} title="Mám / nemám auto" style={_wPrepinac(form.auto)}>
+                    <span style={_wPrepinacKnob(form.auto)} />
+                  </button>
+                </div>
+              </div>
+            </div>
             <div>
               <div style={labelStyle}>O mně</div>
               <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} placeholder="Napiš pár vět o sobě, zkušenostech nebo dostupnosti…" rows={3}
@@ -195,9 +568,7 @@ function WProfile({ tick, onSignOut, onGoTab }) {
               <input value={form.cv_url} onChange={e => setForm(f => ({ ...f, cv_url: e.target.value }))} placeholder="Odkaz na životopis (PDF / Disk / LinkedIn)…" style={fieldStyle} />
               <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>Vlož veřejný odkaz na svůj životopis. Je to dobrovolné — zaměstnavatel ho uvidí u tvého profilu.</div>
             </div>
-            <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '15px', borderRadius: 14, background: T.primary, border: 'none', color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer', opacity: saving ? 0.6 : 1, boxShadow: '0 8px 18px rgba(0,32,246,0.28)' }}>
-              {saving ? 'Ukládám…' : 'Uložit profil'}
-            </button>
+            {/* Ukládá se zeleným „Hotovo" nahoře — spodní tlačítko by bylo dvakrát */}
           </div>
         ) : (
           <>
@@ -314,12 +685,12 @@ function WProfile({ tick, onSignOut, onGoTab }) {
                 {bio ? (
                   <div style={{ ...KARTA, color: T.ink, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.6 }}>{bio}</div>
                 ) : (
-                  <button onClick={() => setEditing(true)} style={prazdnaKarta}>
+                  <div style={prazdnaKarta}>
                     <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, marginBottom: 3 }}>Napiš o sobě pár vět</div>
                     <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>
-                      Firmy si vybírají i podle toho, co o sobě napíšeš. Stačí dvě věty — co umíš a kdy můžeš.
+                      Firmy si vybírají i podle toho, co o sobě napíšeš. Klepni nahoře na <b style={{ color: T.primary, fontFamily: T.fontHead }}>Upravit</b> a přidej dvě věty — co umíš a kdy můžeš.
                     </div>
-                  </button>
+                  </div>
                 )}
                 {education && (
                   <div style={{ ...KARTA, marginTop: 12 }}>
@@ -336,12 +707,12 @@ function WProfile({ tick, onSignOut, onGoTab }) {
               <div>
                 <div style={{ ...labelStyle, padding: '0 4px' }}>Dovednosti</div>
                 {skills.length === 0 ? (
-                  <button onClick={() => setEditing(true)} style={prazdnaKarta}>
+                  <div style={prazdnaKarta}>
                     <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, marginBottom: 3 }}>Přidej svoje dovednosti</div>
                     <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>
-                      Třeba práce na kase, řidičák B nebo angličtina. Firma tak hned vidí, na co se hodíš.
+                      Třeba práce na kase, řidičák B nebo angličtina. Přes <b style={{ color: T.primary, fontFamily: T.fontHead }}>Upravit</b> je doplníš a firma hned vidí, na co se hodíš.
                     </div>
-                  </button>
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     {skills.map((sk, i) => <span key={i} style={pillStyle}>{sk}</span>)}
@@ -886,10 +1257,10 @@ const labelStyle = { color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, fon
 const fieldStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, background: '#fff', border: '1px solid ' + T.border, color: T.ink, fontFamily: T.fontUI, fontSize: 14, outline: 'none' };
 const pillStyle = { padding: '9px 16px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 6px rgba(20,22,40,0.05)', color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 700 };
 
-// Nevyplněná část profilu — klepnutím se rovnou otevřou úpravy.
-// Není to jen šedý rámeček s „klikni Upravit", ale důvod, proč to vyplnit.
+// Nevyplněná část profilu — pobídka, proč to vyplnit. Upravovat jde jen přes
+// tlačítko Upravit nahoře, takže karta sama editaci nespouští (není klikací).
 const prazdnaKarta = {
-  width: '100%', textAlign: 'left', cursor: 'pointer',
+  width: '100%', textAlign: 'left',
   borderRadius: 20, padding: '18px 20px',
   background: 'rgba(255,255,255,0.6)',
   border: '1px dashed #d9def0',

@@ -566,6 +566,16 @@ function WorkerApp() {
     const uid = userId.current;
     if (uid) insertNotifW(uid, n);
   }
+
+  // Otevřené vlákno = přečteno. WMessages už oznámení označil na serveru;
+  // tady srovnáme zvoneček (ať mu spadne počítadlo hned, ne až po refreshi)
+  // a překreslíme odznak Zpráv ve spodní liště (počítá se z W_THREADS).
+  function onThreadRead(matchId, ids) {
+    const set = new Set(ids || []);
+    setNotifs(prev => prev.map(n =>
+      (n.matchId === matchId || set.has(n.id)) ? { ...n, read: true } : n));
+    setPrecteno(p => p + 1);
+  }
   const unreadNotifs = notifs.filter(n => !n.read).length;
 
   useEffectW(() => {
@@ -774,7 +784,7 @@ function WorkerApp() {
   } else if (tab === 'history') {
     body = <WCalendar tick={tick} onReviewed={refreshWorker} />;
   } else if (tab === 'messages') {
-    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={() => setPrecteno(p => p + 1)} />;
+    body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={onThreadRead} />;
   } else if (tab === 'profile') {
     body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
   }
@@ -852,6 +862,10 @@ function WorkerApp() {
               if (!bellOpen) {
                 setNotifs(prev => prev.map(n => ({ ...n, read: true })));
                 if (userId.current) markNotifsReadW(userId.current);   // ať to platí i po refreshi
+                // Oznámení nesou i nepřečtené zprávy — srovnej i odznak Zpráv
+                W_THREADS.forEach(t => t.unread = 0);
+                Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]);
+                setPrecteno(p => p + 1);
               }
             }}
             style={{
@@ -877,7 +891,7 @@ function WorkerApp() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid ' + T.border }}>
                 <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800 }}>Upozornění</span>
-                {notifs.length > 0 && <button onClick={() => { setNotifs([]); if (userId.current) sb.from('notifications').delete().eq('user_id', userId.current).then(({ error }) => { if (error) console.error('smazání upozornění:', error); }); }} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
+                {notifs.length > 0 && <button onClick={() => { setNotifs([]); W_THREADS.forEach(t => t.unread = 0); Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]); setPrecteno(p => p + 1); if (userId.current) sb.from('notifications').delete().eq('user_id', userId.current).then(({ error }) => { if (error) console.error('smazání upozornění:', error); }); }} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
               </div>
               {notifs.length === 0 ? (
                 statusRows.length > 0 ? (

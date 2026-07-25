@@ -12,41 +12,42 @@ const W_THREADS  = [];   // one per accepted match
 const W_HISTORY  = [];   // all matches (pending/upcoming/completed) for "Moje brigády"
 const W_REVIEWS  = [];   // recenze, které dostal brigádník (o něm)
 
-// ── Kam má brigádník konverzaci přečtenou ──────────────────────
-// Značka se drží v telefonu. V tabulce `messages` na to zatím sloupec není,
-// takže bez tohohle by se stav ztratil při každém přepnutí záložky i po
-// načtení appky — a tučné písmo by zmizelo dřív, než si zprávu vůbec otevřeš.
-// Ukládá se čas poslední přečtené zprávy (ze serveru, ne z hodin telefonu).
-const W_PRECTENO_KEY = 'makej_precteno';
+// ── Nepřečtené konverzace ──────────────────────────────────────
+// Zdroj pravdy je tabulka `notifications` na serveru, ne značka v telefonu.
+// Ke každé příchozí zprávě zakládá řádek trigger (od Sama) a nese `match_id`
+// i `read`. Nepřečtené vlákno = kolik jeho oznámení má read=false. Výhody
+// proti dřívější značce v localStorage: přežije to refresh i jiný telefon
+// (mobilní Safari úložiště webu občas vyhodí) a staré testovací zprávy
+// z doby před triggerem se nepočítají, protože k nim žádný řádek není.
+// `review` sem nepatří — to není zpráva ve vlákně, ale výzva k hodnocení.
+const W_UNREAD = {};   // match_id → počet nepřečtených oznámení
 
-function _wPrectenoVse() {
-  try { return JSON.parse(localStorage.getItem(W_PRECTENO_KEY) || '{}') || {}; }
-  catch (e) { return {}; }
+// Naplní W_UNREAD z nepřečtených oznámení. Volá se ve fetchWorkerData.
+async function nactiNeprecteneW(userId) {
+  Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]);
+  const { data, error } = await sb.from('notifications')
+    .select('match_id, type').eq('user_id', userId).eq('read', false);
+  if (error) { console.error('nactiNeprecteneW:', error); return; }
+  (data || []).forEach(r => {
+    if (!r.match_id || r.type === 'review') return;
+    W_UNREAD[r.match_id] = (W_UNREAD[r.match_id] || 0) + 1;
+  });
 }
 
-function wPrectenoDo(matchId) {
-  const v = _wPrectenoVse()[matchId];
-  const ms = v ? new Date(v).getTime() : 0;
-  return isNaN(ms) ? 0 : ms;
-}
-
-// Posune značku na `ts` (čas zprávy ze serveru). Dozadu se nikdy nevrací.
-function wOznacPrecteno(matchId, ts) {
-  if (!matchId || !ts) return;
-  const nove = new Date(ts).getTime();
-  if (isNaN(nove) || nove <= wPrectenoDo(matchId)) return;
-  const vse = _wPrectenoVse();
-  vse[matchId] = new Date(nove).toISOString();
-  try { localStorage.setItem(W_PRECTENO_KEY, JSON.stringify(vse)); } catch (e) {}
-  // Sraz i globální kopii, ze které se počítá odznak ve spodní liště
+// Otevření vlákna = přečteno. Označí jeho oznámení na serveru za přečtená,
+// takže tučné zmizí natrvalo, ne jen do refreshe. Vrací seznam id, kterých
+// se to týkalo — zvoneček podle nich sladí svůj stav bez dalšího dotazu.
+async function markThreadReadW(userId, matchId) {
+  if (!userId || !matchId) return [];
+  W_UNREAD[matchId] = 0;
   const t = W_THREADS.find(x => x.id === matchId);
   if (t) t.unread = 0;
-}
-
-// Kolik zpráv od firmy dorazilo až za značkou přečtení
-function wNeprectene(matchId, msgs) {
-  const doKdy = wPrectenoDo(matchId);
-  return (msgs || []).filter(m => m.from === 'them' && m.ts && new Date(m.ts).getTime() > doKdy).length;
+  const { data, error } = await sb.from('notifications')
+    .update({ read: true })
+    .eq('user_id', userId).eq('match_id', matchId).eq('read', false)
+    .select('id');
+  if (error) { console.error('markThreadReadW:', error); return []; }
+  return (data || []).map(r => r.id);
 }
 
 // ── Přílohy v chatu ────────────────────────────────────────────
@@ -153,6 +154,48 @@ async function wPosliPrilohu(matchId, userId, file) {
   return { ok: true, zprava: data };
 }
 
+// Přípona podle formátu nahrávky. Safari na iPhonu umí jen mp4/aac,
+// Chrome a Android webm/opus — ať soubor v úložišti dostane správný název.
+function _wAudioPripona(mime) {
+  const m = (mime || '').toLowerCase();
+  if (m.includes('mp4') || m.includes('aac') || m.includes('m4a')) return 'm4a';
+  if (m.includes('ogg'))  return 'ogg';
+  if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
+  return 'webm';
+}
+
+// Nahraje hlasovku do úložiště a teprve pak založí zprávu typu audio.
+// `delka` je v sekundách — uloží se do sloupce duration, aby šla délka
+// ukázat ještě před stažením zvuku. Vrací { ok, error, zprava }.
+async function wPosliHlasovku(matchId, userId, blob, delka) {
+  if (!matchId || !userId || !blob || !blob.size)
+    return { ok: false, error: 'Chybí konverzace nebo nahrávka.' };
+  if (blob.size > W_PRILOHA_MAX) return { ok: false, error: 'Nahrávka je moc dlouhá.' };
+
+  const pripona = _wAudioPripona(blob.type);
+  const cesta = `${matchId}/${userId}-${Date.now()}-hlasovka.${pripona}`;
+
+  const { error: chybaUlozeni } = await sb.storage.from(W_BUCKET_PRILOHY).upload(cesta, blob, {
+    contentType: blob.type || 'audio/webm', upsert: false,
+  });
+  if (chybaUlozeni) {
+    console.error('wPosliHlasovku (úložiště):', chybaUlozeni);
+    return { ok: false, error: _wChybaUlozeni(chybaUlozeni) };
+  }
+
+  const { data, error } = await sb.from('messages').insert({
+    match_id: matchId, sender_id: userId, text: '',
+    file_url: cesta, file_type: 'audio', file_name: 'Hlasová zpráva',
+    file_size: blob.size, duration: Math.max(1, Math.round(delka || 0)),
+  }).select().single();
+  if (error) {
+    console.error('wPosliHlasovku (messages):', error);
+    try { await sb.storage.from(W_BUCKET_PRILOHY).remove([cesta]); } catch (e) {}
+    return { ok: false, error: 'Hlasovku se nepodařilo uložit.' };
+  }
+  return { ok: true, zprava: data };
+}
+
 // Řádek zprávy → tvar přílohy pro zobrazení
 function _wPrilohaZRadku(msg) {
   return {
@@ -177,15 +220,6 @@ function wVelikostPrilohy(b) {
                          : (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
 }
 
-// Čas poslední zprávy ve vlákně — tím se značka posouvá při otevření
-function wPosledniTs(msgs) {
-  let max = null;
-  (msgs || []).forEach(m => {
-    if (!m.ts) return;
-    if (!max || new Date(m.ts).getTime() > new Date(max).getTime()) max = m.ts;
-  });
-  return max;
-}
 
 // ── Stupně důvěry ──────────────────────────────────────────────
 // Nahradilo XP levely s vymyšlenými tituly. Stupeň se počítá jen z toho,
@@ -553,6 +587,9 @@ async function fetchWorkerData(workerId) {
       messages = msgs || [];
     }
 
+    // Nepřečtená vlákna ze serveru (musí být hotové před stavbou W_THREADS)
+    await nactiNeprecteneW(workerId);
+
     // Only show threads that are accepted OR have at least one message
     const messageMatchIds = new Set(messages.map(m => m.match_id));
     const threadMatches = allMatches.filter(m => m.status === 'accepted' || messageMatchIds.has(m.id));
@@ -600,8 +637,8 @@ async function fetchWorkerData(workerId) {
         rating: Number(employer.rating || 0),
         verified: !!employer.verified,
         last: lastPreview, time: lastTime,
-        // Nepřečtené se nepamatují v databázi — počítají se ze značky v telefonu
-        unread: wNeprectene(match.id, threadMsgs), online: false,
+        // Nepřečtené = kolik oznámení k tomuto vláknu zůstalo na serveru nepřečtených
+        unread: W_UNREAD[match.id] || 0, online: false,
         msgs: threadMsgs,
       };
     });

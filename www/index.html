@@ -2,6 +2,10 @@
 <html lang="cs">
 <head>
   <meta charset="utf-8" />
+  <!-- Zákaz cache: aby telefon vždy načetl nejnovější verzi (jinak Safari drží starou) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <!-- Nativní viewport: pokrývá celý displej (safe-area), zakazuje zoom pro app-like pocit -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="format-detection" content="telephone=no" />
@@ -59,6 +63,8 @@
     @keyframes empSpin { to { transform: rotate(360deg); } }
     @keyframes wPop { 0% { transform: scale(0.85) translateY(20px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
     @keyframes wSpin { to { transform: rotate(360deg); } }
+    @keyframes wRecPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.6); opacity: 0.45; } }
+    @keyframes wShake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-7px); } 30% { transform: translateX(6px); } 45% { transform: translateX(-5px); } 60% { transform: translateX(4px); } 75% { transform: translateX(-2px); } }
     /* Banner sjede shora jako systémové upozornění v telefonu */
     @keyframes wToastIn { 0% { transform: translateY(-120%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
     /* Rozkývání zvonečku při novém upozornění — doprovod ke zvuku */
@@ -123,6 +129,24 @@
     .au-err { border-radius: 12px; padding: 11px 14px; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; display: none; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.28); color: #e11d48; }
     .au-foot { text-align: center; margin-top: auto; padding-top: 22px; color: #6b7192; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; }
     .au-foot button { color: #0020F6; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
+
+    /* Ověření e-mailu kódem (OTP) */
+    .au-otp { display: flex; gap: 8px; justify-content: center; margin: 8px 0 16px; }
+    .au-otp input {
+      width: 100%; max-width: 52px; height: 58px; text-align: center;
+      border-radius: 14px; background: #f4f6fb; border: 1px solid #eaedf5; color: #14162b;
+      font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 24px; font-weight: 800;
+      outline: none; transition: border-color .15s, background .15s; -moz-appearance: textfield;
+    }
+    .au-otp input::-webkit-outer-spin-button, .au-otp input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .au-otp input:focus { border-color: #0020F6; background: #fff; }
+    .au-otp.bad input { border-color: #e11d48; background: rgba(244,63,94,0.05); animation: auShake .4s ease; }
+    @keyframes auShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+    .au-countdown { text-align: center; color: #6b7192; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; margin-bottom: 16px; }
+    .au-countdown b { color: #0020F6; font-variant-numeric: tabular-nums; }
+    .au-resend { text-align: center; margin-top: 16px; color: #6b7192; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; }
+    .au-resend button { color: #0020F6; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
+    .au-resend button:disabled { color: #a6abc4; cursor: default; }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -254,6 +278,30 @@
       <div class="au-foot">Nemáš účet? <button type="button" id="go-register">Zaregistruj se</button></div>
     </div>
   </div>
+
+  <!-- OVĚŘENÍ E-MAILU KÓDEM -->
+  <div class="au-view" id="au-verify" style="display:none">
+    <div class="au-head">
+      <div class="au-logo">Makej<span>!</span></div>
+      <div class="au-h1">Ověř svůj e-mail</div>
+      <div class="au-sub">Poslali jsme 6místný kód na<br><b id="verify-email">tvůj e-mail</b></div>
+    </div>
+    <div class="au-body">
+      <div class="au-err" id="verify-err"></div>
+      <div class="au-otp" id="verify-otp">
+        <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Číslice 1" />
+        <input type="text" inputmode="numeric" maxlength="1" aria-label="Číslice 2" />
+        <input type="text" inputmode="numeric" maxlength="1" aria-label="Číslice 3" />
+        <input type="text" inputmode="numeric" maxlength="1" aria-label="Číslice 4" />
+        <input type="text" inputmode="numeric" maxlength="1" aria-label="Číslice 5" />
+        <input type="text" inputmode="numeric" maxlength="1" aria-label="Číslice 6" />
+      </div>
+      <div class="au-countdown" id="verify-countdown"></div>
+      <button class="au-btn" id="verify-submit" disabled>Ověřit</button>
+      <div class="au-resend">Nepřišel kód? <button type="button" id="verify-resend">Poslat znovu</button></div>
+      <div class="au-foot"><button type="button" id="verify-back">Zpět na registraci</button></div>
+    </div>
+  </div>
 </div>
 
 <div id="root"></div>
@@ -271,9 +319,11 @@
 
   const regView = document.getElementById('au-register');
   const loginView = document.getElementById('au-login');
+  const verifyView = document.getElementById('au-verify');
   function showView(v) {
     regView.style.display = v === 'register' ? '' : 'none';
     loginView.style.display = v === 'login' ? '' : 'none';
+    verifyView.style.display = v === 'verify' ? '' : 'none';
     gate.scrollTop = 0;
   }
   document.getElementById('go-login').addEventListener('click', () => showView('login'));
@@ -324,11 +374,20 @@
   }
 
   function translateErr(msg) {
+    msg = msg || '';
     if (msg.includes('Invalid login credentials')) return 'Nesprávný e-mail nebo heslo.';
     if (msg.includes('Email not confirmed')) return 'Nejdřív potvrď svůj e-mail.';
     if (msg.includes('User already registered') || msg.includes('already been registered')) return 'Tento e-mail je již zaregistrovaný.';
     if (msg.includes('Password should be at least')) return 'Heslo musí mít alespoň 6 znaků.';
     if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return 'Nemáš připojení k internetu. Zkontroluj síť a zkus to znovu.';
+    // Rate limit / bezpečnostní prodleva — Supabase to hlásí anglicky.
+    // Vždy stejný začátek; když server pošle počet sekund, přilepíme odpočet.
+    if (/for security purposes/i.test(msg) || /rate limit/i.test(msg) || /too many requests/i.test(msg)) {
+      const sek = msg.match(/after (\d+) seconds?/i);
+      return sek
+        ? 'Moc pokusů po sobě. Zkus to znovu za ' + sek[1] + ' s.'
+        : 'Moc pokusů po sobě. Počkej prosím chvíli a zkus to znovu.';
+    }
     return msg;
   }
 
@@ -356,8 +415,7 @@
     btn.disabled = false; btn.textContent = 'Vytvořit účet';
     if (error) { setErr(regErr, translateErr(error.message)); return; }
     if (data.session) { hideGate(); return; }   // potvrzení e-mailu vypnuté → rovnou dovnitř
-    setErr(regErr, 'Účet vytvořen! Zkontroluj e-mail pro potvrzení, pak se přihlas.', true);
-    setTimeout(() => { showView('login'); document.getElementById('login-email').value = email; }, 1400);
+    openVerify(email);                            // jinak: zadej kód z e-mailu
   });
   document.getElementById('reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('reg-submit').click(); });
 
@@ -378,9 +436,19 @@
     const btn = document.getElementById('login-submit');
     btn.disabled = true; btn.textContent = 'Přihlašuji…';
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) { setErr(loginErr, translateErr(error.message));
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Přihlásit se';
+      // Nepotvrzený e-mail → rovnou na zadání kódu (a pošli čerstvý)
+      if (error.message.includes('Email not confirmed')) {
+        openVerify(email);
+        sb.auth.resend({ type: 'signup', email });
+        setErr(verifyErr, 'Nejdřív potvrď e-mail — poslali jsme ti nový kód.', true);
+        return;
+      }
+      setErr(loginErr, translateErr(error.message));
       if (error.message.includes('Invalid login credentials')) oznacPole(['login-email','login-password']);
-      btn.disabled = false; btn.textContent = 'Přihlásit se'; return; }
+      return;
+    }
     const role = data.user?.user_metadata?.role;
     if (role === 'employer') {
       setErr(loginErr, 'Tento účet je zaměstnavatelský. Přihlaš se jako brigádník.');
@@ -402,6 +470,129 @@
       setErr(el, 'Přihlášení přes ' + (provider === 'google' ? 'Google' : 'Apple') + ' zatím není dostupné.');
     }
   }));
+
+  // ── Ověření e-mailu kódem (OTP) ──
+  let pendingEmail = '';
+  let otpTimer = null, otpResendTimer = null, otpBusy = false;
+  const otpBoxes = Array.prototype.slice.call(document.querySelectorAll('#verify-otp input'));
+  const verifyErr = document.getElementById('verify-err');
+  const verifySubmit = document.getElementById('verify-submit');
+  const verifyCountdown = document.getElementById('verify-countdown');
+  const verifyResend = document.getElementById('verify-resend');
+  const verifyOtpBox = document.getElementById('verify-otp');
+
+  function otpValue() { return otpBoxes.map(b => b.value).join(''); }
+  function otpUpdateBtn() { verifySubmit.disabled = otpValue().length !== 6 || otpBusy; }
+  function otpClear() { otpBoxes.forEach(b => b.value = ''); otpUpdateBtn(); }
+
+  otpBoxes.forEach((box, i) => {
+    box.addEventListener('input', () => {
+      box.value = box.value.replace(/\D/g, '').slice(0, 1);
+      if (box.value && i < otpBoxes.length - 1) otpBoxes[i + 1].focus();
+      otpUpdateBtn();
+      if (otpValue().length === 6) doVerify();       // hotovo → ověř rovnou
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !box.value && i > 0) { otpBoxes[i - 1].focus(); }
+    });
+    box.addEventListener('paste', e => {
+      e.preventDefault();
+      const digits = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '').slice(0, 6).split('');
+      digits.forEach((d, j) => { if (otpBoxes[j]) otpBoxes[j].value = d; });
+      otpUpdateBtn();
+      otpBoxes[Math.min(digits.length, otpBoxes.length - 1)].focus();
+      if (otpValue().length === 6) doVerify();
+    });
+  });
+
+  function startOtpCountdown() {
+    clearInterval(otpTimer);
+    let left = 600;   // 10 minut
+    const tick = () => {
+      if (left > 0) {
+        const m = Math.floor(left / 60), s = left % 60;
+        verifyCountdown.innerHTML = 'Kód platí ještě <b>' + m + ':' + (s < 10 ? '0' + s : s) + '</b>';
+      } else {
+        verifyCountdown.innerHTML = '<span style="color:#e11d48">Kód vypršel — nech si poslat nový.</span>';
+        clearInterval(otpTimer);
+      }
+      left--;
+    };
+    tick();
+    otpTimer = setInterval(tick, 1000);
+  }
+
+  function startResendCooldown(sec) {
+    clearInterval(otpResendTimer);
+    let left = sec;
+    verifyResend.disabled = true;
+    const tick = () => {
+      verifyResend.textContent = left > 0 ? 'Poslat znovu (' + left + 's)' : 'Poslat znovu';
+      if (left <= 0) { verifyResend.disabled = false; clearInterval(otpResendTimer); }
+      left--;
+    };
+    tick();
+    otpResendTimer = setInterval(tick, 1000);
+  }
+
+  function openVerify(email) {
+    pendingEmail = email;
+    otpBusy = false;
+    document.getElementById('verify-email').textContent = email;
+    setErr(verifyErr, '');
+    otpClear();
+    showView('verify');
+    startOtpCountdown();
+    startResendCooldown(45);
+    setTimeout(() => otpBoxes[0].focus(), 120);
+  }
+
+  async function doVerify() {
+    const code = otpValue();
+    if (code.length !== 6 || otpBusy || !pendingEmail) return;
+    otpBusy = true;
+    setErr(verifyErr, '');
+    verifySubmit.disabled = true; verifySubmit.textContent = 'Ověřuji…';
+    const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token: code, type: 'signup' });
+    verifySubmit.textContent = 'Ověřit';
+    otpBusy = false;
+    if (error) {
+      const m = error.message || '';
+      setErr(verifyErr, /expired/i.test(m) ? 'Kód vypršel — nech si poslat nový.'
+        : /invalid/i.test(m) ? 'Nesprávný kód. Zkontroluj ho a zkus to znovu.'
+        : 'Ověření se nepovedlo. Zkus to prosím znovu.');
+      verifyOtpBox.classList.add('bad');
+      setTimeout(() => verifyOtpBox.classList.remove('bad'), 500);
+      otpClear();
+      otpBoxes[0].focus();
+      return;
+    }
+    // Ověřeno → session vznikla → appka naskočí přes onAuthStateChange
+    clearInterval(otpTimer); clearInterval(otpResendTimer);
+    hideGate();
+  }
+  verifySubmit.addEventListener('click', doVerify);
+
+  verifyResend.addEventListener('click', async () => {
+    if (verifyResend.disabled || !pendingEmail) return;
+    setErr(verifyErr, '');
+    startResendCooldown(45);
+    const { error } = await sb.auth.resend({ type: 'signup', email: pendingEmail });
+    if (error) {
+      const t = translateErr(error.message);
+      setErr(verifyErr, t === (error.message || '') ? 'Nový kód se nepodařilo poslat. Zkus to za chvíli.' : t);
+      return;
+    }
+    setErr(verifyErr, 'Poslali jsme ti nový kód.', true);
+    otpClear();
+    startOtpCountdown();
+    otpBoxes[0].focus();
+  });
+
+  document.getElementById('verify-back').addEventListener('click', () => {
+    clearInterval(otpTimer); clearInterval(otpResendTimer);
+    showView('register');
+  });
 
   // Existující session
   sb.auth.getSession().then(({ data: { session } }) => {
