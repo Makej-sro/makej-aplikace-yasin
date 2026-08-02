@@ -368,6 +368,8 @@ function WProfile({ tick, onSignOut, onGoTab }) {
   const [soundOn, setSoundOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notif-sound') !== 'off'));
   const [confirmDel, setConfirmDel] = useStateW(false);
   const [deleting, setDeleting] = useStateW(false);
+  const [delPassword, setDelPassword] = useStateW('');   // heslo pro potvrzení smazání
+  const [delErr, setDelErr] = useStateW('');
 
   function toggleNotifs() {
     setNotifsOn(v => {
@@ -387,9 +389,22 @@ function WProfile({ tick, onSignOut, onGoTab }) {
   }
   async function handleDeleteAccount() {
     if (deleting) return;
+    const pw = (delPassword || '').trim();
+    if (!pw) { setDelErr('Pro potvrzení zadej svoje heslo.'); return; }
     setDeleting(true);
+    setDelErr('');
+    // 1) Ověř heslo — re-přihlášení stejným účtem. Špatné heslo = konec.
+    const { data: { session } } = await sb.auth.getSession();
+    const email = session?.user?.email || uctuEmail || W_PROFILE.email || '';
+    const { error: pwErr } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (pwErr) {
+      setDeleting(false);
+      setDelErr('Nesprávné heslo. Zkus to znovu.');
+      return;
+    }
+    // 2) Heslo sedí → smaž účet (RPC delete_my_account) a odhlas.
     const { error } = await sb.rpc('delete_my_account');
-    if (error) { setDeleting(false); alert('Účet se nepodařilo smazat. Zkus to prosím znovu.'); return; }
+    if (error) { setDeleting(false); setDelErr('Účet se nepodařilo smazat. Zkus to prosím znovu.'); return; }
     await sb.auth.signOut();
     window.location.href = '/';
   }
@@ -898,9 +913,12 @@ function WProfile({ tick, onSignOut, onGoTab }) {
       {earningsOpen && <WEarningsPage vyd={vyd} onClose={() => setEarningsOpen(false)} />}
       {trustOpen && <WTrustPage trust={trust} onClose={() => setTrustOpen(false)} />}
 
-      {/* Potvrzení smazání účtu */}
-      {confirmDel && (
-        <div onClick={() => !deleting && setConfirmDel(false)} style={{
+      {/* Potvrzení smazání účtu (dotaz + heslo) */}
+      {confirmDel && (() => {
+        const zavri = () => { if (!deleting) { setConfirmDel(false); setDelPassword(''); setDelErr(''); } };
+        const muzeSmazat = !deleting && (delPassword || '').trim().length > 0;
+        return (
+        <div onClick={zavri} style={{
           position: 'fixed', inset: 0, zIndex: 150,
           background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(10px)',
           display: 'grid', placeItems: 'center', padding: 20,
@@ -914,23 +932,46 @@ function WProfile({ tick, onSignOut, onGoTab }) {
             <div style={{ width: 60, height: 60, borderRadius: 17, background: 'rgba(244,63,94,0.12)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
               <Icon name="trash-bin-trash-bold" size={28} color="#f43f5e" />
             </div>
-            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4 }}>Smazat účet?</div>
+            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4 }}>Opravdu smazat všechna data?</div>
             <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 14, marginTop: 8, lineHeight: 1.5 }}>
               Trvale se odstraní tvůj profil, brigády, zprávy i recenze. Tuhle akci nelze vrátit.
             </div>
-            <button onClick={handleDeleteAccount} disabled={deleting} style={{
-              width: '100%', marginTop: 20, padding: '14px', borderRadius: 14,
+
+            {/* Potvrzení heslem */}
+            <div style={{ marginTop: 18, textAlign: 'left' }}>
+              <div style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Pro potvrzení zadej svoje heslo</div>
+              <input
+                type="password"
+                value={delPassword}
+                onChange={e => { setDelPassword(e.target.value); if (delErr) setDelErr(''); }}
+                onKeyDown={e => { if (e.key === 'Enter' && muzeSmazat) handleDeleteAccount(); }}
+                placeholder="Tvoje heslo"
+                autoComplete="current-password"
+                disabled={deleting}
+                style={{
+                  width: '100%', height: 46, padding: '0 14px', borderRadius: 12, boxSizing: 'border-box',
+                  background: T.surfaceAlt, border: '1px solid ' + (delErr ? '#f43f5e' : T.border),
+                  color: T.ink, fontFamily: T.fontUI, fontSize: 15, outline: 'none',
+                }}
+              />
+              {delErr && <div style={{ color: '#f43f5e', fontFamily: T.fontUI, fontSize: 12.5, marginTop: 6 }}>{delErr}</div>}
+            </div>
+
+            <button onClick={handleDeleteAccount} disabled={!muzeSmazat} style={{
+              width: '100%', marginTop: 18, padding: '14px', borderRadius: 14,
               background: '#f43f5e', border: 'none', color: '#fff',
-              fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1,
+              fontFamily: T.fontHead, fontSize: 15, fontWeight: 800,
+              cursor: muzeSmazat ? 'pointer' : 'default', opacity: muzeSmazat ? 1 : 0.5,
             }}>{deleting ? 'Mažu…' : 'Ano, smazat účet'}</button>
-            <button onClick={() => !deleting && setConfirmDel(false)} style={{
+            <button onClick={zavri} style={{
               width: '100%', marginTop: 10, padding: '13px', borderRadius: 14,
               background: T.surfaceAlt, border: '1px solid ' + T.border, color: T.muted,
               fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, cursor: 'pointer',
             }}>Zpět</button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

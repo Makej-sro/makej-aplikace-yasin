@@ -38,6 +38,32 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 
 ## Historie provedených změn
 
+### 2026-07-26 · Yasin (web) · Nová tabulka `waitlist` (čekací list na marketingovém webu)
+Marketingový web (`~/Desktop/makej-web 6.7`) zapisuje předregistrace na čekací list
+před spuštěním appky. Zápis přes `sb.from('waitlist').insert({role,name,email,company_name,phone})`
+(anon, `return=minimal`). Ověřeno anon INSERT → HTTP 201. Nemá SELECT/UPDATE/DELETE
+policy (číst/mazat jde jen přes dashboard/service role).
+
+```sql
+create table public.waitlist (
+  id uuid primary key default gen_random_uuid(),
+  role text not null check (role in ('worker','employer')),
+  name text not null,
+  email text not null,
+  company_name text,
+  phone text,
+  created_at timestamptz not null default now(),
+  unique (email, role)
+);
+
+alter table public.waitlist enable row level security;
+
+create policy "anyone can join waitlist"
+  on public.waitlist for insert
+  to anon, authenticated
+  with check (true);
+```
+
 ### 2026-07-25 · Yasin · Auth: ověření e-mailu kódem (OTP) — SDÍLENÉ, týká se i webu
 Ne SQL, ale nastavení Authentication (dotýká se i registrace na webu/dashboardu):
 - Šablona **Confirm signup** rozšířena o 6místný kód `{{ .Token }}` (odkaz `{{ .ConfirmationURL }}`
