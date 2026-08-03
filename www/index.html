@@ -269,6 +269,9 @@
         <input class="au-input au-input--pw" type="password" id="login-password" placeholder="Heslo" autocomplete="current-password" />
         <button type="button" class="au-pw-toggle" data-pw="login-password" tabindex="-1">Zobrazit</button>
       </div>
+      <div class="au-label">Přístupový klíč</div>
+      <div class="au-field"><input class="au-input" type="text" id="login-key" inputmode="numeric" autocomplete="off" autocapitalize="none" autocorrect="off" placeholder="Přístupový klíč" /></div>
+      <div style="font-size:12px;color:#8a8f98;margin:-2px 2px 10px;line-height:1.4">Pouze pro oficiální testovací a vývojářské účty.</div>
       <button class="au-btn" id="login-submit" style="margin-top:6px">Přihlásit se</button>
       <div class="au-divider">nebo pokračuj přes</div>
       <div class="au-social">
@@ -312,6 +315,18 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, storageKey: 'makej-auth' }
   });
+
+  // ─── Přístupový klíč (pre-launch) ────────────────────────────────────────────
+  // Dashboard ještě není hotový → do rozhraní se nikdo nedostane bez klíče.
+  //   ⇒ ZMĚNIT KLÍČ = uprav ACCESS_KEY.   ⇒ NAOSTRO = dej ACCESS_KEY na '' (pustí všechny).
+  const ACCESS_KEY = '8939';
+  function accessKeyOk() {
+    if (!ACCESS_KEY) return true;
+    try { if (sessionStorage.getItem('makej-gate-ok') === ACCESS_KEY) return true; } catch (e) {}
+    const el = document.getElementById('login-key');
+    return !!el && el.value.trim() === ACCESS_KEY;
+  }
+  function markGateOk() { try { sessionStorage.setItem('makej-gate-ok', ACCESS_KEY); } catch (e) {} }
 
   const gate = document.getElementById('auth-gate');
   function showGate() { gate.classList.remove('hidden'); }
@@ -414,7 +429,14 @@
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name, role: 'worker' } } });
     btn.disabled = false; btn.textContent = 'Vytvořit účet';
     if (error) { setErr(regErr, translateErr(error.message)); return; }
-    if (data.session) { hideGate(); return; }   // potvrzení e-mailu vypnuté → rovnou dovnitř
+    if (data.session) {
+      // Účet vznikl (potvrzení e-mailu je vypnuté → session by pustila rovnou dovnitř).
+      // Pre-launch to NECHCEME — účet se založí, ale do rozhraní až s přístupovým klíčem.
+      await sb.auth.signOut();
+      showView('login');
+      setErr(loginErr, 'Účet byl založen! 🎉 Spouštíme 1. 10. — přihlaš se přístupovým klíčem.', true);
+      return;
+    }
     openVerify(email);                            // jinak: zadej kód z e-mailu
   });
   document.getElementById('reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('reg-submit').click(); });
@@ -431,6 +453,11 @@
       if (!password) chybi.push('login-password');
       setErr(loginErr, chybi.length === 1 ? 'Vyplň chybějící údaj.' : 'Vyplň e-mail a heslo.');
       oznacPole(chybi);
+      return;
+    }
+    if (!accessKeyOk()) {
+      setErr(loginErr, 'Spouštíme 1. 10. — makáme na tom. 🔧');
+      oznacPole(['login-key']);
       return;
     }
     const btn = document.getElementById('login-submit');
@@ -456,6 +483,7 @@
       btn.disabled = false; btn.textContent = 'Přihlásit se';
       return;
     }
+    markGateOk();
     hideGate();
   }
   document.getElementById('login-submit').addEventListener('click', doLogin);
@@ -464,6 +492,13 @@
   // Google / Apple
   document.querySelectorAll('[data-oauth]').forEach(b => b.addEventListener('click', async () => {
     const provider = b.getAttribute('data-oauth');
+    if (!accessKeyOk()) {
+      const el = loginView.style.display === 'none' ? regErr : loginErr;
+      setErr(el, 'Spouštíme 1. 10. — přihlášení jen s přístupovým klíčem. 🔧');
+      if (loginView.style.display !== 'none') oznacPole(['login-key']);
+      return;
+    }
+    markGateOk();   // klíč platí přes redirect (OAuth odejde a vrátí se) → poznač předem
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.href } });
     if (error) {
       const el = loginView.style.display === 'none' ? regErr : loginErr;
@@ -567,9 +602,10 @@
       otpBoxes[0].focus();
       return;
     }
-    // Ověřeno → session vznikla → appka naskočí přes onAuthStateChange
+    // Ověřeno → session vznikla. Do rozhraní ale až s platným přístupovým klíčem.
     clearInterval(otpTimer); clearInterval(otpResendTimer);
-    hideGate();
+    if (accessKeyOk()) { markGateOk(); hideGate(); }
+    else { showGate(); showView('login'); setErr(loginErr, 'E-mail ověřen! 🎉 Spouštíme 1. 10. — přihlaš se přístupovým klíčem.', true); }
   }
   verifySubmit.addEventListener('click', doVerify);
 
@@ -594,11 +630,15 @@
     showView('register');
   });
 
-  // Existující session
-  sb.auth.getSession().then(({ data: { session } }) => {
+  // Existující session — dovnitř jen když je brána ověřená klíčem.
+  // Session bez ověřené brány (nebo firemní) → odhlásit, ať appka za bránou nikdy neběží bez klíče.
+  sb.auth.getSession().then(async ({ data: { session } }) => {
     const role = session?.user?.user_metadata?.role;
-    if (session && role !== 'employer') hideGate();
-    else { showGate(); showView('register'); }
+    if (session && role !== 'employer' && accessKeyOk()) { hideGate(); return; }
+    const hadSession = !!session;
+    if (session) await sb.auth.signOut();
+    showGate();
+    showView(hadSession ? 'login' : 'register');
   });
 </script>
 
