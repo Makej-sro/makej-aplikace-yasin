@@ -156,67 +156,11 @@
     .w-wheel::-webkit-scrollbar { display: none; }
     button, input, textarea, select { font-family: inherit; }
 
-    /* ── Onboarding (jen při prvním spuštění) — dle Splash Page.html ── */
-    #onboarding {
-      position: fixed; inset: 0; z-index: 10000;
-      display: flex; flex-direction: column; overflow: hidden;
-      background: radial-gradient(ellipse 135% 620px at 30% 8%, #0020F6 0%, #000B4D 75%);
-      color: #fff;
-      padding-top: calc(env(safe-area-inset-top) + 26px);
-    }
-    #onboarding.hidden { display: none; }
-    .ob-glow { position: absolute; top: -100px; right: -90px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.10), transparent 70%); pointer-events: none; }
-    .ob-logo { padding: 8px 30px 0; font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; position: relative; }
-    .ob-logo span { color: #A3AEFF; }
-    .ob-title { padding: 30px 30px 0; font-family: "Inter", -apple-system, system-ui, sans-serif; font-weight: 700; font-size: clamp(34px, 10.5vw, 42px); line-height: 1.14; letter-spacing: -1px; position: relative; }
-    .ob-art { position: relative; flex: 1; margin-top: 10px; min-height: 0; }
-    .ob-art svg { position: absolute; bottom: -10px; left: 0; width: 100%; height: 100%; }
-    .ob-btnwrap { padding: 0 22px calc(env(safe-area-inset-bottom) + 40px); position: relative; }
-    .ob-btn { width: 100%; height: 58px; border-radius: 30px; background: #fff; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 20px 40px -18px rgba(0,0,0,0.5); transition: transform .12s; }
-    .ob-btn:active { transform: scale(0.98); }
   </style>
 </head>
 <body>
 
-<!-- Uvítací obrazovka — jen při úplně prvním otevření aplikace -->
-<div id="onboarding">
-  <div class="ob-glow"></div>
-  <div class="ob-logo">Makej</div>
-  <div class="ob-title">Chytrý způsob,<br>jak najít<br>brigádu</div>
-  <div class="ob-art">
-    <svg viewBox="0 0 380 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kufřík">
-      <defs>
-        <linearGradient id="caseBody" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#A3AEFF"/><stop offset=".5" stop-color="#0020F6"/><stop offset="1" stop-color="#0014A3"/>
-        </linearGradient>
-        <linearGradient id="caseLid" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#A3AEFF"/><stop offset="1" stop-color="#0020F6"/>
-        </linearGradient>
-        <linearGradient id="handleBody" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#0014A3"/><stop offset="1" stop-color="#6F80FF"/>
-        </linearGradient>
-      </defs>
-      <rect x="60" y="190" width="260" height="190" rx="26" fill="url(#caseBody)"/>
-      <rect x="60" y="190" width="260" height="60" rx="26" fill="url(#caseLid)"/>
-      <rect x="60" y="238" width="260" height="14" fill="#0014A3" opacity=".35"/>
-      <rect x="150" y="140" width="80" height="64" rx="16" fill="none" stroke="url(#handleBody)" stroke-width="14"/>
-      <rect x="176" y="270" width="28" height="40" rx="8" fill="#0014A3" opacity=".4"/>
-      <rect x="60" y="190" width="260" height="190" rx="26" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="3"/>
-    </svg>
-  </div>
-  <div class="ob-btnwrap"><button class="ob-btn" id="ob-start">Začít</button></div>
-</div>
-
-<script>
-  (function () {
-    var ob = document.getElementById('onboarding');
-    try { if (localStorage.getItem('makej-onboarded') === '1') ob.classList.add('hidden'); } catch (e) {}
-    document.getElementById('ob-start').addEventListener('click', function () {
-      try { localStorage.setItem('makej-onboarded', '1'); } catch (e) {}
-      ob.classList.add('hidden');
-    });
-  })();
-</script>
+<!-- Bez úvodní obrazovky: aplikace jede rovnou dovnitř (swipe / přihlášení). -->
 
 <div id="auth-gate">
   <!-- REGISTRACE -->
