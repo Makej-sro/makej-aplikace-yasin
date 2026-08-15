@@ -366,6 +366,7 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const [trustOpen, setTrustOpen]             = useStateW(false);
   const [notifsOn, setNotifsOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notifs') !== 'off'));
   const [soundOn, setSoundOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notif-sound') !== 'off'));
+  const [zajemOn, setZajemOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-hide-zajem') !== '1'));   // potvrzení „Zájem odeslán" po přijetí
   const [confirmDel, setConfirmDel] = useStateW(false);
   const [deleting, setDeleting] = useStateW(false);
   const [delPassword, setDelPassword] = useStateW('');   // heslo pro potvrzení smazání
@@ -384,6 +385,13 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
       try { localStorage.setItem('makej-notif-sound', nv ? 'on' : 'off'); } catch (e) {}
       // Po zapnutí rovnou přehraj ukázku — uživatel slyší, co si zapnul
       if (nv && typeof wPlayBell === 'function') wPlayBell();
+      return nv;
+    });
+  }
+  function toggleZajem() {
+    setZajemOn(v => {
+      const nv = !v;   // zapnuto = potvrzení se ukazuje (flag NENÍ '1')
+      try { localStorage.setItem('makej-hide-zajem', nv ? '0' : '1'); } catch (e) {}
       return nv;
     });
   }
@@ -887,6 +895,23 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
                   </button>
                 </div>
               )}
+
+              {/* Potvrzení „Zájem odeslán" po přijetí brigády — dá se vypnout i přímo na té obrazovce */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderTop: '1px solid ' + T.border }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <Icon name="check-circle-bold" size={18} color={T.primary} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>Potvrzení po přijetí</div>
+                  <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5 }}>Obrazovka „Zájem odeslán" po přijetí brigády</div>
+                </div>
+                <button onClick={toggleZajem} title="Zapnout/vypnout potvrzení" style={{
+                  width: 48, height: 28, borderRadius: 999, flexShrink: 0, cursor: 'pointer', position: 'relative',
+                  background: zajemOn ? T.primary : 'rgba(18,18,26,0.18)', border: 'none', transition: 'background .2s',
+                }}>
+                  <span style={{ position: 'absolute', top: 3, left: zajemOn ? 23 : 3, width: 22, height: 22, borderRadius: 999, background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
+                </button>
+              </div>
 
 
               <div style={{ height: 1, background: T.border }} />

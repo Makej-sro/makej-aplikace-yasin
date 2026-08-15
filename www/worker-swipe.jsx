@@ -110,6 +110,10 @@ function _wDemoJobs() {
   return (typeof JOBS !== 'undefined' ? JOBS : []).map(j => ({ ...j, _demo: true }));
 }
 
+// Potvrzení „Zájem odeslán" se ukazuje po přijetí brigády, dokud si ho uživatel
+// nevypne přes „Příště nezobrazovat" (uloženo v zařízení).
+const _zajemHidden = () => { try { return localStorage.getItem('makej-hide-zajem') === '1'; } catch (e) { return false; } };
+
 function WSwipe({ tick }) {
   const [jobs,       setJobs]       = useStateW(() => {
     const real = W_JOBS.map(jobToCard);
@@ -119,6 +123,7 @@ function WSwipe({ tick }) {
   const [drag,       setDrag]       = useStateW({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
   const [matchAnim,  setMatchAnim]  = useStateW(null);
   const [isSuperAnim,setIsSuperAnim]= useStateW(false);
+  const [hideInfo,   setHideInfo]   = useStateW(() => _zajemHidden());   // „Příště nezobrazovat"
   const [actionAnim, setActionAnim] = useStateW(null); // 'like' | 'pass' | 'super'
   const [flying,     setFlying]     = useStateW(0);    // 0=klid; 1/-1 = probíhá odlet → spodní karty se dorovnají o úroveň výš
   const [detailJob,  setDetailJob]  = useStateW(null);
@@ -162,9 +167,15 @@ function WSwipe({ tick }) {
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
 
+  const closeMatch = () => { setMatchAnim(null); if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false); };
+
   const animateFly = (dir, cb) => {
+    // Po tahu prstem má karta náběh → punchy daleký odjezd. Z tlačítka (bez tahu, x≈0)
+    // stačí kousek za okraj — pomalejší, aby byl odjezd vidět a ne jen bleskl.
+    const flung = Math.abs(dragRef.current.x) > 60;
+    const dist = flung ? 1400 : (window.innerWidth + 40);
     if (dir === 'super') setDrag(d => ({ ...d, x: 0, y: -1400, dragging: false }));
-    else setDrag(d => ({ ...d, x: dir === 'like' ? 1400 : -1400, y: 0, dragging: false }));
+    else setDrag(d => ({ ...d, x: dir === 'like' ? dist : -dist, y: 0, dragging: false }));
     setFlying(dir === 'pass' ? -1 : 1);   // spodní karty se během odletu dorovnají o úroveň výš
     setTimeout(() => { snapBack(); setFlying(0); cb(); }, 340);
   };
@@ -178,10 +189,10 @@ function WSwipe({ tick }) {
       setTopIdx(i => i + 1);
       const uid = userId.current;
       if (uid && !job._demo) await createMatchW(uid, job.id, sup);
-      if (uid) {
-        setIsSuperAnim(!!sup);
+      if (uid && !_zajemHidden()) {
+        setHideInfo(false);   // při zobrazení flag != '1' → checkbox odškrtnutý (i po zapnutí z Nastavení)
         setMatchAnim(job);
-        setTimeout(() => setMatchAnim(null), 3000);
+        if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(true);   // schovej horní lištu za potvrzením
       }
     });
   }
@@ -330,52 +341,64 @@ function WSwipe({ tick }) {
 
       {/* Match animation */}
       {matchAnim && (
-        <div
-          onClick={() => setMatchAnim(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100,
-            background: 'rgba(0,0,0,0.8)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            backdropFilter: 'blur(12px)',
-            animation: 'wPop .35s cubic-bezier(.2,.8,.2,1)',
-          }}
-        >
-          <div style={{ textAlign: 'center', padding: '32px 40px', maxWidth: 360 }}>
-            <div style={{ fontSize: 80, marginBottom: 4, lineHeight: 1 }}>{isSuperAnim ? '⭐' : '💙'}</div>
-            <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 34, fontWeight: 900, letterSpacing: -1, marginTop: 8 }}>
-              {isSuperAnim ? 'Super zájem odeslán!' : 'Zájem odeslán!'}
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9000,
+          background: T.primary,
+          display: 'flex', flexDirection: 'column',
+          animation: 'wPop .3s cubic-bezier(.2,.8,.2,1)',
+        }}>
+          {/* Horní modrá část — potvrzení */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 40px', textAlign: 'center' }}>
+            <div style={{ width: 92, height: 92, borderRadius: 26, background: 'rgba(255,255,255,0.16)', display: 'grid', placeItems: 'center', marginBottom: 26 }}>
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </div>
-            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 14, marginTop: 10, lineHeight: 1.6 }}>
-              {isSuperAnim
-                ? <>Zaměstnavatel uvidí tvůj profil <span style={{ color: T.super, fontWeight: 700 }}>přednostně</span>.<br />Jakmile tě přijme, otevře se chat.</>
-                : <>Tvůj profil byl odeslán zaměstnavateli.<br />Jakmile tě přijme, otevře se chat.</>}
+            <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 31, fontWeight: 800, letterSpacing: -0.8 }}>Zájem odeslán</div>
+            <div style={{ color: 'rgba(255,255,255,0.82)', fontFamily: T.fontUI, fontSize: 15.5, lineHeight: 1.55, marginTop: 12, maxWidth: 320 }}>
+              {matchAnim.company} odpovídá obvykle do hodiny. Dáme ti vědět, jakmile se ozve.
             </div>
-            <div style={{
-              margin: '20px auto 0',
-              padding: '12px 20px',
-              borderRadius: 14,
-              background: 'rgba(111,128,255,0.15)',
-              border: '1px solid rgba(111,128,255,0.3)',
-              color: '#fff',
-              fontFamily: T.fontUI,
-              fontSize: 14,
-            }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{matchAnim.title}</div>
-              <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{matchAnim.company} · {matchAnim.when}</div>
+          </div>
+
+          {/* Spodní bílý list */}
+          <div style={{ flex: 'none', background: '#fff', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(18px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Souhrn brigády */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <span style={{ width: 44, height: 44, flex: 'none', borderRadius: 13, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{matchAnim.logo}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, lineHeight: 1.25 }}>{matchAnim.title}</div>
+                  <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0', whiteSpace: 'nowrap' }}>Čeká na firmu</span>
+                </div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 3 }}>
+                  {[matchAnim.when, matchAnim.time, (matchAnim.shiftTotal > 0 ? matchAnim.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč' : null)].filter(Boolean).join(' · ')}
+                </div>
+              </div>
             </div>
-            <button
-              onClick={e => { e.stopPropagation(); setMatchAnim(null); }}
-              style={{
-                marginTop: 24, padding: '13px 36px', borderRadius: 999,
-                background: T.ink,
-                border: 'none', color: '#fff',
-                fontFamily: T.fontHead, fontSize: 15, fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              Pokračovat →
+
+            {/* Co bude dál */}
+            <div style={{ background: '#F6F7FC', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Co bude dál</div>
+              {['Firma si projde tvůj profil', 'Při shodě se otevře chat s pravidly směny', 'Směna ti naskočí do kalendáře'].map((txt, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: i < 2 ? 11 : 0 }}>
+                  <span style={{ width: 22, height: 22, flex: 'none', borderRadius: 999, background: i === 0 ? T.green : '#E3E7F2', color: i === 0 ? '#fff' : T.mutedSoft, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{i + 1}</span>
+                  <span style={{ color: i === 0 ? T.ink : T.muted, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: i === 0 ? 700 : 600 }}>{txt}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Příště nezobrazovat */}
+            <button onClick={() => { const v = !hideInfo; setHideInfo(v); try { localStorage.setItem('makej-hide-zajem', v ? '1' : '0'); } catch (e) {} }} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 2, WebkitTapHighlightColor: 'transparent' }}>
+              <span style={{ width: 22, height: 22, flex: 'none', borderRadius: 7, border: '2px solid ' + (hideInfo ? T.primary : T.border), background: hideInfo ? T.primary : '#fff', display: 'grid', placeItems: 'center' }}>
+                {hideInfo && <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7.5l3 3 7-7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              </span>
+              <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 600 }}>Příště nezobrazovat</span>
             </button>
+
+            {/* Hledat dál */}
+            <button onClick={closeMatch} style={{
+              width: '100%', height: 54, borderRadius: 16, background: T.primary, border: 'none', color: '#fff',
+              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer',
+              boxShadow: '0 12px 26px -10px rgba(0,32,246,0.6)', WebkitTapHighlightColor: 'transparent',
+            }}>Hledat dál</button>
           </div>
         </div>
       )}
@@ -761,7 +784,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
           {/* Stejná tlačítka i chování jako na kartě (ConfirmButton 3c). Po stisku se
               potvrdí (Odmítnuto/Odesláno), detail se smrskne zpět a karta odletí — popisek
               plynule „přejde" na tlačítko karty (actionAnim drží 700 ms). */}
-          <button onClick={() => { if (detailDone) return; setDetailDone('pass'); onPass(); animClose(); }} title="Nemám zájem" style={{
+          <button onClick={() => { if (detailDone) return; setDetailDone('pass'); animClose(); setTimeout(onPass, 380); }} title="Nemám zájem" style={{
             flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
             border: 'none', outline: 'none', cursor: 'pointer',
             fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
@@ -772,7 +795,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             transition: `background ${detailDone === 'pass' ? 160 : 240}ms ease-out, color ${detailDone === 'pass' ? 160 : 240}ms ease-out, box-shadow ${detailDone === 'pass' ? 160 : 240}ms ease-out`,
           }}>{detailDone === 'pass' ? 'Odmítnuto' : 'Nemám zájem'}</button>
 
-          <button onClick={() => { if (detailDone) return; setDetailDone('like'); onLike(); animClose(); }} title="Mám zájem" style={{
+          <button onClick={() => { if (detailDone) return; setDetailDone('like'); animClose(); setTimeout(onLike, 380); }} title="Mám zájem" style={{
             flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
             border: 'none', outline: 'none', cursor: 'pointer', color: '#fff',
             fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
