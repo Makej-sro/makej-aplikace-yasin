@@ -120,10 +120,13 @@ function WSwipe({ tick }) {
   const [matchAnim,  setMatchAnim]  = useStateW(null);
   const [isSuperAnim,setIsSuperAnim]= useStateW(false);
   const [actionAnim, setActionAnim] = useStateW(null); // 'like' | 'pass' | 'super'
+  const [flying,     setFlying]     = useStateW(0);    // 0=klid; 1/-1 = probíhá odlet → spodní karty se dorovnají o úroveň výš
   const [detailJob,  setDetailJob]  = useStateW(null);
+  const [detailRect, setDetailRect] = useStateW(null);   // rect karty → detail se z ní „roztáhne"
   const [kraje,      setKraje]      = useStateW(() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } });
   const userId  = useRefW(null);
   const dragRef = useRefW(drag);
+  const deckRef = useRefW(null);   // kontejner karty → odkud se detail roztáhne
 
   const _filterKraj = list => kraje.length ? list.filter(j => kraje.includes(j.kraj)) : list;
 
@@ -162,14 +165,15 @@ function WSwipe({ tick }) {
   const animateFly = (dir, cb) => {
     if (dir === 'super') setDrag(d => ({ ...d, x: 0, y: -1400, dragging: false }));
     else setDrag(d => ({ ...d, x: dir === 'like' ? 1400 : -1400, y: 0, dragging: false }));
-    setTimeout(() => { snapBack(); cb(); }, 380);
+    setFlying(dir === 'pass' ? -1 : 1);   // spodní karty se během odletu dorovnají o úroveň výš
+    setTimeout(() => { snapBack(); setFlying(0); cb(); }, 340);
   };
 
   async function doLike(sup) {
     if (!currentJob) return;
     const job = currentJob;
     setActionAnim(sup ? 'super' : 'like');
-    setTimeout(() => setActionAnim(null), 600);
+    setTimeout(() => setActionAnim(null), 700);   // potvrzovací popisek (Odesláno/Odmítnuto) drží 700 ms
     animateFly(sup ? 'super' : 'like', async () => {
       setTopIdx(i => i + 1);
       const uid = userId.current;
@@ -185,13 +189,19 @@ function WSwipe({ tick }) {
     if (!currentJob) return;
     const job = currentJob;
     setActionAnim('pass');
-    setTimeout(() => setActionAnim(null), 600);
+    setTimeout(() => setActionAnim(null), 700);   // potvrzovací popisek (Odesláno/Odmítnuto) drží 700 ms
     animateFly('pass', async () => {
       setTopIdx(i => i + 1);
       const uid = userId.current;
       if (uid && !job._demo) await createRejectionW(uid, job.id);
     });
   }
+
+  // Otevři detail a zapamatuj si rect karty, ať se detail roztáhne přesně z ní
+  const openDetail = (job) => {
+    if (deckRef.current) setDetailRect(deckRef.current.getBoundingClientRect());
+    setDetailJob(job);
+  };
 
   const onPointerDown = e => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -207,10 +217,10 @@ function WSwipe({ tick }) {
   const onPointerUp = e => {
     const d = dragRef.current;
     if (!d.dragging) return;
-    if      (d.y < -110 && Math.abs(d.y) > Math.abs(d.x)) { snapBack(); if (currentJob) setDetailJob(currentJob); }
+    if      (d.y < -110 && Math.abs(d.y) > Math.abs(d.x)) { snapBack(); if (currentJob) openDetail(currentJob); }
     else if (d.x >  90) doLike(false);
     else if (d.x < -90) doPass();
-    else if (!d.moved && currentJob) { snapBack(); setDetailJob(currentJob); }
+    else if (!d.moved && currentJob) { snapBack(); openDetail(currentJob); }
     else                snapBack();
   };
 
@@ -256,6 +266,7 @@ function WSwipe({ tick }) {
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 8px 6px', minHeight: 0, gap: 12 }}>
         <div
+          ref={deckRef}
           style={{
             position: 'relative',
             width: '100%',
@@ -271,13 +282,16 @@ function WSwipe({ tick }) {
           {[...visibleCards].reverse().map((job, ri) => {
             const depth = visibleCards.length - 1 - ri;
             const isTop = depth === 0;
+            // Během odletu vrchní karty se spodní posunou o úroveň výš (dorovnají se),
+            // takže „další" karta plynule doroste na 1 už během letu, ne až po něm (žádné cuknutí).
+            const shownDepth = flying && !isTop ? depth - 1 : depth;
             return (
               <WJobCard
                 key={job.id}
                 job={job}
                 drag={isTop ? drag : { x: 0, y: 0, dragging: false, moved: false }}
                 isTop={isTop}
-                depth={depth}
+                depth={shownDepth}
                 onTap={() => setDetailJob(job)}
               />
             );
@@ -287,22 +301,29 @@ function WSwipe({ tick }) {
           {/* Akce pod kartou — obdélníky na šířku karty:
               Nemám zájem (červený obrys) + Mám zájem (plná zelená, bílý text) */}
           <div style={{ flex: 'none', width: '100%', maxWidth: 460, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 6px' }}>
+            {/* ConfirmButton 3c: po stisku/swipu se vyplní a přepne popisek na výsledek
+                (Odmítnuto/Odesláno), po 700 ms zpět. Obrys „Nemám zájem" je inset stín,
+                aby mělo stejnou šířku jako plné tlačítko vedle. */}
             <button onClick={doPass} title="Nemám zájem" style={{
-              flex: 1, height: 56, borderRadius: 16,
-              background: 'transparent', border: '2px solid ' + T.destructive, color: T.destructive,
-              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer', outline: 'none',
+              flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
+              border: 'none', outline: 'none', cursor: 'pointer',
+              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
               WebkitTapHighlightColor: 'transparent',
-              transform: actionAnim === 'pass' ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s',
-            }}>Nemám zájem</button>
+              background: actionAnim === 'pass' ? '#D63A24' : '#fff',
+              color: actionAnim === 'pass' ? '#fff' : '#D63A24',
+              boxShadow: actionAnim === 'pass' ? 'inset 0 0 0 2px #D63A24' : 'inset 0 0 0 2px #E2543F',
+              transition: `background ${actionAnim === 'pass' ? 160 : 240}ms ease-out, color ${actionAnim === 'pass' ? 160 : 240}ms ease-out, box-shadow ${actionAnim === 'pass' ? 160 : 240}ms ease-out`,
+            }}>{actionAnim === 'pass' ? 'Odmítnuto' : 'Nemám zájem'}</button>
 
             <button onClick={() => doLike(false)} title="Mám zájem" style={{
-              flex: 1, height: 56, borderRadius: 16,
-              background: T.green, border: 'none', color: '#fff',
-              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer', outline: 'none',
+              flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
+              border: 'none', outline: 'none', cursor: 'pointer', color: '#fff',
+              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
               WebkitTapHighlightColor: 'transparent',
-              boxShadow: actionAnim === 'like' ? '0 16px 30px -8px rgba(31,157,92,.55)' : '0 12px 24px -10px rgba(31,157,92,.42)',
-              transform: actionAnim === 'like' ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s, box-shadow .18s',
-            }}>Mám zájem</button>
+              background: actionAnim === 'like' ? '#0F6B32' : '#16803D',
+              boxShadow: actionAnim === 'like' ? '0 2px 8px rgba(22,128,61,.3)' : '0 6px 16px rgba(22,128,61,.28)',
+              transition: `background ${actionAnim === 'like' ? 160 : 240}ms ease-out, box-shadow ${actionAnim === 'like' ? 160 : 240}ms ease-out`,
+            }}>{actionAnim === 'like' ? 'Odesláno' : 'Mám zájem'}</button>
           </div>
         </div>
       )}
@@ -363,9 +384,10 @@ function WSwipe({ tick }) {
       {detailJob && (
         <WJobDetailModal
           job={detailJob}
+          fromRect={detailRect}
           onClose={() => setDetailJob(null)}
-          onLike={() => { setDetailJob(null); doLike(false); }}
-          onPass={() => { setDetailJob(null); doPass(); }}
+          onLike={() => doLike(false)}
+          onPass={() => doPass()}
         />
       )}
     </div>
@@ -377,9 +399,11 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
   const x = isTop ? drag.x : 0;
   const y = isTop ? drag.y : 0;
   const rot = isTop ? (x / 18) : 0;
-  const opacity = isTop ? 1 : (1 - depth * 0.08);
-  const scale = isTop ? 1 : (1 - depth * 0.04);
-  const translateY = isTop ? 0 : (depth * 12);
+  // Spodní karty leží přesně pod vrchní (stejný střed, žádný posun), jsou celé,
+  // jen o kousek menší → schované za vrchní a při odletu plynule dorostou na 1.
+  const opacity = 1;
+  const scale = isTop ? 1 : (1 - depth * 0.08);   // depth1 = 0.92, depth2 = 0.84 (výraznější „doskok" dopředu)
+  const translateY = 0;
 
   const likeShown = isTop && x > 40;
   const passShown = isTop && x < -40;
@@ -396,7 +420,9 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
         position: 'absolute', inset: 0,
         transform: `translate(${x}px, ${y + translateY}px) rotate(${rot}deg) scale(${scale})`,
         opacity,
-        transition: drag.dragging ? 'none' : 'transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s',
+        transition: drag.dragging ? 'none' : (isTop
+          ? 'transform .30s cubic-bezier(.4,0,.2,1), opacity .30s cubic-bezier(.4,0,.2,1)'
+          : 'transform .34s cubic-bezier(.34,1.3,.64,1)'),   // spodní karty: pružný doskok dopředu
         willChange: 'transform', zIndex: 10 - depth,
         pointerEvents: isTop ? 'auto' : 'none',
       }}
@@ -489,22 +515,15 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           Táhni nahoru pro celý inzerát
         </div>
 
-        {/* swipe „barevná odezva": filtr přes celou kartu + centrální razítko.
-            Reaguje průběžně na tah (opacity roste se vzdáleností), drží se i při odletu. */}
+        {/* swipe „barevná odezva": jen barevný filtr přes kartu, bez razítka.
+            Opacity roste se vzdáleností tahu, drží se i při odletu. */}
         {isTop && (likeShown || passShown) && (
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: x > 0 ? 'rgba(31,157,92,.45)' : 'rgba(226,86,74,.45)',
+            background: x > 0 ? 'rgba(22,128,61,.45)' : 'rgba(214,58,36,.45)',
             opacity: Math.min(Math.abs(x) / 120, 1),
             transition: drag.dragging ? 'none' : 'opacity .35s cubic-bezier(.2,.8,.2,1)',
-          }}>
-            <span style={{
-              transform: 'rotate(-11deg)', border: '4px solid #fff', color: '#fff',
-              borderRadius: 14, padding: '8px 22px',
-              fontFamily: T.fontHead, fontSize: 34, fontWeight: 800, letterSpacing: 1.5,
-            }}>{x > 0 ? 'ZÁJEM' : 'NE'}</span>
-          </div>
+          }} />
         )}
       </div>
     </div>
@@ -512,7 +531,34 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
 }
 
 // ── Detail inzerátu (reálná data od zaměstnavatele) ────────────
-function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, statusLabel, onChat, onCancel }) {
+function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, readOnly, statusLabel, onChat, onCancel }) {
+  // „Expand" detailu z karty: po mountu se list roztáhne z rectu karty do celé
+  // obrazovky (rohy 26→0, scale, fade), při zavření se smrskne zpět a pak odmountuje.
+  const [shown, setShown] = useStateW(false);
+  const [detailDone, setDetailDone] = useStateW(null);   // 'like'|'pass' → potvrzení (Odesláno/Odmítnuto) na tlačítku detailu
+  const closeTimer = useRefW(null);
+  useEffectW(() => {
+    if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(true);   // schovej horní lištu
+    let r2;
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setShown(true)); });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(closeTimer.current); if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false); };
+  }, []);
+  const animClose = () => {
+    setShown(false);
+    if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false);   // vrať horní lištu
+    closeTimer.current = setTimeout(onClose, 360);
+  };
+  const EXP_CURVE = 'cubic-bezier(.32,.72,0,1)';
+  const startTransform = fromRect
+    ? (() => {
+        const cx = fromRect.left + fromRect.width / 2;
+        const cy = fromRect.top + fromRect.height / 2;
+        const dx = Math.round(cx - window.innerWidth / 2);
+        const dy = Math.round(cy - window.innerHeight / 2);
+        return `translate(${dx}px, ${dy}px) scale(.9)`;
+      })()
+    : 'scale(.94)';
+
   const JOB_TYPE_LABEL = {
     jednrazova_vypomoc: 'Jednorázová výpomoc',
     brigada: 'Brigáda', part_time: 'Part-time', full_time: 'Full-time',
@@ -554,17 +600,24 @@ function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, stat
   const ctaTotal = job.shiftTotal > 0 ? job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč' : '';
 
   return (
-    <div onClick={onClose} style={{
+    <div onClick={animClose} style={{
       position: 'fixed', inset: 0, zIndex: 120,
-      background: 'rgba(11,18,51,0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+      background: shown ? 'rgba(11,18,51,0.5)' : 'rgba(11,18,51,0)',
+      backdropFilter: shown ? 'blur(4px)' : 'blur(0px)', WebkitBackdropFilter: shown ? 'blur(4px)' : 'blur(0px)',
       display: 'flex', alignItems: 'stretch', justifyContent: 'center',
-      animation: 'wPop .28s cubic-bezier(.2,.8,.2,1)',
+      transition: 'background .34s ease, backdrop-filter .34s ease, -webkit-backdrop-filter .34s ease',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: '100%', maxWidth: 440, height: '100%',
         background: '#fff',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 24px 60px rgba(20,22,40,0.28)',
+        borderRadius: shown ? 0 : 26,
+        transform: shown ? 'none' : startTransform,
+        transformOrigin: 'center center',
+        opacity: shown ? 1 : (fromRect ? 1 : 0),
+        transition: `transform .42s ${EXP_CURVE}, border-radius .42s ${EXP_CURVE}, opacity .30s ease`,
+        willChange: 'transform',
       }}>
         {/* Scroll: fotka hero + obsah inzerátu */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -579,7 +632,7 @@ function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, stat
                 </div>)}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.4) 0%, rgba(11,18,51,0) 45%)' }} />
             <div style={{ position: 'absolute', top: 14, left: 16, right: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <button onClick={onClose} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <button onClick={animClose} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#0B1233" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
               <button onClick={() => { try { if (navigator.share) navigator.share({ title: job.title, text: job.company + ' — ' + job.title }); } catch (e) {} }} aria-label="Sdílet inzerát" title="Sdílet" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -680,7 +733,7 @@ function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, stat
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={onClose} style={{
+              <button onClick={animClose} style={{
                 flex: '0 0 auto', borderRadius: 12, padding: '13px 22px',
                 background: 'rgba(18,18,26,0.05)', border: '1px solid ' + T.border,
                 color: T.light, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer',
@@ -704,18 +757,30 @@ function WJobDetailModal({ job, onClose, onLike, onSuper, onPass, readOnly, stat
             )}
           </div>
         ) : (
-        <div style={{ flexShrink: 0, borderTop: '1px solid #E6E9F5', background: '#fff', padding: '12px 20px calc(20px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onPass} aria-label="Přeskočit" title="Přeskočit" style={{
-            width: 54, height: 54, flex: 'none', border: '1px solid #E6E9F5', background: '#fff', borderRadius: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}>
-            <svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><path d="M2 2l13 13M15 2L2 15" stroke="#7A82A6" strokeWidth="2.2" strokeLinecap="round" /></svg>
-          </button>
-          <button onClick={onLike} style={{
-            flex: 1, height: 54, border: 0, borderRadius: 16, background: T.primary, color: '#fff',
-            fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-            boxShadow: '0 10px 22px rgba(27,52,240,.28)', cursor: 'pointer',
-          }}>Mám zájem{ctaTotal && <small style={{ fontSize: 13, fontWeight: 700, color: '#C7D0FF' }}>· {ctaTotal}</small>}</button>
+        <div style={{ flexShrink: 0, borderTop: '1px solid #E6E9F5', background: '#fff', padding: '12px 16px calc(16px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Stejná tlačítka i chování jako na kartě (ConfirmButton 3c). Po stisku se
+              potvrdí (Odmítnuto/Odesláno), detail se smrskne zpět a karta odletí — popisek
+              plynule „přejde" na tlačítko karty (actionAnim drží 700 ms). */}
+          <button onClick={() => { if (detailDone) return; setDetailDone('pass'); onPass(); animClose(); }} title="Nemám zájem" style={{
+            flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
+            border: 'none', outline: 'none', cursor: 'pointer',
+            fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+            WebkitTapHighlightColor: 'transparent',
+            background: detailDone === 'pass' ? '#D63A24' : '#fff',
+            color: detailDone === 'pass' ? '#fff' : '#D63A24',
+            boxShadow: detailDone === 'pass' ? 'inset 0 0 0 2px #D63A24' : 'inset 0 0 0 2px #E2543F',
+            transition: `background ${detailDone === 'pass' ? 160 : 240}ms ease-out, color ${detailDone === 'pass' ? 160 : 240}ms ease-out, box-shadow ${detailDone === 'pass' ? 160 : 240}ms ease-out`,
+          }}>{detailDone === 'pass' ? 'Odmítnuto' : 'Nemám zájem'}</button>
+
+          <button onClick={() => { if (detailDone) return; setDetailDone('like'); onLike(); animClose(); }} title="Mám zájem" style={{
+            flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
+            border: 'none', outline: 'none', cursor: 'pointer', color: '#fff',
+            fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+            WebkitTapHighlightColor: 'transparent',
+            background: detailDone === 'like' ? '#0F6B32' : '#16803D',
+            boxShadow: detailDone === 'like' ? '0 2px 8px rgba(22,128,61,.3)' : '0 6px 16px rgba(22,128,61,.28)',
+            transition: `background ${detailDone === 'like' ? 160 : 240}ms ease-out, box-shadow ${detailDone === 'like' ? 160 : 240}ms ease-out`,
+          }}>{detailDone === 'like' ? 'Odesláno' : 'Mám zájem'}</button>
         </div>
         )}
       </div>

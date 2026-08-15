@@ -423,6 +423,7 @@ function WorkerApp() {
   const [notifs, setNotifs] = useStateW([]);      // upozornění pro zvoneček
   const [bellOpen, setBellOpen] = useStateW(false);
   const [chatOpen, setChatOpen] = useStateW(false);   // otevřený chat → schovat spodní nav
+  const [detailOpen, setDetailOpen] = useStateW(false);   // otevřený detail inzerátu → schovat horní lištu
   const [bellRing, setBellRing] = useStateW(false);   // krátké rozkývání při novém upozornění
   const posledniZvuk = useRefW(0);                    // kdy naposled cinklo — proti salvě
   const videnaNotif  = useRefW(new Set());            // id už zpracovaných oznámení
@@ -450,6 +451,7 @@ function WorkerApp() {
   if (typeof window !== 'undefined') {
     window.wOpenChat = openChat;
     window.wOpenEmployer = (employerId, fallback) => { if (employerId) setEmployerTarget({ employerId, fallback }); };
+    window.wSetDetailOpen = setDetailOpen;   // detail inzerátu ovládá viditelnost horní lišty
   }
 
   // Uživatel může upozornění vypnout v profilu (Nastavení)
@@ -771,7 +773,7 @@ function WorkerApp() {
 
       {/* Horní lišta — vlevo oválek s nástroji (Kalendář + Zvoneček).
           Viditelné na všech záložkách, jen ne v otevřeném chatu. */}
-      {loaded && !chatOpen && (
+      {loaded && !chatOpen && !detailOpen && (
         <div style={{
           position: 'fixed', top: 14, left: 16, zIndex: 8500,
           display: 'inline-flex', alignItems: 'center', gap: 2,
@@ -881,7 +883,7 @@ function WorkerApp() {
 
       {/* Horní lišta — vpravo ikona Profilu (bývalé Nastavení / ozubené kolo).
           Proklik na obrazovku profilu a nastavení. */}
-      {loaded && !chatOpen && (
+      {loaded && !chatOpen && !detailOpen && (
         <button onClick={() => setSettingsOpen(true)} title="Profil" style={{
           position: 'fixed', top: 14, right: 16, zIndex: 8500,
           width: 44, height: 44, borderRadius: 999,
