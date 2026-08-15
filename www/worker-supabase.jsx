@@ -520,7 +520,7 @@ async function fetchWorkerData(workerId) {
     const excludeIds = [
       ...(rejRes.data  || []).map(r => r.job_id),
       ...(matchRes.data || []).map(m => m.job_id),
-    ];
+    ].filter(Boolean);   // 'people' řádky mají job_id null — do IN-listu nepatří
 
     // Active jobs (s profilem firmy pro reálné hodnocení)
     let q = sb.from('jobs')
@@ -541,9 +541,13 @@ async function fetchWorkerData(workerId) {
     visible.forEach(j => W_JOBS.push(j));
 
     // All matches → threads (accepted + pending that may have messages)
+    // OR na worker_id/worker_b_id: u kind='people' matchů může být člověk na obou stranách.
+    // initiator/recipient = profily obou stran people-matche (job matche je nepoužijí).
     const { data: matches } = await sb.from('matches')
-      .select('*, job:jobs(*, employer:profiles!jobs_employer_id_fkey(*))')
-      .eq('worker_id', workerId)
+      .select(`*, job:jobs(*, employer:profiles!jobs_employer_id_fkey(*)),
+        initiator:profiles!matches_worker_id_fkey(id,name,avatar_url,card_offer,rating,verified),
+        recipient:profiles!matches_worker_b_id_fkey(id,name,avatar_url,card_offer,rating,verified)`)
+      .or(`worker_id.eq.${workerId},worker_b_id.eq.${workerId}`)
       .order('created_at', { ascending: false });
 
     const allMatches = matches || [];
@@ -595,9 +599,12 @@ async function fetchWorkerData(workerId) {
     const threadMatches = allMatches.filter(m => m.status === 'accepted' || messageMatchIds.has(m.id));
 
     const newThreads = threadMatches.map(match => {
+      const isPeople   = match.kind === 'people';
+      // "Druhá strana" u people matche = ten z initiator/recipient, co nejsem já
+      const other      = isPeople ? ((match.worker_id === workerId ? match.recipient : match.initiator) || {}) : {};
       const job        = match.job || {};
       const employer   = job.employer || {};
-      const company    = employer.company_name || employer.name || job.company || 'Zaměstnavatel';
+      const company    = isPeople ? (other.name || 'Uživatel') : (employer.company_name || employer.name || job.company || 'Zaměstnavatel');
       const logo       = company.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '??';
 
       const threadMsgs = messages
@@ -626,16 +633,16 @@ async function fetchWorkerData(workerId) {
         : _wFmtTime(match.created_at);
 
       return {
-        id: match.id, match_id: match.id,
-        employerId: job.employer_id || employer.id || null,
-        confirmed: match.status === 'confirmed',   // směna už potvrzena
+        id: match.id, match_id: match.id, kind: match.kind || 'job',
+        employerId: isPeople ? (other.id || null) : (job.employer_id || employer.id || null),
+        confirmed: match.status === 'confirmed',   // směna už potvrzena (jen kind='job')
         name: company, avatar: logo,
         // Logo, které si firma nahrála v dashboardu. Když chybí, zůstanou iniciály.
-        logoUrl: employer.logo_url || employer.avatar_url || null,
+        logoUrl: isPeople ? (other.avatar_url || null) : (employer.logo_url || employer.avatar_url || null),
         color: W_AVATAR_BG,
-        role: job.title || '',
-        rating: Number(employer.rating || 0),
-        verified: !!employer.verified,
+        role: isPeople ? (other.card_offer || '') : (job.title || ''),
+        rating: Number((isPeople ? other.rating : employer.rating) || 0),
+        verified: !!(isPeople ? other.verified : employer.verified),
         last: lastPreview, time: lastTime,
         // Nepřečtené = kolik oznámení k tomuto vláknu zůstalo na serveru nepřečtených
         unread: W_UNREAD[match.id] || 0, online: false,
@@ -648,8 +655,9 @@ async function fetchWorkerData(workerId) {
 
     // ── W_HISTORY (Moje brigády) ──────────────────────────────────
     // accepted = domlouváme se v chatu, confirmed = potvrzená směna
+    // kind='people' sem nepatří — nemá směnu/datum, žije jen v záložce Lidé.
     const history = allMatches
-      .filter(match => match.status === 'accepted' || match.status === 'confirmed')
+      .filter(match => match.kind !== 'people' && (match.status === 'accepted' || match.status === 'confirmed'))
       .map(match => {
         const job      = match.job || {};
         const employer = job.employer || {};
@@ -700,6 +708,28 @@ async function fetchWorkerData(workerId) {
     console.error('[worker-supabase] fetchWorkerData error:', err);
     return false;
   }
+}
+
+// ── Lidé (karty brigádníků, peer-to-peer) ───────────────────────
+// Bezpečné procházení — jde přes RPC, ne přímo tabulka profiles
+// (ta má email/telefon/datum narození, to cizím lidem nepatří).
+async function fetchPeopleCardsW(excludeIds) {
+  const { data, error } = await sb.rpc('get_people_cards', { exclude_ids: excludeIds || [] });
+  if (error) { console.error('fetchPeopleCardsW:', error); return []; }
+  return data || [];
+}
+
+// Vytvoří pending zájem, nebo (když druhá strana už čeká) rovnou potvrdí
+// oboustranný match — vrací řádek z `matches` (má i `status`).
+async function createPeopleMatchW(targetId, isSuper) {
+  const { data, error } = await sb.rpc('create_people_match', { target_id: targetId, is_super: !!isSuper });
+  if (error) { console.error('createPeopleMatchW:', error); return null; }
+  return data;
+}
+
+async function createPeopleRejectionW(targetId) {
+  const { error } = await sb.rpc('create_people_rejection', { target_id: targetId });
+  if (error) console.error('createPeopleRejectionW:', error);
 }
 
 async function createMatchW(workerId, jobId, isSuper) {
@@ -894,6 +924,7 @@ async function updateProfileW(workerId, updates) {
 Object.assign(window, {
   W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS, W_TRUST, W_TIERS,
   fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
+  fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW,
   fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
   fetchReviewRepliesW, postReviewReplyW,
   jobToCard, makejTrust, makejVydelky, makejMesice, _wMesicZpet, _wVydelek, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,

@@ -38,6 +38,38 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 
 ## Historie provedených změn
 
+### 2026-08-11 · Jan (appka, Claude) · Lidé záložka: karty brigádníků + peer-to-peer chat
+Nová funkce v appce brigádníka: kromě hledání práce si brigádník může zapnout
+vlastní "kartu" (nabídne sám sebe — skill, čím by pomohl, ne nutně
+full-time/brigáda), ostatní ji procházejí stejným swipe mechanismem jako
+inzeráty. Při oboustranném zájmu vzniká match a chat — **oddělený** od chatů
+k brigádám (nový sloupec `matches.kind`).
+
+**Stav: SQL ještě NENÍ spuštěné** (Claude nemá service-role přístup k Supabase,
+jen anon klíč). Kompletní migrace je v `supabase/migration_people_cards.sql`
+v tomhle repu — než appka půjde spustit s Lidé záložkou, musí ho někdo
+(Yasin/Jan) pustit ručně v Supabase SQL editoru.
+
+Shrnutí změn (celé SQL viz soubor výš):
+- `profiles`: `card_enabled boolean`, `card_offer text`, `card_tags text[]`.
+- `matches`: `kind text` (`'job'`/`'people'`, default `'job'`), `worker_b_id uuid`
+  (druhá strana u people-matche), `job_id` už není `not null`. Unique index na
+  dvojici `(worker_id, worker_b_id)` pro `kind='people'` (nezávisle na směru).
+- `rejections`: `kind text`, `target_id uuid`, `job_id` už není `not null`.
+- Nové RPC (`security definer`, takže nepotřebují nové RLS na klientský
+  insert/select z `matches`/`profiles`): `get_people_cards(exclude_ids)`
+  (vrací jen bezpečné sloupce profilu, ne email/telefon/datum narození),
+  `create_people_match(target_id, is_super)` (insert nebo oboustranné
+  potvrzení na `accepted`), `create_people_rejection(target_id)`.
+- Additive RLS (přidáno vedle stávajících politik, nic se nepřepisuje):
+  `matches` SELECT pro `worker_b_id = auth.uid()`; `messages` SELECT/INSERT
+  pro účastníka `worker_b_id` v people-matchi.
+- **Nedodělané:** trigger `notify_on_message` (plní zvoneček) jeho definici
+  appka nezná → zprávy v Lidé chatu zatím nepřidávají položku do zvonečku/
+  toastu, jen se objeví ve vlákně přes realtime. Doplnit, až se trigger najde.
+
+Chce se říct Samovi (sdílené) — nové sloupce na `matches`/`rejections`/`profiles`.
+
 ### 2026-07-26 · Yasin (web) · Nová tabulka `waitlist` (čekací list na marketingovém webu)
 Marketingový web (`~/Desktop/makej-web 6.7`) zapisuje předregistrace na čekací list
 před spuštěním appky. Zápis přes `sb.from('waitlist').insert({role,name,email,company_name,phone})`

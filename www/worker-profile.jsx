@@ -352,7 +352,7 @@ function WVyberPicker({ value, onChange, items, placeholder }) {
   );
 }
 
-function WProfile({ tick, onSignOut, onGoTab }) {
+function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const [editing, setEditing] = useStateW(false);
   const [saving,  setSaving]  = useStateW(false);
   const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], stupen: '', obor: '', cv_url: '' });
@@ -539,8 +539,8 @@ function WProfile({ tick, onSignOut, onGoTab }) {
       <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '24px 20px calc(28px + env(safe-area-inset-bottom))' }}>
 
         {/* ── Header: nadpis „Profil" + ikona úpravy (odsazená od zvonečku) ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingRight: 50 }}>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Můj profil</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingRight: onClose ? 0 : 50 }}>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Nastavení</div>
           {/* Úpravy jen přes tlačítko vedle nadpisu. V klidu „Upravit",
               v úpravách zelené „Hotovo" (uloží) + šedé „Zrušit" (zahodí). */}
           {editing ? (
@@ -566,6 +566,14 @@ function WProfile({ tick, onSignOut, onGoTab }) {
               fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
               WebkitTapHighlightColor: 'transparent',
             }}>Upravit</button>
+          )}
+          {onClose && (
+            <button onClick={onClose} title="Zavřít nastavení" style={{
+              marginLeft: 'auto', width: 34, height: 34, borderRadius: 999, flexShrink: 0,
+              background: T.surfaceAlt, border: 'none', color: T.muted, cursor: 'pointer',
+              display: 'grid', placeItems: 'center', fontSize: 15,
+              WebkitTapHighlightColor: 'transparent',
+            }}>✕</button>
           )}
         </div>
 

@@ -474,6 +474,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   const [msgInput, setMsgInput] = useStateW('');
   const [sending,  setSending]  = useStateW(false);
   const [q,        setQ]        = useStateW('');
+  const [kindFilter, setKindFilter] = useStateW('job');   // 'job' (Brigády) | 'people' (Lidé) — oddělené chaty
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
   const [lupa,     setLupa]     = useStateW(null);          // fotka přes celou obrazovku
   const [chybaPrilohy, setChybaPrilohy] = useStateW('');
@@ -746,9 +747,10 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
 
   const thread   = threads.find(t => t.id === active) || null;
   const totalUnread = threads.reduce((s, t) => s + (t.unread || 0), 0);
+  const kindThreads = threads.filter(t => (t.kind || 'job') === kindFilter);
   const filtered = q.trim()
-    ? threads.filter(t => (t.name + ' ' + (t.last || '')).toLowerCase().includes(q.trim().toLowerCase()))
-    : threads;
+    ? kindThreads.filter(t => (t.name + ' ' + (t.last || '')).toLowerCase().includes(q.trim().toLowerCase()))
+    : kindThreads;
 
   if (threads.length === 0) {
     // Nový účet. Místo prázdné plochy vysvětli, jak se sem chat dostane,
@@ -810,23 +812,53 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
         background: 'transparent',
       }}>
         <div style={{ padding: '20px 18px 12px' }}>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, marginBottom: 14 }}>Zprávy</div>
+          {/* Brigády = chaty s firmami k inzerátům, Lidé = peer-to-peer chaty ze záložky Lidé
+              — musí jít od sebe jasně rozeznat, jinak se to při víc matchích slije v bordel.
+              Přepínač je záměrně vpravo nahoře vedle nadpisu, ne jako plná lišta pod ním. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Zprávy</div>
+            <div style={{ display: 'inline-flex', padding: 3, borderRadius: 999, background: T.surfaceAlt, gap: 2, flexShrink: 0 }}>
+              {[
+                { id: 'job', label: 'Brigády', icon: 'case-round-bold', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
+                { id: 'people', label: 'Lidé', icon: 'users-group-rounded-bold', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
+              ].map(v => (
+                <button key={v.id} onClick={() => setKindFilter(v.id)} title={v.label} style={{
+                  position: 'relative', width: 38, height: 34, borderRadius: 999, border: 'none', cursor: 'pointer',
+                  background: kindFilter === v.id ? '#fff' : 'transparent',
+                  boxShadow: kindFilter === v.id ? '0 4px 12px rgba(20,22,40,0.1)' : 'none',
+                  display: 'grid', placeItems: 'center',
+                  WebkitTapHighlightColor: 'transparent',
+                }}>
+                  <Icon name={v.icon} size={16} color={kindFilter === v.id ? T.primary : T.muted} />
+                  {v.badge > 0 && (
+                    <span style={{ position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 999, background: T.destructive, border: '1.5px solid #fff' }} />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.05)' }}>
             <Icon name="magnifer-linear" size={16} color={T.mutedSoft} />
             <input
               value={q} onChange={e => setQ(e.target.value)}
-              placeholder="Hledat konverzaci"
+              placeholder={kindFilter === 'people' ? 'Hledat v Lidé' : 'Hledat konverzaci'}
               style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: T.ink, fontFamily: T.fontUI, fontSize: 13.5 }}
             />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px' }}>
+          {kindThreads.length === 0 && (
+            <div style={{ padding: '30px 20px', textAlign: 'center', color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.5 }}>
+              {kindFilter === 'people' ? 'Zatím žádný kontakt z Lidé. Projdi karty v záložce Lidé.' : 'Zatím žádná konverzace k brigádě.'}
+            </div>
+          )}
           {filtered.map((t, idx) => {
             const unread = t.unread > 0;
             return (
               <div key={t.id}>
-                {/* Řádek jako v iMessage: všechny stejné, nepřečtené pozná modrá
-                    tečka vlevo — ne jiné pozadí, to seznam roztrhalo na kusy. */}
+                {/* Řádek jako v iMessage: všechny stejné, nepřečtené pozná červená
+                    tečka vlevo — ne jiné pozadí, to seznam roztrhalo na kusy. Červená
+                    záměrně (ne modrá), ať nová zpráva vždy vizuálně "křičí". */}
                 {/* Značku přečtení posune efekt výš — tady stačí vlákno otevřít */}
                 <button onClick={() => setActive(t.id)} style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 12,
@@ -837,7 +869,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                 }}>
                   <span style={{
                     width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                    background: unread ? T.primary : 'transparent',
+                    background: unread ? T.destructive : 'transparent',
                   }} />
                   <div style={{
                     position: 'relative', overflow: 'hidden',
@@ -889,7 +921,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
             <WZpet onClick={() => setActive(null)} title="Zpět na konverzace" />
             <button
               onClick={() => window.wOpenEmployer && window.wOpenEmployer(thread.employerId, { name: thread.name, color: thread.color, rating: thread.rating, verified: thread.verified })}
-              title="Zobrazit profil firmy"
+              title={thread.kind === 'people' ? 'Zobrazit profil' : 'Zobrazit profil firmy'}
               style={{ display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flex: 1, minWidth: 0, textAlign: 'left' }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: T.avatarGrad, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{thread.avatar}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -898,11 +930,12 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                   {thread.verified && <Icon name="verified-check-bold" size={14} color={T.green} />}
                   <Icon name="alt-arrow-right-bold" size={13} color={T.mutedSoft} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: T.muted, fontSize: 12.5, fontFamily: T.fontUI }}>
-                  Zaměstnavatel
-                  <span style={{ width: 4, height: 4, borderRadius: 999, background: T.mutedSoft }} />
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 999, background: T.green }} /> online
+                {/* Kontext spojení — s hodně matchi musí být hned jasné, odkud
+                    tenhle chat je a o co jde, ne jen jméno. */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 2, padding: '2px 8px 2px 6px', borderRadius: 999, background: thread.kind === 'people' ? T.tint : 'rgba(31,157,92,0.12)' }}>
+                  <Icon name={thread.kind === 'people' ? 'users-group-rounded-bold' : 'case-round-bold'} size={11} color={thread.kind === 'people' ? T.primary : T.green} />
+                  <span style={{ color: thread.kind === 'people' ? T.primary : T.green, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>
+                    {thread.kind === 'people' ? 'Lidé · kontakt' : ('Brigáda' + (thread.role ? ' · ' + thread.role : ''))}
                   </span>
                 </div>
               </div>

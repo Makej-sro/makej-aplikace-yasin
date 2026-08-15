@@ -103,8 +103,18 @@ function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
   );
 }
 
+// Appka teprve startuje — reálných inzerátů bývá málo/žádné. Ukázkové JOBS
+// z app.jsx jsou už ve tvaru karty (žádný jobToCard netřeba). `_demo: true`
+// zabrání zápisu do DB při swipu (fake id by insert stejně nepřežil).
+function _wDemoJobs() {
+  return (typeof JOBS !== 'undefined' ? JOBS : []).map(j => ({ ...j, _demo: true }));
+}
+
 function WSwipe({ tick }) {
-  const [jobs,       setJobs]       = useStateW(() => W_JOBS.map(jobToCard));
+  const [jobs,       setJobs]       = useStateW(() => {
+    const real = W_JOBS.map(jobToCard);
+    return real.length ? real : _wDemoJobs();
+  });
   const [topIdx,     setTopIdx]     = useStateW(0);
   const [drag,       setDrag]       = useStateW({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
   const [matchAnim,  setMatchAnim]  = useStateW(null);
@@ -121,14 +131,16 @@ function WSwipe({ tick }) {
 
   useEffectW(() => {
     sb.auth.getSession().then(({ data: { session } }) => { userId.current = session?.user?.id || null; });
-    setJobs(_filterKraj(W_JOBS.map(jobToCard)));
+    const real = _filterKraj(W_JOBS.map(jobToCard));
+    setJobs(real.length ? real : _wDemoJobs());
     setTopIdx(0);
   }, [tick]);
 
   // Filtr krajů — ulož + přefiltruj feed
   useEffectW(() => {
     try { localStorage.setItem('makej-worker-kraje', JSON.stringify(kraje)); } catch (e) {}
-    setJobs(_filterKraj(W_JOBS.map(jobToCard)));
+    const real = _filterKraj(W_JOBS.map(jobToCard));
+    setJobs(real.length ? real : _wDemoJobs());
     setTopIdx(0);
   }, [kraje]);
 
@@ -161,8 +173,8 @@ function WSwipe({ tick }) {
     animateFly(sup ? 'super' : 'like', async () => {
       setTopIdx(i => i + 1);
       const uid = userId.current;
+      if (uid && !job._demo) await createMatchW(uid, job.id, sup);
       if (uid) {
-        await createMatchW(uid, job.id, sup);
         setIsSuperAnim(!!sup);
         setMatchAnim(job);
         setTimeout(() => setMatchAnim(null), 3000);
@@ -177,7 +189,7 @@ function WSwipe({ tick }) {
     animateFly('pass', async () => {
       setTopIdx(i => i + 1);
       const uid = userId.current;
-      if (uid) await createRejectionW(uid, job.id);
+      if (uid && !job._demo) await createRejectionW(uid, job.id);
     });
   }
 
@@ -242,12 +254,12 @@ function WSwipe({ tick }) {
           }}
         />
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px 6px', minHeight: 0, gap: 12 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 8px 6px', minHeight: 0, gap: 12 }}>
         <div
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: 420,
+            maxWidth: 460,
             flex: 1, minHeight: 0,
             userSelect: 'none', touchAction: 'none',
           }}
@@ -273,23 +285,23 @@ function WSwipe({ tick }) {
         </div>
 
           {/* Akce pod kartou — přeskočit / super / mám zájem (dle designu) */}
-          <div style={{ flex: 'none', width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '10px 0 6px' }}>
+          <div style={{ flex: 'none', width: '100%', maxWidth: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '10px 0 6px' }}>
             <button onClick={doPass} title="Přeskočit" style={{
-              width: 58, height: 58, borderRadius: '50%', background: '#fff',
+              width: 68, height: 68, borderRadius: '50%', background: '#fff',
               border: '1.5px solid ' + (actionAnim === 'pass' ? '#C7CCE3' : '#E6E9F5'),
               display: 'grid', placeItems: 'center', cursor: 'pointer', outline: 'none',
               transform: actionAnim === 'pass' ? 'scale(1.14)' : 'scale(1)', transition: 'transform .18s, border-color .18s',
             }}>
-              <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke="#7A82A6" strokeWidth="2.4" strokeLinecap="round" /></svg>
+              <svg width="26" height="26" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke="#7A82A6" strokeWidth="2.4" strokeLinecap="round" /></svg>
             </button>
 
             <button onClick={() => doLike(false)} title="Mám zájem" style={{
-              width: 70, height: 70, borderRadius: '50%', background: T.primary, border: 'none',
+              width: 82, height: 82, borderRadius: '50%', background: T.primary, border: 'none',
               display: 'grid', placeItems: 'center', cursor: 'pointer', outline: 'none',
               boxShadow: actionAnim === 'like' ? '0 16px 30px rgba(27,52,240,.5)' : '0 12px 24px rgba(27,52,240,.35)',
               transform: actionAnim === 'like' ? 'scale(1.12)' : 'scale(1)', transition: 'transform .18s, box-shadow .18s',
             }}>
-              <svg width="27" height="21" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <svg width="33" height="26" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           </div>
         </div>

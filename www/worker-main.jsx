@@ -437,6 +437,8 @@ function WorkerApp() {
   // panel neotevře sám při návratu.
   useEffectW(() => { if (tab !== 'swipe') setBellOpen(false); }, [tab]);
   const [employerTarget, setEmployerTarget] = useStateW(null);
+  const [settingsOpen, setSettingsOpen] = useStateW(false);   // Nastavení = bývalý Profil, teď fullscreen overlay z ozubeného kola
+  const [calendarOpen, setCalendarOpen] = useStateW(false);   // Kalendář přesunutý z bottom nav do horní ikony
   const userId = useRefW(null);
   const tabRef = useRefW(tab);
   useEffectW(() => { tabRef.current = tab; }, [tab]);
@@ -758,11 +760,12 @@ function WorkerApp() {
     },
   ].filter(Boolean);
 
+  // Kalendář žije teď jako ikona nahoře vedle Nastavení (viz níž) — spodní
+  // nav zůstává jen na tři hlavní, často používané záložky.
   const NAV = [
     { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
-    { id: 'history',  label: 'Kalendář', img: 'icons/calendar-icon.png', badge: reviewsToDo },
+    { id: 'people',   label: 'Lidé',     icon: 'users-group-rounded-bold' },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-icon.png', badge: unreadMessages },
-    { id: 'profile',  label: 'Profil',   img: 'icons/user.png' },
   ];
 
   let body;
@@ -781,12 +784,10 @@ function WorkerApp() {
     );
   } else if (tab === 'swipe') {
     body = <WSwipe tick={tick} />;
-  } else if (tab === 'history') {
-    body = <WCalendar tick={tick} onReviewed={refreshWorker} />;
+  } else if (tab === 'people') {
+    body = <WPeople tick={tick} />;
   } else if (tab === 'messages') {
     body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={onThreadRead} />;
-  } else if (tab === 'profile') {
-    body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
   }
 
   return (
@@ -941,6 +942,54 @@ function WorkerApp() {
         </div>
       )}
 
+      {/* Nastavení (bývalý Profil) + Kalendář — obojí nahoře vlevo, viditelné
+          na všech záložkách, jen ne v otevřeném chatu (tam by překážely). */}
+      {loaded && !chatOpen && (
+        <div style={{ position: 'fixed', top: 14, left: 16, zIndex: 8500, display: 'flex', gap: 8 }}>
+          <button onClick={() => setSettingsOpen(true)} title="Nastavení" style={{
+            width: 40, height: 40, borderRadius: 14,
+            background: '#fff', border: 'none', cursor: 'pointer',
+            display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+          }}>
+            {/* Ozubené kolo jako inline SVG — appka je plně offline, "settings"
+                ikona není v předstažené sadě Solar (viz www/vendor/icons-solar.js) */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2" stroke="#4a4f6b" strokeWidth="1.8" />
+              <path stroke="#4a4f6b" strokeWidth="1.8" strokeLinecap="round" d="M12 3.5v2.3M12 18.2v2.3M20.5 12h-2.3M5.8 12H3.5M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6M17.8 17.8l-1.6-1.6M7.8 7.8 6.2 6.2" />
+            </svg>
+          </button>
+          <button onClick={() => setCalendarOpen(true)} title="Kalendář" style={{
+            position: 'relative', width: 40, height: 40, borderRadius: 14,
+            background: '#fff', border: 'none', cursor: 'pointer',
+            display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+          }}>
+            <Icon name="calendar-minimalistic-bold" size={18} color="#4a4f6b" />
+            {reviewsToDo > 0 && (
+              <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: 999, background: T.destructive, border: '2px solid #fff' }} />
+            )}
+          </button>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
+          <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={t => { setSettingsOpen(false); setTab(t); }} onClose={() => setSettingsOpen(false)} />
+        </div>
+      )}
+
+      {calendarOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end', padding: '14px 18px 0' }}>
+            <button onClick={() => setCalendarOpen(false)} title="Zavřít kalendář" style={{
+              width: 34, height: 34, borderRadius: 999, background: '#fff', border: 'none',
+              color: '#4a4f6b', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 15,
+              boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+            }}>✕</button>
+          </div>
+          <WCalendar tick={tick} onReviewed={refreshWorker} />
+        </div>
+      )}
+
       <WToast toasts={toasts} onRemove={id => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {employerTarget && (
@@ -1004,8 +1053,10 @@ function WorkerApp() {
                       position: 'absolute', top: -6, right: -8,
                       minWidth: 15, height: 15, padding: '0 3px',
                       borderRadius: 8,
-                      background: active ? '#fff' : T.primary,
-                      color: active ? T.primary : '#fff',
+                      // Červená vždy (i na aktivní modré dlaždici) — nepřečtená
+                      // zpráva musí "křičet", ne splynout s barvou appky.
+                      background: T.destructive,
+                      color: '#fff', border: active ? '1.5px solid #fff' : 'none',
                       fontSize: 9, fontWeight: 800, fontFamily: T.fontHead,
                       display: 'grid', placeItems: 'center',
                     }}>{n.badge}</span>

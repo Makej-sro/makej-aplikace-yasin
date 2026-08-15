@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<title>Makej — telefon preview</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0c0c11;
+    background-image:
+      radial-gradient(ellipse 900px 500px at 50% -10%, #23233a 0%, transparent 60%),
+      radial-gradient(circle at 50% 100%, #14141c 0%, #0c0c11 70%);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; font-family: -apple-system, system-ui, sans-serif;
+  }
+
+  .stage { position: relative; padding: 60px 90px 90px; }
+
+  /* Tělo telefonu — kovový rámeček s přechodem, ne plochá černá */
+  .device {
+    position: relative;
+    width: 375px; height: 812px;
+    border-radius: 58px;
+    padding: 12px;
+    background: linear-gradient(155deg, #4a4d5c 0%, #232530 18%, #050506 45%, #232530 82%, #4a4d5c 100%);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.06) inset,
+      0 60px 100px -30px rgba(0,0,0,0.85),
+      0 20px 40px -10px rgba(0,0,0,0.6);
+  }
+  /* Fyzická tlačítka na hraně — bez nich to nepůsobí jako telefon, jen jako karta */
+  .btn { position: absolute; background: linear-gradient(90deg, #1c1d24, #353743); border-radius: 3px; }
+  .btn.mute   { left: -3px; top: 128px; width: 4px; height: 26px; }
+  .btn.vol-up { left: -3px; top: 178px; width: 4px; height: 46px; }
+  .btn.vol-dn { left: -3px; top: 234px; width: 4px; height: 46px; }
+  .btn.power  { right: -3px; top: 190px; width: 4px; height: 70px; }
+
+  /* Displej = sloupec: nahoře vlastní černý pruh pro dynamic island (mimo
+     appku, nic v appce nepřekrývá), pod ním appka dostane celou zbylou výšku. */
+  .screen {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 46px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 0 2px #000;
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    position: relative; flex: 0 0 34px;
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .screen iframe {
+    flex: 1; width: 100%; min-height: 0;
+    border: none; display: block; position: relative; z-index: 1;
+  }
+
+  /* Dynamic island — sedí ve vlastním pruhu, appku pod sebou nezakrývá */
+  .notch {
+    position: relative;
+    width: 106px; height: 26px; border-radius: 16px;
+    background: #17181d; z-index: 6;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .notch::after {
+    content: ''; position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+    width: 7px; height: 7px; border-radius: 999px;
+    background: radial-gradient(circle at 35% 35%, #3a4a6b, #0a0e1a 70%);
+  }
+
+  /* Home indicator dole, jako na iOS */
+  .home-bar {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 134px; height: 5px; border-radius: 999px;
+    background: rgba(0,0,0,0.35); z-index: 6;
+  }
+
+  /* Skleněný odlesk přes displej — jemný, aby to nepůsobilo ploše */
+  .glare {
+    position: absolute; inset: 0; z-index: 5; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 16%, transparent 30%);
+  }
+
+  .caption {
+    position: absolute; left: 0; right: 0; bottom: 34px;
+    text-align: center; color: #6b7192; font-size: 13px; letter-spacing: 0.2px;
+  }
+  .caption b { color: #a6acd6; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="device">
+      <div class="btn mute"></div>
+      <div class="btn vol-up"></div>
+      <div class="btn vol-dn"></div>
+      <div class="btn power"></div>
+      <div class="screen">
+        <div class="statusbar"><div class="notch"></div></div>
+        <iframe src="/index.html" title="Makej preview"></iframe>
+        <div class="glare"></div>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+    <div class="caption">Náhled na telefonu — <b>localhost:4000/_phone-preview.html</b> (375×812, ne obyčejné localhost:4000)</div>
+  </div>
+</body>
+</html>
