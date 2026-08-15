@@ -76,7 +76,7 @@ function WHistory({ tick, onReviewed, embedded }) {
     <div style={embedded ? {} : { flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
       <div style={embedded ? {} : { maxWidth: 720, margin: '0 auto', width: '100%' }}>
       {!embedded && (
-        <div style={{ padding: '20px 20px 18px' }}>
+        <div style={{ padding: '70px 20px 18px' }}>
           <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 28, fontWeight: 800, letterSpacing: -0.8 }}>Moje brigády</div>
         </div>
       )}

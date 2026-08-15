@@ -245,7 +245,7 @@ function WMyCard({ userId }) {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '4px 20px calc(28px + env(safe-area-inset-bottom))' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '70px 20px calc(28px + env(safe-area-inset-bottom))' }}>
 
         {/* Zapnout/vypnout */}
         <div style={{ ..._P_KARTA, padding: 0, overflow: 'hidden', marginBottom: 16 }}>
@@ -307,7 +307,7 @@ function WPeopleHome({ onEdit, onSwipe }) {
   const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?';
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '4px 20px calc(28px + env(safe-area-inset-bottom))' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '70px 20px calc(28px + env(safe-area-inset-bottom))' }}>
 
         {/* Stav mojí karty — musí být na první pohled vidět, jestli je zapnutá */}
         <div style={{ ..._P_KARTA, padding: 0, overflow: 'hidden', marginBottom: 22 }}>

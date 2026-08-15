@@ -284,25 +284,25 @@ function WSwipe({ tick }) {
           })}
         </div>
 
-          {/* Akce pod kartou — přeskočit / super / mám zájem (dle designu) */}
-          <div style={{ flex: 'none', width: '100%', maxWidth: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '10px 0 6px' }}>
-            <button onClick={doPass} title="Přeskočit" style={{
-              width: 68, height: 68, borderRadius: '50%', background: '#fff',
-              border: '1.5px solid ' + (actionAnim === 'pass' ? '#C7CCE3' : '#E6E9F5'),
-              display: 'grid', placeItems: 'center', cursor: 'pointer', outline: 'none',
-              transform: actionAnim === 'pass' ? 'scale(1.14)' : 'scale(1)', transition: 'transform .18s, border-color .18s',
-            }}>
-              <svg width="26" height="26" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke="#7A82A6" strokeWidth="2.4" strokeLinecap="round" /></svg>
-            </button>
+          {/* Akce pod kartou — obdélníky na šířku karty:
+              Nemám zájem (červený obrys) + Mám zájem (plná zelená, bílý text) */}
+          <div style={{ flex: 'none', width: '100%', maxWidth: 460, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 6px' }}>
+            <button onClick={doPass} title="Nemám zájem" style={{
+              flex: 1, height: 56, borderRadius: 16,
+              background: 'transparent', border: '2px solid ' + T.destructive, color: T.destructive,
+              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer', outline: 'none',
+              WebkitTapHighlightColor: 'transparent',
+              transform: actionAnim === 'pass' ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s',
+            }}>Nemám zájem</button>
 
             <button onClick={() => doLike(false)} title="Mám zájem" style={{
-              width: 82, height: 82, borderRadius: '50%', background: T.primary, border: 'none',
-              display: 'grid', placeItems: 'center', cursor: 'pointer', outline: 'none',
-              boxShadow: actionAnim === 'like' ? '0 16px 30px rgba(27,52,240,.5)' : '0 12px 24px rgba(27,52,240,.35)',
-              transform: actionAnim === 'like' ? 'scale(1.12)' : 'scale(1)', transition: 'transform .18s, box-shadow .18s',
-            }}>
-              <svg width="33" height="26" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
+              flex: 1, height: 56, borderRadius: 16,
+              background: T.green, border: 'none', color: '#fff',
+              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer', outline: 'none',
+              WebkitTapHighlightColor: 'transparent',
+              boxShadow: actionAnim === 'like' ? '0 16px 30px -8px rgba(31,157,92,.55)' : '0 12px 24px -10px rgba(31,157,92,.42)',
+              transform: actionAnim === 'like' ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s, box-shadow .18s',
+            }}>Mám zájem</button>
           </div>
         </div>
       )}
@@ -489,9 +489,23 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           Táhni nahoru pro celý inzerát
         </div>
 
-        {/* swipe razítka */}
-        <Stamp show={likeShown} angle={-12} pos={{ top: 24, left: 20 }} color="#0FA968" label="BERU" intensity={Math.min(1, x / 120)} />
-        <Stamp show={passShown} angle={14} pos={{ top: 24, right: 20 }} color="#7A82A6" label="DÍKY, NE" intensity={Math.min(1, -x / 120)} />
+        {/* swipe „barevná odezva": filtr přes celou kartu + centrální razítko.
+            Reaguje průběžně na tah (opacity roste se vzdáleností), drží se i při odletu. */}
+        {isTop && (likeShown || passShown) && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: x > 0 ? 'rgba(31,157,92,.45)' : 'rgba(226,86,74,.45)',
+            opacity: Math.min(Math.abs(x) / 120, 1),
+            transition: drag.dragging ? 'none' : 'opacity .35s cubic-bezier(.2,.8,.2,1)',
+          }}>
+            <span style={{
+              transform: 'rotate(-11deg)', border: '4px solid #fff', color: '#fff',
+              borderRadius: 14, padding: '8px 22px',
+              fontFamily: T.fontHead, fontSize: 34, fontWeight: 800, letterSpacing: 1.5,
+            }}>{x > 0 ? 'ZÁJEM' : 'NE'}</span>
+          </div>
+        )}
       </div>
     </div>
   );

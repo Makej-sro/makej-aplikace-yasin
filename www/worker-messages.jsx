@@ -763,7 +763,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
     };
     return (
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '24px 20px 40px' }}>
+        <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '70px 20px 40px' }}>
           <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, marginBottom: 18 }}>Zprávy</div>
 
           <div style={{ background: '#fff', borderRadius: 22, padding: '22px 20px', boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
@@ -811,7 +811,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
         display: 'flex', flexDirection: 'column',
         background: 'transparent',
       }}>
-        <div style={{ padding: '20px 18px 12px' }}>
+        <div style={{ padding: '70px 18px 12px' }}>
           {/* Brigády = chaty s firmami k inzerátům, Lidé = peer-to-peer chaty ze záložky Lidé
               — musí jít od sebe jasně rozeznat, jinak se to při víc matchích slije v bordel.
               Přepínač je záměrně vpravo nahoře vedle nadpisu, ne jako plná lišta pod ním. */}

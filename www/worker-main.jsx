@@ -422,7 +422,6 @@ function WorkerApp() {
   const [toasts, setToasts] = useStateW([]);
   const [notifs, setNotifs] = useStateW([]);      // upozornění pro zvoneček
   const [bellOpen, setBellOpen] = useStateW(false);
-  const [testOpen, setTestOpen] = useStateW(false);   // DOČASNÉ — nabídka testovacích upozornění
   const [chatOpen, setChatOpen] = useStateW(false);   // otevřený chat → schovat spodní nav
   const [bellRing, setBellRing] = useStateW(false);   // krátké rozkývání při novém upozornění
   const posledniZvuk = useRefW(0);                    // kdy naposled cinklo — proti salvě
@@ -451,40 +450,6 @@ function WorkerApp() {
   if (typeof window !== 'undefined') {
     window.wOpenChat = openChat;
     window.wOpenEmployer = (employerId, fallback) => { if (employerId) setEmployerTarget({ employerId, fallback }); };
-    // DOČASNÉ (test): pošle vybraný druh upozornění stejnou cestou jako ten
-    // skutečný — toast, zvuk i zvoneček. Data jsou vzorová, chování opravdové.
-    window.wTestNotif = (druh) => {
-      // Vezmi skutečnou firmu z konverzací, ať test vypadá jako ostrý provoz
-      const t = W_THREADS[0];
-      const firma  = t ? (t.name || 'Zaměstnavatel') : 'Albert';
-      const avatar = t ? { initials: t.avatar, color: t.color, logo: t.logoUrl } : { initials: 'AL', color: _wColor('test') };
-      const mid    = t ? t.id : null;
-      const otevri = mid ? () => openChat(mid) : () => setTab('messages');
-
-      const vzory = {
-        message: {
-          n: { type: 'message', title: firma, text: 'Dobrý den, měl byste zájem o směnu v pátek?', avatar, kind: 'chat', matchId: mid },
-          akce: { label: 'Odpovědět', onClick: otevri },
-        },
-        shift: {
-          n: { type: 'shift', title: 'Nabídka směny', text: `${firma} ti nabízí směnu.`, avatar, kind: 'chat', matchId: mid },
-          akce: { label: 'Zobrazit směnu', onClick: otevri },
-        },
-        match: {
-          n: { type: 'match', title: 'Máš shodu', text: `${firma} má zájem o tvůj profil.`, avatar, kind: 'chat', matchId: mid },
-          akce: { label: 'Napsat zprávu', dark: true, onClick: otevri },
-        },
-        review: {
-          n: { type: 'review', title: 'Ohodnoť své brigády', text: 'Máš 2 dokončené brigády k ohodnocení.', kind: 'review' },
-          akce: { label: 'Otevřít kalendář', onClick: () => setTab('history') },
-        },
-      };
-
-      // Jen zápis do databáze — banner i zvoneček se vrátí přes realtime,
-      // takže test ověří přesně tu cestu, co jede v ostrém provozu.
-      const v = vzory[druh] || vzory.message;
-      addNotif(v.n);
-    };
   }
 
   // Uživatel může upozornění vypnout v profilu (Nastavení)
@@ -764,7 +729,7 @@ function WorkerApp() {
   // nav zůstává jen na tři hlavní, často používané záložky.
   const NAV = [
     { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
-    { id: 'people',   label: 'Lidé',     icon: 'users-group-rounded-bold' },
+    { id: 'people',   label: 'Lidé',     img: 'icons/people-icon.png' },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-icon.png', badge: unreadMessages },
   ];
 
@@ -804,171 +769,127 @@ function WorkerApp() {
         {body}
       </div>
 
-      {/* Zvoneček upozornění — jen na záložce Práce, jinde překrývá obsah */}
-      {loaded && tab === 'swipe' && (
-        <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* DOČASNÉ — testovací tlačítko, před buildem do App Store smazat.
-              Smazat i window.wTestNotif a stav testOpen výše. */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setTestOpen(o => !o)}
-              title="Vyzkoušet upozornění"
-              style={{
-                height: 40, padding: '0 12px', borderRadius: 14,
-                background: testOpen ? T.primary : '#fff',
-                border: '1px dashed ' + T.primary, color: testOpen ? '#fff' : T.primary,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
-                boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-              }}>
-              <Icon name="bell-bold" size={14} color={testOpen ? '#fff' : T.primary} />
-              Test
-            </button>
-
-            {testOpen && (<>
-              <div onClick={() => setTestOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
-              <div style={{
-                position: 'absolute', top: 48, left: 0, width: 236,
-                background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
-                boxShadow: '0 24px 50px rgba(20,22,40,0.2)', padding: 6,
-                animation: 'wPop .2s cubic-bezier(.2,.8,.2,1)',
-              }}>
-                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.7, padding: '7px 10px 8px' }}>
-                  Které vyzkoušet
-                </div>
-                {[
-                  { k: 'message', popis: 'Zpráva od firmy',   detail: 'Titulek = jméno firmy' },
-                  { k: 'shift',   popis: 'Nabídka směny',     detail: 'Firma posílá termín' },
-                  { k: 'match',   popis: 'Máš shodu',         detail: 'Firma přijala tvůj zájem' },
-                  { k: 'review',  popis: 'Ohodnoť brigády',   detail: 'Bez firmy → značka Makej' },
-                ].map(p => (
-                  <button key={p.k}
-                    onClick={() => { setTestOpen(false); window.wTestNotif && window.wTestNotif(p.k); }}
-                    style={{
-                      width: '100%', textAlign: 'left', display: 'block',
-                      padding: '9px 10px', borderRadius: 11, marginBottom: 1,
-                      background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800 }}>{p.popis}</div>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11.5, marginTop: 1 }}>{p.detail}</div>
-                  </button>
-                ))}
-              </div>
-            </>)}
-          </div>
-
-          <button
-            onClick={() => {
-              setBellOpen(o => !o);
-              if (!bellOpen) {
-                setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-                if (userId.current) markNotifsReadW(userId.current);   // ať to platí i po refreshi
-                // Oznámení nesou i nepřečtené zprávy — srovnej i odznak Zpráv
-                W_THREADS.forEach(t => t.unread = 0);
-                Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]);
-                setPrecteno(p => p + 1);
-              }
-            }}
-            style={{
-              width: 40, height: 40, borderRadius: 14, position: 'relative',
-              background: '#fff', border: 'none', cursor: 'pointer',
-              display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-            }}>
-            <span style={{ display: 'grid', placeItems: 'center', animation: bellRing ? 'wBellRing .7s cubic-bezier(.36,.07,.19,.97)' : 'none', transformOrigin: 'top center' }}>
-              <Icon name="bell-bold" size={18} color="#4a4f6b" />
-            </span>
-            {unreadNotifs > 0 && (
-              <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: T.destructive, color: '#fff', fontSize: 10, fontWeight: 800, fontFamily: T.fontUI, display: 'grid', placeItems: 'center', border: '2px solid #fff' }}>{unreadNotifs}</span>
-            )}
-          </button>
-
-          {bellOpen && (<>
-            <div onClick={() => setBellOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
-            <div style={{
-              position: 'absolute', top: 50, right: 0, width: 'min(360px, calc(100vw - 32px))',
-              maxHeight: '70vh', overflowY: 'auto',
-              background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
-              boxShadow: '0 24px 50px rgba(20,22,40,0.2)', animation: 'wPop .22s cubic-bezier(.2,.8,.2,1)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid ' + T.border }}>
-                <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800 }}>Upozornění</span>
-                {notifs.length > 0 && <button onClick={() => { setNotifs([]); W_THREADS.forEach(t => t.unread = 0); Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]); setPrecteno(p => p + 1); if (userId.current) sb.from('notifications').delete().eq('user_id', userId.current).then(({ error }) => { if (error) console.error('smazání upozornění:', error); }); }} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
-              </div>
-              {notifs.length === 0 ? (
-                statusRows.length > 0 ? (
-                  <div style={{ padding: 8 }}>
-                    <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 12px 8px' }}>Aktuálně</div>
-                    {statusRows.map(r => (
-                      <button key={r.key}
-                        onClick={() => { setBellOpen(false); r.go(); }}
-                        style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 11, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                          <Icon name={r.icon} size={18} color={T.primary} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
-                          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.text}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ padding: '28px 20px', textAlign: 'center' }}>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.55 }}>
-                      Nic nového. Až se firma ozve nebo potvrdí směnu, najdeš to tady.
-                    </div>
-                  </div>
-                )
-              ) : (
-                <div style={{ padding: '8px' }}>
-                  {notifs.map(n => {
-                    return (
-                      <button key={n.id}
-                        onClick={() => { setBellOpen(false); if (n.kind === 'chat' && n.matchId) openChat(n.matchId); else if (n.kind === 'review') setTab('history'); }}
-                        style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
-                        <WNotifZnacka avatar={n.avatar} size={40} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
-                          {n.text && <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.text}</div>}
-                          <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, marginTop: 3 }}>{_wRelTime(n.ts)}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>)}
-        </div>
-      )}
-
-      {/* Nastavení (bývalý Profil) + Kalendář — obojí nahoře vlevo, viditelné
-          na všech záložkách, jen ne v otevřeném chatu (tam by překážely). */}
+      {/* Horní lišta — vlevo oválek s nástroji (Kalendář + Zvoneček).
+          Viditelné na všech záložkách, jen ne v otevřeném chatu. */}
       {loaded && !chatOpen && (
-        <div style={{ position: 'fixed', top: 14, left: 16, zIndex: 8500, display: 'flex', gap: 8 }}>
-          <button onClick={() => setSettingsOpen(true)} title="Nastavení" style={{
-            width: 40, height: 40, borderRadius: 14,
-            background: '#fff', border: 'none', cursor: 'pointer',
-            display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-          }}>
-            {/* Ozubené kolo jako inline SVG — appka je plně offline, "settings"
-                ikona není v předstažené sadě Solar (viz www/vendor/icons-solar.js) */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="3.2" stroke="#4a4f6b" strokeWidth="1.8" />
-              <path stroke="#4a4f6b" strokeWidth="1.8" strokeLinecap="round" d="M12 3.5v2.3M12 18.2v2.3M20.5 12h-2.3M5.8 12H3.5M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6M17.8 17.8l-1.6-1.6M7.8 7.8 6.2 6.2" />
-            </svg>
-          </button>
+        <div style={{
+          position: 'fixed', top: 14, left: 16, zIndex: 8500,
+          display: 'inline-flex', alignItems: 'center', gap: 2,
+          background: '#fff', borderRadius: 999, padding: 5,
+          boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+        }}>
+          {/* Kalendář */}
           <button onClick={() => setCalendarOpen(true)} title="Kalendář" style={{
-            position: 'relative', width: 40, height: 40, borderRadius: 14,
-            background: '#fff', border: 'none', cursor: 'pointer',
-            display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+            position: 'relative', width: 38, height: 38, borderRadius: 999,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            display: 'grid', placeItems: 'center',
           }}>
             <Icon name="calendar-minimalistic-bold" size={18} color="#4a4f6b" />
             {reviewsToDo > 0 && (
-              <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: 999, background: T.destructive, border: '2px solid #fff' }} />
+              <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 999, background: T.destructive, border: '2px solid #fff' }} />
             )}
           </button>
+
+          {/* Zvoneček */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => {
+                setBellOpen(o => !o);
+                if (!bellOpen) {
+                  setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+                  if (userId.current) markNotifsReadW(userId.current);   // ať to platí i po refreshi
+                  // Oznámení nesou i nepřečtené zprávy — srovnej i odznak Zpráv
+                  W_THREADS.forEach(t => t.unread = 0);
+                  Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]);
+                  setPrecteno(p => p + 1);
+                }
+              }}
+              title="Upozornění"
+              style={{
+                width: 38, height: 38, borderRadius: 999, position: 'relative',
+                background: bellOpen ? T.tint : 'transparent', border: 'none', cursor: 'pointer',
+                display: 'grid', placeItems: 'center',
+              }}>
+              <span style={{ display: 'grid', placeItems: 'center', animation: bellRing ? 'wBellRing .7s cubic-bezier(.36,.07,.19,.97)' : 'none', transformOrigin: 'top center' }}>
+                <Icon name="bell-bold" size={18} color="#4a4f6b" />
+              </span>
+              {unreadNotifs > 0 && (
+                <span style={{ position: 'absolute', top: -1, right: -1, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: T.destructive, color: '#fff', fontSize: 9.5, fontWeight: 800, fontFamily: T.fontUI, display: 'grid', placeItems: 'center', border: '2px solid #fff' }}>{unreadNotifs}</span>
+              )}
+            </button>
+
+            {bellOpen && (<>
+              <div onClick={() => setBellOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
+              <div style={{
+                position: 'fixed', top: 64, left: 16, width: 'min(360px, calc(100vw - 32px))',
+                maxHeight: '70vh', overflowY: 'auto',
+                background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
+                boxShadow: '0 24px 50px rgba(20,22,40,0.2)', animation: 'wPop .22s cubic-bezier(.2,.8,.2,1)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid ' + T.border }}>
+                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800 }}>Upozornění</span>
+                  {notifs.length > 0 && <button onClick={() => { setNotifs([]); W_THREADS.forEach(t => t.unread = 0); Object.keys(W_UNREAD).forEach(k => delete W_UNREAD[k]); setPrecteno(p => p + 1); if (userId.current) sb.from('notifications').delete().eq('user_id', userId.current).then(({ error }) => { if (error) console.error('smazání upozornění:', error); }); }} style={{ background: 'none', border: 'none', color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Vymazat</button>}
+                </div>
+                {notifs.length === 0 ? (
+                  statusRows.length > 0 ? (
+                    <div style={{ padding: 8 }}>
+                      <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 12px 8px' }}>Aktuálně</div>
+                      {statusRows.map(r => (
+                        <button key={r.key}
+                          onClick={() => { setBellOpen(false); r.go(); }}
+                          style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 11, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                            <Icon name={r.icon} size={18} color={T.primary} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
+                            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.text}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                      <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.55 }}>
+                        Nic nového. Až se firma ozve nebo potvrdí směnu, najdeš to tady.
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div style={{ padding: '8px' }}>
+                    {notifs.map(n => {
+                      return (
+                        <button key={n.id}
+                          onClick={() => { setBellOpen(false); if (n.kind === 'chat' && n.matchId) openChat(n.matchId); else if (n.kind === 'review') setTab('history'); }}
+                          style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
+                          <WNotifZnacka avatar={n.avatar} size={40} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
+                            {n.text && <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 1, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.text}</div>}
+                            <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, marginTop: 3 }}>{_wRelTime(n.ts)}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>)}
+          </div>
         </div>
+      )}
+
+      {/* Horní lišta — vpravo ikona Profilu (bývalé Nastavení / ozubené kolo).
+          Proklik na obrazovku profilu a nastavení. */}
+      {loaded && !chatOpen && (
+        <button onClick={() => setSettingsOpen(true)} title="Profil" style={{
+          position: 'fixed', top: 14, right: 16, zIndex: 8500,
+          width: 44, height: 44, borderRadius: 999,
+          background: '#fff', border: 'none', cursor: 'pointer',
+          display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+        }}>
+          <Icon name="user-bold" size={20} color="#4a4f6b" />
+        </button>
       )}
 
       {settingsOpen && (
@@ -1005,8 +926,8 @@ function WorkerApp() {
       {loaded && !chatOpen && (
         <nav style={{
           display: 'flex', alignItems: 'center', gap: 4,
-          margin: '4px 16px',
-          marginBottom: 'calc(10px + env(safe-area-inset-bottom))',
+          margin: '2px 16px',
+          marginBottom: 'max(6px, env(safe-area-inset-bottom))',
           padding: 7,
           // Na klidném pozadí už sklo nemá co chytat, takže si drží vlastní
           // krytí — jinak by se bar s plochou slil.
