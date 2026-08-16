@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100" role="img" aria-label="Makej">
+  <title>Makej — ikona aplikace</title>
+  <rect width="100" height="100" fill="#0020F6"></rect>
+  <rect x="26" y="24" width="44" height="56" rx="9" fill="#FFFFFF" opacity=".4" transform="rotate(-13 48 52)"></rect>
+  <rect x="32" y="22" width="44" height="56" rx="9" fill="#FFFFFF" transform="rotate(9 54 50)"></rect>
+</svg>

@@ -697,7 +697,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
 
         {/* Nápověda „táhni nahoru" */}
         <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '12px 0 14px', color: '#A6ADCB', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700 }}>
-          <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 6.5L6 1.5l5 5" fill="none" stroke="#A6ADCB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true" data-whint style={{ animation: 'wHintHop 2s cubic-bezier(.34,1.3,.5,1) infinite' }}><path d="M1 6.5L6 1.5l5 5" fill="none" stroke="#A6ADCB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           Táhni nahoru pro celý inzerát
         </div>
 
