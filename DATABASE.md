@@ -34,6 +34,21 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 > `availability` (dostupnost) zatím záměrně nepřidáváme — nemáme dořešený tvar
 > (zaškrtávátka vs. dny). Doplní se jedním řádkem, až bude UI.
 
+### Fotogalerie inzerátu — víc fotek (čeká na Sama: sloupec + nahrávání na dashboardu)
+Detail inzerátu v appce brigádníka umí od 2026-08-16 **galerii fotek** (swipe +
+tečky). Čte pole `job.photos` (pole URL); když chybí, spadne zpět na jednu hero
+fotku (`image_url`/`image`/`cover_url`/`photo_url`). Aby galerie měla co ukazovat,
+potřebuje **firemní strana**:
+- sloupec na inzerátu, návrh `jobs.photos text[]` (pole veřejných URL fotek), a
+- na dashboardu **nahrávání víc fotek** (storage bucket) → uloží URL do `jobs.photos`.
+
+```sql
+alter table public.jobs
+  add column if not exists photos text[] default '{}';
+```
+Appka je připravená — jakmile `jobs.photos` poteče ven ve výběru inzerátů,
+galerie se rozjede sama. **Chce se říct Samovi** (sdílené, firemní strana).
+
 ---
 
 ## Historie provedených změn

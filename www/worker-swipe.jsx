@@ -114,6 +114,128 @@ function _wDemoJobs() {
 // nevypne přes „Příště nezobrazovat" (uloženo v zařízení).
 const _zajemHidden = () => { try { return localStorage.getItem('makej-hide-zajem') === '1'; } catch (e) { return false; } };
 
+// Otevři externí odkaz (mapy) tak, aby to nerozbilo appku na mobilu.
+// window.open('_blank') ve standalone PWA (appka na ploše) nechá po návratu
+// prázdné bílé okno, které se musí zavřít křížkem. Klepnutí na dočasný
+// <a target="_blank" rel="noopener"> předá odkaz systému (Mapy/Safari jako
+// samostatná appka) a Makej běží dál na pozadí — po návratu je pořád tam.
+function _wOpenExternal(url) {
+  try {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    try { window.open(url, '_blank', 'noopener'); } catch (e2) {}
+  }
+}
+// Vždy Google Mapy — na iPhonu i Androidu (univerzální odkaz otevře appku Google
+// Map, pokud je nainstalovaná, jinak Mapy v prohlížeči).
+function _wMapsUrl(query) {
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+}
+
+// Otevři profil firmy. U demo firmy není profil v DB → pošli bohatá data z inzerátu
+// (obor, o firmě, sídlo, web, založeno, otevřené pozice, fotky, recenze) jako fallback.
+function _wEmployerFallback(job) {
+  const base = { name: job.company, company_name: job.company, color: job.accent, rating: job.rating, verified: job.verified };
+  return (job._demo && job.employer) ? { _demo: true, photos: job.photos, ...base, ...job.employer } : base;
+}
+function _wOpenEmployerFor(job) {
+  if (typeof window !== 'undefined' && window.wOpenEmployer) window.wOpenEmployer(job._demo ? null : job.employer_id, _wEmployerFallback(job));
+}
+// Proklik z odměny → spodní panel „Odměna v okolí" (osa min–max obvyklé sazby v oboru/lokalitě).
+function _wOpenPayFor(job) {
+  if (typeof window === 'undefined' || !window.wOpenPay) return;
+  const emp = job.employer || {};
+  window.wOpenPay({
+    pay: job.pay, unit: job.payUnit, band: job.payBand || null,
+    category: (emp.industry || '').split('·')[0].trim(),
+    locality: job.location || '',
+    shiftTotal: job.shiftTotal || job.total || 0,
+  });
+}
+// Proklik z „Kdy" → spodní panel „Pracovní doba" (datum, rozpad směny, tvůj týden).
+function _wOpenWhenFor(job) {
+  if (typeof window !== 'undefined' && window.wOpenWhen) window.wOpenWhen(job);
+}
+// Proklik z hodnocení → spodní panel s recenzemi té firmy (nic dalšího).
+function _wOpenReviewsFor(job) {
+  if (typeof window === 'undefined' || !window.wOpenReviews) return;
+  const emp = job.employer || {};
+  window.wOpenReviews(job._demo ? null : job.employer_id, {
+    company: { name: job.company, logo: job.logo, color: job.accent, verified: job.verified, category: emp.industry || '', district: emp.address || '' },
+    rating: job.rating,
+    items: Array.isArray(emp.reviews) ? emp.reviews : [],
+  });
+}
+
+// Ověřovací odznak firmy ve stylu Instagramu: modrá pečeť + bílá fajfka.
+function WVerifiedBadge({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, display: 'block' }}>
+      <path fill="#3897f0" d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z" />
+      <path d="M7.6 12.2l3 3 5.8-6" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Zlatý odznáček „Byl jsem u toho" — 1:1 podle webového waitlistu (style.css → .gold-badge):
+// zlatý přechod, černý text, zlatý okraj, tekoucí lesk. Bez ikony (jako na webu).
+function WGoldBadge({ label = 'Byl jsem u toho', icon = null }) {
+  return (
+    <span style={{
+      position: 'relative', overflow: 'hidden', display: 'inline-flex', alignItems: 'center', gap: icon ? 4 : 0,
+      padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+      fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.2px',
+      color: '#221A05', border: '1px solid #A5780C',
+      background: 'linear-gradient(105deg, #B8860B 0%, #E8C56A 22%, #FDF3C8 42%, #D9A93C 62%, #A9770A 82%, #E4C069 100%)',
+      backgroundSize: '260% 100%',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 0 rgba(90,60,0,.35), 0 2px 6px -2px rgba(140,96,10,.5)',
+      animation: 'wGoldFlow 7s ease-in-out infinite',
+    }}>
+      {icon && <Icon name={icon} size={12} color="#221A05" />}
+      {label}
+      <span aria-hidden="true" style={{
+        position: 'absolute', top: '-40%', left: 0, width: 26, height: '180%', pointerEvents: 'none',
+        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 100%)',
+        animation: 'wGoldSheen 4.5s ease-in-out infinite',
+      }} />
+    </span>
+  );
+}
+
+// Onyxový odznak „Zakládající partner" (firma) — 1:1 podle webového waitlistu
+// (style.css → .founder-badge): tmavý kovový přechod, bílý text s tyrkysovým
+// odleskem, přejíždějící světelný pruh.
+function WFounderBadge({ label = 'Zakládající partner' }) {
+  return (
+    <span style={{
+      position: 'relative', overflow: 'hidden', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      padding: '3px 10px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+      border: '1px solid #2A3E52',
+      background: 'linear-gradient(105deg, #060A12 0%, #14202E 22%, #2E4759 42%, #101A26 62%, #050810 82%, #24384B 100%)',
+      backgroundSize: '260% 100%',
+      boxShadow: '0 5px 14px -3px rgba(6,32,40,.7)',
+      animation: 'wGoldFlow 3.6s ease-in-out infinite',
+    }}>
+      <span style={{
+        position: 'relative', fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.3px', whiteSpace: 'nowrap',
+        backgroundImage: 'linear-gradient(100deg, #FFFFFF 0%, #FFFFFF 36%, #3FC3D8 50%, #FFFFFF 64%, #FFFFFF 100%)',
+        backgroundSize: '300% 100%',
+        WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
+        animation: 'wTextSheen 7.5s cubic-bezier(.5,0,.3,1) infinite',
+      }}>{label}</span>
+      <span aria-hidden="true" style={{
+        position: 'absolute', top: '-40%', left: 0, width: 30, height: '180%', pointerEvents: 'none',
+        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(226,253,255,.9) 50%, rgba(255,255,255,0) 100%)',
+        animation: 'wSheenSweep 7.5s cubic-bezier(.5,0,.3,1) infinite',
+      }} />
+    </span>
+  );
+}
+
 function WSwipe({ tick }) {
   const [jobs,       setJobs]       = useStateW(() => {
     const real = W_JOBS.map(jobToCard);
@@ -122,7 +244,6 @@ function WSwipe({ tick }) {
   const [topIdx,     setTopIdx]     = useStateW(0);
   const [drag,       setDrag]       = useStateW({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
   const [matchAnim,  setMatchAnim]  = useStateW(null);
-  const [isSuperAnim,setIsSuperAnim]= useStateW(false);
   const [hideInfo,   setHideInfo]   = useStateW(() => _zajemHidden());   // „Příště nezobrazovat"
   const [actionAnim, setActionAnim] = useStateW(null); // 'like' | 'pass' | 'super'
   const [flying,     setFlying]     = useStateW(0);    // 0=klid; 1/-1 = probíhá odlet → spodní karty se dorovnají o úroveň výš
@@ -167,7 +288,14 @@ function WSwipe({ tick }) {
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
 
-  const closeMatch = () => { setMatchAnim(null); if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false); };
+  const closeMatch = () => setMatchAnim(null);
+
+  // Panel „Zájem odeslán" se po dojetí 6s časomíry sám zavře (swipování pak jede dál).
+  useEffectW(() => {
+    if (!matchAnim) return;
+    const t = setTimeout(() => setMatchAnim(null), 6000);
+    return () => clearTimeout(t);
+  }, [matchAnim]);
 
   const animateFly = (dir, cb) => {
     // Po tahu prstem má karta náběh → punchy daleký odjezd. Z tlačítka (bez tahu, x≈0)
@@ -191,8 +319,7 @@ function WSwipe({ tick }) {
       if (uid && !job._demo) await createMatchW(uid, job.id, sup);
       if (uid && !_zajemHidden()) {
         setHideInfo(false);   // při zobrazení flag != '1' → checkbox odškrtnutý (i po zapnutí z Nastavení)
-        setMatchAnim(job);
-        if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(true);   // schovej horní lištu za potvrzením
+        setMatchAnim(job);    // spodní panel; feed zůstává vidět, horní lištu neschováváme
       }
     });
   }
@@ -339,66 +466,95 @@ function WSwipe({ tick }) {
         </div>
       )}
 
-      {/* Match animation */}
+      {/* „Zájem odeslán" — panel vyjede zdola, feed zůstává vidět; 6s časomíra sama zavře */}
       {matchAnim && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9000,
-          background: T.primary,
-          display: 'flex', flexDirection: 'column',
-          animation: 'wPop .3s cubic-bezier(.2,.8,.2,1)',
-        }}>
-          {/* Horní modrá část — potvrzení */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 40px', textAlign: 'center' }}>
-            <div style={{ width: 92, height: 92, borderRadius: 26, background: 'rgba(255,255,255,0.16)', display: 'grid', placeItems: 'center', marginBottom: 26 }}>
-              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </div>
-            <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 31, fontWeight: 800, letterSpacing: -0.8 }}>Zájem odeslán</div>
-            <div style={{ color: 'rgba(255,255,255,0.82)', fontFamily: T.fontUI, fontSize: 15.5, lineHeight: 1.55, marginTop: 12, maxWidth: 320 }}>
-              {matchAnim.company} odpovídá obvykle do hodiny. Dáme ti vědět, jakmile se ozve.
-            </div>
-          </div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          {/* Scrim — ztmaví feed, klik zavře */}
+          <div onClick={closeMatch} style={{ position: 'absolute', inset: 0, background: 'rgba(11,18,51,0.28)', animation: 'wScrimIn .34s ease both' }} />
 
-          {/* Spodní bílý list */}
-          <div style={{ flex: 'none', background: '#fff', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(18px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Souhrn brigády */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <span style={{ width: 44, height: 44, flex: 'none', borderRadius: 13, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{matchAnim.logo}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                  <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, lineHeight: 1.25 }}>{matchAnim.title}</div>
-                  <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0', whiteSpace: 'nowrap' }}>Čeká na firmu</span>
-                </div>
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 3 }}>
-                  {[matchAnim.when, matchAnim.time, (matchAnim.shiftTotal > 0 ? matchAnim.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč' : null)].filter(Boolean).join(' · ')}
-                </div>
-              </div>
-            </div>
+          {/* Panel */}
+          <div role="dialog" aria-live="polite" aria-label="Zájem odeslán" style={{
+            position: 'relative', background: '#fff', borderRadius: '26px 26px 0 0', overflow: 'hidden',
+            boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both',
+          }}>
+            {/* Odpočet do automatického zavření */}
+            <span style={{ display: 'block', height: 3, background: T.primary, animation: 'wBarGrow 6s linear both' }} />
 
-            {/* Co bude dál */}
-            <div style={{ background: '#F6F7FC', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Co bude dál</div>
-              {['Firma si projde tvůj profil', 'Při shodě se otevře chat s pravidly směny', 'Směna ti naskočí do kalendáře'].map((txt, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: i < 2 ? 11 : 0 }}>
-                  <span style={{ width: 22, height: 22, flex: 'none', borderRadius: 999, background: i === 0 ? T.green : '#E3E7F2', color: i === 0 ? '#fff' : T.mutedSoft, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{i + 1}</span>
-                  <span style={{ color: i === 0 ? T.ink : T.muted, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: i === 0 ? 700 : 600 }}>{txt}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Příště nezobrazovat */}
-            <button onClick={() => { const v = !hideInfo; setHideInfo(v); try { localStorage.setItem('makej-hide-zajem', v ? '1' : '0'); } catch (e) {} }} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 2, WebkitTapHighlightColor: 'transparent' }}>
-              <span style={{ width: 22, height: 22, flex: 'none', borderRadius: 7, border: '2px solid ' + (hideInfo ? T.primary : T.border), background: hideInfo ? T.primary : '#fff', display: 'grid', placeItems: 'center' }}>
-                {hideInfo && <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7.5l3 3 7-7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+            {/* Příště nezobrazovat — pravý horní roh */}
+            <button onClick={() => { const v = !hideInfo; setHideInfo(v); try { localStorage.setItem('makej-hide-zajem', v ? '1' : '0'); } catch (e) {} }} style={{
+              position: 'absolute', top: 17, right: 18, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7,
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+            }}>
+              <span style={{ width: 16, height: 16, flex: 'none', borderRadius: 5, border: '2px solid ' + (hideInfo ? T.primary : T.border), background: hideInfo ? T.primary : '#fff', display: 'grid', placeItems: 'center' }}>
+                {hideInfo && <svg width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7.5l3 3 7-7" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
               </span>
-              <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 600 }}>Příště nezobrazovat</span>
+              <span style={{ fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: T.mutedSoft }}>Příště nezobrazovat</span>
             </button>
 
-            {/* Hledat dál */}
-            <button onClick={closeMatch} style={{
-              width: '100%', height: 54, borderRadius: 16, background: T.primary, border: 'none', color: '#fff',
-              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 12px 26px -10px rgba(0,32,246,0.6)', WebkitTapHighlightColor: 'transparent',
-            }}>Hledat dál</button>
+            <div style={{ padding: '20px 20px calc(30px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Fajfka + nadpis — potvrzení ve stylu platby (kroužek → výplň → fajfka) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                <span style={{ position: 'relative', width: 52, height: 52, flex: 'none', display: 'grid', placeItems: 'center' }}>
+                  <span style={{ position: 'absolute', width: 52, height: 52, borderRadius: '50%', background: T.primary, animation: 'wApHalo 1.1s cubic-bezier(.2,.7,.3,1) .5s both' }} />
+                  <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true" style={{ position: 'relative' }}>
+                    <circle cx="26" cy="26" r="23" fill={T.primary} style={{ transformOrigin: '26px 26px', animation: 'wApFill .5s cubic-bezier(.34,1.3,.5,1) .42s both' }} />
+                    <circle cx="26" cy="26" r="23" fill="none" stroke={T.primary} strokeWidth="3" strokeLinecap="round" style={{ transform: 'rotate(-90deg)', transformOrigin: '26px 26px', strokeDasharray: 144.5, strokeDashoffset: 144.5, animation: 'wApRing .62s cubic-bezier(.3,0,.2,1) both' }} />
+                    <path d="M16 26.6L23 33.4 36.5 19.4" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 30, strokeDashoffset: 30, animation: 'wApCheck .38s cubic-bezier(.4,0,.2,1) .72s forwards' }} />
+                  </svg>
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0, paddingTop: 18 }}>
+                  <div style={{ fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, color: T.ink, letterSpacing: -0.3 }}>Zájem odeslán</div>
+                  <div style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted, lineHeight: 1.45 }}>{matchAnim.company} odpovídá obvykle do hodiny. Pak se otevře chat.</div>
+                </div>
+              </div>
+
+              {/* Připomínka brigády */}
+              <div style={{ background: T.surfaceAlt, borderRadius: 14, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 11 }}>
+                <span style={{ width: 34, height: 34, flex: 'none', borderRadius: 11, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{matchAnim.logo}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchAnim.title}</span>
+                  <span style={{ fontFamily: T.fontUI, fontSize: 11, color: T.muted }}>{[matchAnim.when, matchAnim.time].filter(Boolean).join(' · ')}</span>
+                </div>
+                {matchAnim.shiftTotal > 0 && <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, color: T.green, background: T.greenSoft, padding: '7px 10px', borderRadius: 9 }}>{matchAnim.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ')} Kč</span>}
+              </div>
+
+              {/* Cesta tří kroků: Odesláno → Firma se rozhoduje → Chat */}
+              <div style={{ background: T.surfaceAlt, borderRadius: 14, padding: '12px 12px 11px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {/* Řádek 1 — spojnice + uzly (uzel vždy uprostřed svého sloupce) */}
+                <span style={{ gridColumn: 1, gridRow: 1, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ flex: 1, height: 2 }} />
+                  <span style={{ width: 22, height: 22, flex: 'none', borderRadius: '50%', background: T.green, display: 'grid', placeItems: 'center' }}>
+                    <svg width="11" height="9" viewBox="0 0 11 9" aria-hidden="true"><path d="M1 4.6L4 7.6 10 1.4" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </span>
+                  <span style={{ flex: 1, height: 2, background: T.green }} />
+                </span>
+                <span style={{ gridColumn: 2, gridRow: 1, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ flex: 1, height: 2, background: T.green }} />
+                  <span style={{ width: 22, height: 22, flex: 'none', borderRadius: '50%', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                    <span style={{ position: 'absolute', width: 11, height: 11, borderRadius: '50%', border: '1.5px solid ' + T.primary, animation: 'wRadarSm 2.6s cubic-bezier(.2,.6,.3,1) infinite' }} />
+                    <span style={{ position: 'absolute', width: 11, height: 11, borderRadius: '50%', border: '1.5px solid ' + T.primary, animation: 'wRadarSm 2.6s cubic-bezier(.2,.6,.3,1) 1.3s infinite' }} />
+                    <span style={{ position: 'relative', width: 11, height: 11, borderRadius: '50%', background: T.primary, animation: 'wDotPulse 2.6s ease-in-out infinite' }} />
+                  </span>
+                  <span style={{ flex: 1, height: 2, background: T.border }} />
+                </span>
+                <span style={{ gridColumn: 3, gridRow: 1, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ flex: 1, height: 2, background: T.border }} />
+                  <span style={{ width: 22, height: 22, flex: 'none', borderRadius: '50%', border: '1.5px dashed #c7cce3', background: T.surfaceAlt }} />
+                  <span style={{ flex: 1, height: 2 }} />
+                </span>
+                {/* Řádek 2 — popisky */}
+                <span style={{ gridColumn: 1, gridRow: 2, padding: '8px 2px 0', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, lineHeight: 1.2, textAlign: 'center', color: T.mutedSoft }}>Odesláno</span>
+                <span style={{ gridColumn: 2, gridRow: 2, padding: '8px 2px 0', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, lineHeight: 1.2, textAlign: 'center', color: T.ink }}>Firma se rozhoduje</span>
+                <span style={{ gridColumn: 3, gridRow: 2, padding: '8px 2px 0', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, lineHeight: 1.2, textAlign: 'center', color: T.mutedSoft }}>Chat</span>
+              </div>
+
+              {/* Pokračovat v hledání — zavře panel a vrátí feed */}
+              <button onClick={closeMatch} style={{
+                width: '100%', border: 'none', background: T.primary, color: '#fff',
+                fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, padding: 16, borderRadius: 16,
+                boxShadow: '0 10px 22px rgba(0,32,246,0.28)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+              }}>Pokračovat v hledání</button>
+            </div>
           </div>
         </div>
       )}
@@ -432,7 +588,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
   const passShown = isTop && x < -40;
 
   const tags = (Array.isArray(job.tags) ? job.tags : []).slice(0, 4);
-  const heroImg = job.image_url || job.image || job.cover_url || job.photo_url || null;
+  const heroImg = job.image_url || job.image || job.cover_url || job.photo_url || (Array.isArray(job.photos) && job.photos[0]) || null;
   const distanceTxt = job.distance != null ? String(job.distance).replace('.', ',') + ' km' : null;
   const typeLabel = job.jobType === 'jednrazova_vypomoc' ? 'Výpomoc' : job.jobType === 'part_time' ? 'Part-time' : job.jobType === 'full_time' ? 'Full-time' : 'Brigáda';
   const payPer = /(\/\s*h|hod|kč\/h)/i.test(job.payUnit || '') ? '/h' : ((job.payUnit || '').replace(/\s*Kč\s*/i, '') || '');
@@ -470,20 +626,27 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           <div style={{ position: 'absolute', top: 14, left: 14, right: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff' }}>{typeLabel}</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              {job.boosted && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: T.super, background: '#fff' }}><Icon name="bolt-bold" size={12} color={T.super} />TOP</span>}
               {distanceTxt && <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#fff', background: 'rgba(11,18,51,.55)' }}>{distanceTxt}</span>}
             </div>
           </div>
 
           {/* dole: logo firmy + název + hodnocení (klik = profil firmy) */}
           <div
-            onClick={(e) => { e.stopPropagation(); if (!drag.moved && window.wOpenEmployer) window.wOpenEmployer(job.employer_id, { name: job.company, color: job.accent, rating: job.rating, verified: job.verified }); }}
+            onClick={(e) => { e.stopPropagation(); if (!drag.moved) _wOpenEmployerFor(job); }}
             title="Zobrazit profil firmy"
             style={{ position: 'absolute', left: 14, bottom: 14, right: 14, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
             <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 14, background: '#fff', color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{job.logo}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.company}{job.verified && <Icon name="verified-check-bold" size={13} color="#8effc0" />}</span>
-              {job.rating > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#fff' }}><Icon name="star-bold" size={12} color="#FFC46B" />{job.rating.toFixed(1).replace('.', ',')}{job.ratingCount ? ' · ' + job.ratingCount + ' hodnocení' : ''}</span>}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.company}</span>
+                {job.verified && <WVerifiedBadge size={15} />}
+              </span>
+              {(job.rating > 0 || job.boosted) && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                  {job.rating > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}><Icon name="star-bold" size={12} color="#FFC46B" />{job.rating.toFixed(1).replace('.', ',')}{job.ratingCount ? ' · ' + job.ratingCount + ' hodnocení' : ''}</span>}
+                  {job.boosted && <WFounderBadge />}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -559,6 +722,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
   // obrazovky (rohy 26→0, scale, fade), při zavření se smrskne zpět a pak odmountuje.
   const [shown, setShown] = useStateW(false);
   const [detailDone, setDetailDone] = useStateW(null);   // 'like'|'pass' → potvrzení (Odesláno/Odmítnuto) na tlačítku detailu
+  const [photoIdx, setPhotoIdx] = useStateW(0);          // aktivní fotka v galerii
   const closeTimer = useRefW(null);
   useEffectW(() => {
     if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(true);   // schovej horní lištu
@@ -622,6 +786,18 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
   const kmTxt = job.distance != null ? String(job.distance).replace('.', ',') + ' km od tebe' : '';
   const ctaTotal = job.shiftTotal > 0 ? job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč' : '';
 
+  // Galerie fotek provozu — víc fotek z inzerátu (job.photos / job.images), jinak jedna hero fotka.
+  const photos = (Array.isArray(job.photos) && job.photos.length) ? job.photos
+    : (Array.isArray(job.images) && job.images.length) ? job.images
+    : (heroImg ? [heroImg] : []);
+  // Prokliky: mapa (oblast — přesná adresa až v chatu) a profil firmy (s recenzemi).
+  const openMaps = () => { if (job.location) _wOpenExternal(_wMapsUrl(job.location)); };
+  const openEmployer = () => _wOpenEmployerFor(job);
+  const openReviews = () => _wOpenReviewsFor(job);
+  const openPay = () => _wOpenPayFor(job);
+  const openWhen = () => _wOpenWhenFor(job);
+  const revCount = ((job.employer && Array.isArray(job.employer.reviews)) ? job.employer.reviews.length : job.ratingCount) || 0;
+
   return (
     <div onClick={animClose} style={{
       position: 'fixed', inset: 0, zIndex: 120,
@@ -645,15 +821,36 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
         {/* Scroll: fotka hero + obsah inzerátu */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
-          {/* Fotka provozu */}
-          <div style={{ position: 'relative', height: 240, flex: 'none', background: heroImg ? '#EEF1FF' : undefined, overflow: 'hidden' }}>
-            {heroImg
-              ? <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              : (<div style={{ position: 'absolute', inset: 0, background: T.heroGrad, display: 'grid', placeItems: 'center' }}>
-                  <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.16) 1.3px, transparent 1.3px)', backgroundSize: '19px 19px', opacity: 0.5 }} />
-                  <span style={{ fontFamily: T.fontHead, fontWeight: 800, fontSize: 150, color: 'rgba(255,255,255,0.12)', letterSpacing: -3 }}>{job.logo}</span>
-                </div>)}
+          {/* Fotky provozu — galerie (swipe + tečky) */}
+          <div style={{ position: 'relative', height: 240, flex: 'none', background: photos.length ? '#EEF1FF' : undefined, overflow: 'hidden' }}>
+            {photos.length ? (
+              <div className="wgallery"
+                onScroll={e => { const w = e.currentTarget.clientWidth; if (w) setPhotoIdx(Math.round(e.currentTarget.scrollLeft / w)); }}
+                style={{ display: 'flex', height: '100%', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
+                {photos.map((src, i) => (
+                  <img key={i} src={src} alt="" style={{ width: '100%', height: '100%', flex: 'none', objectFit: 'cover', display: 'block', scrollSnapAlign: 'center' }} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, background: T.heroGrad, display: 'grid', placeItems: 'center' }}>
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.16) 1.3px, transparent 1.3px)', backgroundSize: '19px 19px', opacity: 0.5 }} />
+                <span style={{ fontFamily: T.fontHead, fontWeight: 800, fontSize: 150, color: 'rgba(255,255,255,0.12)', letterSpacing: -3 }}>{job.logo}</span>
+              </div>
+            )}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.4) 0%, rgba(11,18,51,0) 45%)' }} />
+
+            {/* Počítadlo + tečky (jen když je víc fotek) */}
+            {photos.length > 1 && (
+              <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', padding: '4px 10px', borderRadius: 999, background: 'rgba(11,18,51,0.55)', color: '#fff', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, pointerEvents: 'none' }}>{photoIdx + 1}/{photos.length}</div>
+            )}
+            {photos.length > 1 && (
+              <div style={{ position: 'absolute', bottom: 30, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 6, pointerEvents: 'none' }}>
+                {photos.map((_, i) => (
+                  <span key={i} style={{ width: i === photoIdx ? 18 : 6, height: 6, borderRadius: 999, background: i === photoIdx ? '#fff' : 'rgba(255,255,255,0.55)', transition: 'width .2s, background .2s' }} />
+                ))}
+              </div>
+            )}
+
             <div style={{ position: 'absolute', top: 14, left: 16, right: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <button onClick={animClose} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#0B1233" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -668,34 +865,59 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
           <div style={{ position: 'relative', marginTop: -22, background: '#fff', borderRadius: '22px 22px 0 0', padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#0B7B4B', background: '#E6F7EF' }}>Nábor běží</span>
-                {job.positions > 1 && <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>{job.positions} volných míst</span>}
-              </div>
+              {job.positions > 1 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>{job.positions} volných míst</span>
+                </div>
+              )}
               <h1 style={{ margin: 0, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1.15 }}>{job.title}</h1>
-              <div onClick={() => window.wOpenEmployer && window.wOpenEmployer(job.employer_id, { name: job.company, color: job.accent, rating: job.rating, verified: job.verified })} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <span style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{job.logo}</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233' }}>{job.company}{job.verified && <Icon name="verified-check-bold" size={13} color={T.green} />}<Icon name="alt-arrow-right-bold" size={12} color="#A6ADCB" /></span>
-                  <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{job.rating > 0 ? (job.rating.toFixed(1).replace('.', ',') + (job.ratingCount ? ' · ' + job.ratingCount + ' hodnocení' : ' hodnocení')) : 'Nová firma na Makej'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233' }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.company}</span>
+                    {job.verified && <WVerifiedBadge size={15} />}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    {job.rating > 0 ? (
+                      <button onClick={openReviews} title="Zobrazit recenze firmy" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 0, padding: 0, cursor: 'pointer', fontFamily: T.fontUI, fontSize: 12, whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>
+                        <Icon name="star-bold" size={12} color={T.super} />
+                        <span style={{ color: '#0B1233', fontWeight: 800 }}>{job.rating.toFixed(1).replace('.', ',')}</span>
+                        <span style={{ color: T.primary, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2 }}>{revCount > 0 ? revCount + ' ' + _wPlural(revCount, 'recenze', 'recenze', 'recenzí') : 'recenze'}</span>
+                      </button>
+                    ) : (
+                      <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6', whiteSpace: 'nowrap' }}>Nová firma na Makej</span>
+                    )}
+                    {job.boosted && <WFounderBadge />}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Čtyři klíčové údaje */}
+            {/* Čtyři klíčové údaje — „Kde" je proklik do map */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                ['Odměna', job.pay + ' ' + job.payUnit, job.shiftTotal > 0 ? (job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč za směnu') : ''],
-                ['Kdy', job.when || job.date || '—', [job.time, job.shiftHours ? job.shiftHours + ' h' : ''].filter(Boolean).join(' · ')],
-                ['Kde', job.location || '—', kmTxt],
-                ['Smlouva', contract, payoutTag],
-              ].map((f, i) => (
-                <div key={i} style={{ background: '#F6F7FC', borderRadius: 14, padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>{f[0]}</span>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233', letterSpacing: -0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f[1]}</span>
-                  {f[2] ? <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#7A82A6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f[2]}</span> : null}
-                </div>
-              ))}
+                { l: 'Odměna', v: job.pay + ' ' + job.payUnit, s: job.shiftTotal > 0 ? (job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč za směnu') : '', onClick: job.payBand ? openPay : null, hint: 'Srovnat v okolí' },
+                { l: 'Kdy', v: job.when || job.date || '—', onClick: openWhen, hint: ([job.time, job.shiftHours ? job.shiftHours + ' h' : ''].filter(Boolean).join(' · ')) || 'Rozpis směny' },
+                { l: 'Kde', v: job.location || '—', s: kmTxt, onClick: job.location ? openMaps : null, hint: 'Ukázat na mapě' },
+                { l: 'Smlouva', v: contract, s: payoutTag },
+              ].map((f, i) => {
+                const El = f.onClick ? 'button' : 'div';
+                return (
+                  <El key={i} onClick={f.onClick || undefined} title={f.onClick ? f.hint : undefined} style={{
+                    background: f.onClick ? T.tint : '#F6F7FC', borderRadius: 14, padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0,
+                    border: 'none', textAlign: 'left', width: '100%', fontFamily: 'inherit',
+                    cursor: f.onClick ? 'pointer' : 'default',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>{f.l}</span>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233', letterSpacing: -0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.v}</span>
+                    {f.onClick
+                      ? <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#5B6488', whiteSpace: 'nowrap' }}>{f.hint} ›</span>
+                      : (f.s ? <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#7A82A6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span> : null)}
+                  </El>
+                );
+              })}
             </div>
 
             {job.desc && (
@@ -719,29 +941,24 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
               </div>
             )}
 
-            {job.location && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Kde to je</span>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#F6F7FC', borderRadius: 14, padding: '13px 14px' }}>
-                  <span style={{ fontFamily: T.fontUI, fontSize: 13, color: '#7A82A6' }}>Přesnou adresu dostaneš v chatu</span>
-                  <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(job.location), '_blank')} style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>Zobrazit v mapách</button>
-                </div>
-              </div>
-            )}
-
-            {job.rating > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>O firmě</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 30, fontWeight: 800, color: '#0B1233', letterSpacing: -0.9, lineHeight: 1 }}>{job.rating.toFixed(1).replace('.', ',')}</span>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ width: '100%', height: 6, borderRadius: 999, background: '#EEF1FF', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: T.primary, width: Math.round(job.rating / 5 * 100) + '%' }} /></span>
-                    <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{job.ratingCount ? job.ratingCount + ' hodnocení od brigádníků' : 'Hodnocení od brigádníků'}</span>
-                  </div>
-                </div>
-                <button onClick={() => window.wOpenEmployer && window.wOpenEmployer(job.employer_id, { name: job.company, color: job.accent, rating: job.rating, verified: job.verified })} style={{ alignSelf: 'flex-start', fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>Zobrazit profil firmy</button>
-              </div>
-            )}
+            {/* O firmě — otevře kartu firmy (co dělá, fotky, otevřené pozice, recenze) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>O firmě</span>
+              <button onClick={openEmployer} title="Zobrazit profil firmy" style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                background: '#F6F7FC', border: 'none', borderRadius: 14, padding: '14px 15px', cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}>
+                <span style={{ width: 40, height: 40, flex: 'none', borderRadius: 12, background: T.tint, display: 'grid', placeItems: 'center' }}>
+                  <Icon name="shop-2-bold" size={19} color={T.primary} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233' }}>Zobrazit profil firmy</span>
+                  <span style={{ display: 'block', fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>Co firma dělá, fotky, otevřené pozice a recenze</span>
+                </span>
+                <Icon name="alt-arrow-right-bold" size={14} color={T.primary} />
+              </button>
+            </div>
 
             <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#A6ADCB', lineHeight: 1.5 }}>Pravidla směny a přesnou adresu dostaneš do chatu, jakmile firma potvrdí zájem.</span>
           </div>

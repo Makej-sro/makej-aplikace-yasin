@@ -542,17 +542,27 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
     },
   ];
 
+  // „Doplň profil" — co ještě chybí. Karta se schová, jakmile je vše hotové.
+  const todoItems = [
+    { key: 'bio',    done: !!bio,          title: 'Napiš o sobě pár vět', note: 'Co umíš a kdy můžeš' },
+    { key: 'skills', done: skills.length > 0, title: 'Přidej dovednosti', note: 'Pokladna, řidičák B, angličtina…' },
+    { key: 'edu',    done: !!education,     title: 'Doplň vzdělání',       note: 'Stupeň a obor' },
+  ];
+  const todoLeft = todoItems.filter(t => !t.done).length;
+  const mesicTed = _W_MESICE[new Date().getMonth()].toLowerCase();
+  const heroMeta = W_PROFILE.city ? W_PROFILE.city : 'Doplň si profil';
+
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '24px 20px calc(28px + env(safe-area-inset-bottom))' }}>
 
-        {/* ── Header: nadpis „Profil" + ikona úpravy (odsazená od zvonečku) ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingRight: onClose ? 0 : 50 }}>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Nastavení</div>
-          {/* Úpravy jen přes tlačítko vedle nadpisu. V klidu „Upravit",
-              v úpravách zelené „Hotovo" (uloží) + šedé „Zrušit" (zahodí). */}
-          {editing ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        {editing ? (
+          /* ── EDIT MODE ── */
+          <>
+          {/* Hlavička úprav: „Upravit profil" + Hotovo/Zrušit */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingRight: onClose ? 0 : 50 }}>
+            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Upravit profil</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
               <button onClick={handleCancel} title="Zahodit změny" style={{
                 padding: '8px 15px', borderRadius: 999, cursor: 'pointer',
                 background: '#efeff1', border: '1px solid ' + T.border, color: '#252525',
@@ -567,53 +577,22 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
                 WebkitTapHighlightColor: 'transparent',
               }}>{saving ? 'Ukládám…' : 'Hotovo'}</button>
             </div>
-          ) : (
-            <button onClick={() => setEditing(true)} title="Upravit profil" style={{
-              flexShrink: 0, padding: '8px 16px', borderRadius: 999, cursor: 'pointer',
-              background: T.tint, border: '1px solid rgba(0,32,246,0.16)', color: T.primary,
-              fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
-              WebkitTapHighlightColor: 'transparent',
-            }}>Upravit</button>
-          )}
-          {onClose && (
-            <button onClick={onClose} title="Zavřít nastavení" style={{
-              marginLeft: 'auto', width: 34, height: 34, borderRadius: 999, flexShrink: 0,
-              background: T.surfaceAlt, border: 'none', color: T.muted, cursor: 'pointer',
-              display: 'grid', placeItems: 'center', fontSize: 15,
-              WebkitTapHighlightColor: 'transparent',
-            }}>✕</button>
-          )}
-        </div>
-
-        {/* ── Avatar + jméno + stupeň (úpravy jen přes tlačítko nahoře) ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-          <div style={{
-            width: 62, height: 62, borderRadius: 999, flexShrink: 0,
-            background: T.avatarGrad,
-            display: 'grid', placeItems: 'center',
-            color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 20,
-            boxShadow: '0 14px 26px -14px rgba(0,32,246,0.5)',
-          }}>{initials}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {editing ? (
-              /* Živý náhled — mění se, jak vyplňuješ kolonky jména níž */
-              <div>
-                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>
-                  {_wSlozJmeno(form) || 'Tvoje jméno'}
-                </div>
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, marginTop: 3 }}>Uprav jméno v kolonkách níž</div>
-              </div>
-            ) : (<>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, letterSpacing: -0.4 }}>{name}</span>
-                {W_PROFILE.verified && <Icon name="verified-check-bold" size={16} color={T.primary} />}
-              </div>
-            </>)}
           </div>
-        </div>
 
-        {editing ? (
-          /* ── EDIT MODE ── */
+          {/* Živý náhled jména — mění se, jak vyplňuješ kolonky níž */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{
+              width: 62, height: 62, borderRadius: 999, flexShrink: 0, background: T.avatarGrad,
+              display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 20,
+              boxShadow: '0 14px 26px -14px rgba(0,32,246,0.5)',
+            }}>{initials}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>
+                {_wSlozJmeno(form) || 'Tvoje jméno'}
+              </div>
+              <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, marginTop: 3 }}>Uprav jméno v kolonkách níž</div>
+            </div>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
               <div style={labelStyle}>Osobní údaje</div>
@@ -705,83 +684,108 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
             </div>
             {/* Ukládá se zeleným „Hotovo" nahoře — spodní tlačítko by bylo dvakrát */}
           </div>
+          </>
         ) : (
           <>
-            {/* ── Výdělek — statistiky otevře klepnutí kamkoli na kartu ── */}
-            <button onClick={() => setEarningsOpen(true)} title="Zobrazit statistiky výdělků" style={{
-              ...KARTA, width: '100%', textAlign: 'left',
-              marginBottom: 16, border: 'none', cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent',
+            {/* ── Modrá hlavička: jméno, stupeň, výdělek (full-bleed přes padding wrapperu) ── */}
+            <div style={{
+              margin: '-24px -20px 16px', background: T.primary,
+              padding: 'calc(env(safe-area-inset-top) + 20px) 20px 18px',
+              display: 'flex', flexDirection: 'column', gap: 15,
             }}>
-              <div style={{ marginBottom: 11 }}>
-                <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, letterSpacing: 0.9, textTransform: 'uppercase' }}>Za tento měsíc vyděláno</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                  <span style={{ color: T.green, fontFamily: T.fontHead, fontWeight: 800, fontSize: 34, letterSpacing: -0.8, lineHeight: 1 }}>{_wKc(vyd.tentoMesic.castka)}</span>
-                  <span style={{ color: T.muted, fontFamily: T.fontUI, fontWeight: 700, fontSize: 15 }}>Kč</span>
-                </div>
-
-                {vyd.pocet > 0 && (
-                  /* Náhled posledních 6 měsíců — poslední sloupec je běžící měsíc */
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 34, flexShrink: 0 }}>
-                    {vyd.mesice.map((m, i) => (
-                      <span key={m.klic} style={{
-                        width: 7, borderRadius: 3,
-                        height: (m.castka === 0 ? 4 : Math.max(7, Math.round((m.castka / maxMesic) * 34))) + 'px',
-                        background: i === vyd.mesice.length - 1 ? T.green : 'rgba(31,157,92,0.22)',
-                      }} />
-                    ))}
-                  </div>
+              {/* Řádek: Můj profil + Upravit + zavřít */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4 }}>Můj profil</div>
+                <button onClick={() => setEditing(true)} title="Upravit profil" style={{
+                  marginLeft: 'auto', flexShrink: 0, padding: '7px 15px', borderRadius: 999, cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.16)', border: 'none', color: '#fff',
+                  fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, WebkitTapHighlightColor: 'transparent',
+                }}>Upravit</button>
+                {onClose && (
+                  <button onClick={onClose} title="Zavřít" style={{
+                    flexShrink: 0, width: 32, height: 32, borderRadius: 999, background: 'rgba(255,255,255,0.16)',
+                    border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 14,
+                    WebkitTapHighlightColor: 'transparent',
+                  }}>✕</button>
                 )}
               </div>
 
-              {vyd.pocet === 0 && (
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 6 }}>
-                  Až odpracuješ první brigádu, uvidíš tady svůj výdělek.
+              {/* Kdo: avatar + jméno + stupeň */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                <div style={{
+                  width: 58, height: 58, flex: 'none', borderRadius: 20, background: 'rgba(255,255,255,0.14)',
+                  display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 23,
+                }}>{initials}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                  <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, background: 'rgba(255,255,255,0.18)', padding: '4px 9px', borderRadius: 999 }}>
+                      {trust.index > 0 && <Icon name="verified-check-bold" size={11} color="#fff" />}
+                      <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 11, fontWeight: 800 }}>{trust.tier.nazev}</span>
+                    </span>
+                    <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{heroMeta}</span>
+                  </span>
                 </div>
-              )}
-            </button>
+              </div>
 
-            {/* ── Stupeň důvěry — zjednodušeno na odznak, pruh a jednu větu.
-                   Tři dlaždice uvnitř opakovaly čísla z řádku pod kartou
-                   a tři řádky s podmínkami byly na profil moc podrobné. ── */}
+              {/* Výdělek — klepnutí otevře statistiky */}
+              <button onClick={() => setEarningsOpen(true)} title="Zobrazit statistiky výdělků" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left',
+                background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 16, padding: '13px 15px', cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                  <span style={{ color: '#A9B7FF', fontFamily: T.fontUI, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>Za {mesicTed} vyděláno</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                    <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{_wKc(vyd.tentoMesic.castka)}</span>
+                    <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700 }}>Kč</span>
+                  </span>
+                  {vyd.pocet === 0
+                    ? <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 11, lineHeight: 1.4 }}>Až odpracuješ první brigádu, uvidíš tady výdělek.</span>
+                    : <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 11 }}>{vyd.pocet} {_wPlural(vyd.pocet, 'brigáda', 'brigády', 'brigád')} · {vyd.hodin} h</span>}
+                </span>
+                {vyd.pocet > 0 && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, color: '#fff', fontFamily: T.fontHead, fontSize: 12, fontWeight: 800 }}>
+                    Historie<span style={{ fontSize: 15, lineHeight: 1 }}>›</span>
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* ── Cesta ke stupni — 4dílný pás s názvy, klepnutí otevře detail důvěry ── */}
             <button onClick={() => setTrustOpen(true)} title="Co je stupeň důvěry" style={{
               ...KARTA, width: '100%', textAlign: 'left', marginBottom: 16,
               border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 11px 5px 8px', borderRadius: 999,
-                  background: trust.tier.barva + '1f',
-                }}>
-                  <Icon name={trust.index === 0 ? 'user-bold' : 'verified-check-bold'} size={14} color={trust.tier.barva} />
-                  <span style={{ color: trust.tier.barva, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>{trust.tier.nazev}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>
+                  {trust.jeMax ? 'Nejvyšší stupeň' : 'Cesta ke stupni ' + trust.dalsi.nazev}
                 </span>
-                <span style={{ flex: 1 }} />
-                <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, fontWeight: 600 }}>
-                  {trust.index + 1}. ze {trust.stupnu}
-                </span>
+                <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{trust.index + 1} ze {trust.stupnu}</span>
               </div>
 
-              {trust.jeMax ? (
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 10 }}>
-                  Nejvyšší stupeň. Drž si ho a firmy tě uvidí mezi prvními.
-                </div>
-              ) : (<>
-                <div style={{ height: 6, borderRadius: 999, background: T.surfaceAlt, overflow: 'hidden', margin: '14px 0 9px' }}>
-                  <div style={{
-                    height: '100%', width: Math.max(3, Math.round(trust.progress * 100)) + '%',
-                    borderRadius: 999, background: trust.tier.barva, transition: 'width .4s',
-                  }} />
-                </div>
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45 }}>
-                  Do stupně <b style={{ color: T.ink, fontFamily: T.fontHead }}>{trust.dalsi.nazev}</b>
-                  {' '}ti chybí {_wChybi(trust)}.
-                </div>
-              </>)}
+              {/* Segmenty */}
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${trust.stupnu}, 1fr)`, gap: 5, marginBottom: 8 }}>
+                {W_TIERS.map((t, i) => (
+                  <span key={t.key} style={{ height: 6, borderRadius: 999, background: i <= trust.index ? T.primary : T.tint }} />
+                ))}
+              </div>
+              {/* Názvy stupňů pod segmenty */}
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${trust.stupnu}, 1fr)`, gap: 5, marginBottom: 11 }}>
+                {W_TIERS.map((t, i) => (
+                  <span key={t.key} style={{
+                    fontFamily: T.fontUI, fontSize: 10, fontWeight: i === trust.index ? 800 : 700,
+                    color: i === trust.index ? T.primary : T.mutedSoft,
+                    textAlign: i === 0 ? 'left' : (i === trust.stupnu - 1 ? 'right' : 'center'),
+                  }}>{t.nazev}</span>
+                ))}
+              </div>
+
+              <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45 }}>
+                {trust.jeMax
+                  ? 'Nejvyšší stupeň. Drž si ho a firmy tě uvidí mezi prvními.'
+                  : <>Do stupně <b style={{ color: T.ink, fontFamily: T.fontHead }}>{trust.dalsi.nazev}</b> ti chybí {_wChybi(trust)}.</>}
+              </div>
             </button>
 
             {/* ── Čísla v jedné kartě, oddělená tenkou čárkou. Bez ikon —
@@ -813,48 +817,66 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
               })}
             </div>
 
-            {/* ── O mně ── */}
-            <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div>
-                <div style={{ ...labelStyle, padding: '0 4px' }}>O mně</div>
-                {bio ? (
-                  <div style={{ ...KARTA, color: T.ink, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.6 }}>{bio}</div>
-                ) : (
-                  <div style={prazdnaKarta}>
-                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, marginBottom: 3 }}>Napiš o sobě pár vět</div>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>
-                      Firmy si vybírají i podle toho, co o sobě napíšeš. Klepni nahoře na <b style={{ color: T.primary, fontFamily: T.fontHead }}>Upravit</b> a přidej dvě věty — co umíš a kdy můžeš.
+            {/* ── Doplň profil — seznam toho, co ještě chybí. Schová se, až je vše hotové. ── */}
+            {todoLeft > 0 && (
+              <div style={{ ...KARTA, marginBottom: 24, padding: '16px 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
+                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>Doplň profil</span>
+                  <span style={{ flexShrink: 0, fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '4px 9px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>Chybí {todoLeft} {_wPlural(todoLeft, 'věc', 'věci', 'věcí')}</span>
+                </div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.5, marginBottom: 6 }}>Firmy si vybírají i podle toho, co o sobě napíšeš.</div>
+                {todoItems.map(t => (
+                  <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 0', borderTop: '1px solid ' + T.border }}>
+                    <span style={{
+                      width: 22, height: 22, flex: 'none', borderRadius: 999, display: 'grid', placeItems: 'center',
+                      background: t.done ? T.green : '#fff', border: t.done ? 'none' : '1.5px dashed ' + T.mutedSoft,
+                    }}>
+                      {t.done && <svg width="11" height="9" viewBox="0 0 11 9" aria-hidden="true"><path d="M1 4.6L4 7.6 10 1.4" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 700 }}>{t.title}</span>
+                      <span style={{ display: 'block', color: t.done ? T.green : T.muted, fontFamily: T.fontUI, fontSize: 11.5 }}>{t.done ? 'Hotovo' : t.note}</span>
+                    </span>
+                  </div>
+                ))}
+                <button onClick={() => setEditing(true)} style={{
+                  marginTop: 12, width: '100%', border: 'none', background: T.primary, color: '#fff',
+                  fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, padding: 13, borderRadius: 12, cursor: 'pointer',
+                  WebkitTapHighlightColor: 'transparent',
+                }}>Doplnit profil</button>
+              </div>
+            )}
+
+            {/* ── O mně / Dovednosti — ukazujeme jen to, co je vyplněné ── */}
+            {(bio || education || cvUrl || skills.length > 0) && (
+              <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {(bio || education || cvUrl) && (
+                  <div>
+                    <div style={{ ...labelStyle, padding: '0 4px' }}>O mně</div>
+                    {bio && <div style={{ ...KARTA, color: T.ink, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.6 }}>{bio}</div>}
+                    {education && (
+                      <div style={{ ...KARTA, marginTop: bio ? 12 : 0 }}>
+                        <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Vzdělání</div>
+                        <div style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 14.5 }}>{education}</div>
+                      </div>
+                    )}
+                    {cvUrl && (
+                      <a href={cvUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop: (bio || education) ? 12 : 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 18px', borderRadius: 14, background: '#fff', boxShadow: cardShadow, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, textDecoration: 'none' }}>
+                        <Icon name="document-text-bold" size={16} color={T.primary} />Můj životopis
+                      </a>
+                    )}
+                  </div>
+                )}
+                {skills.length > 0 && (
+                  <div>
+                    <div style={{ ...labelStyle, padding: '0 4px' }}>Dovednosti</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {skills.map((sk, i) => <span key={i} style={pillStyle}>{sk}</span>)}
                     </div>
                   </div>
                 )}
-                {education && (
-                  <div style={{ ...KARTA, marginTop: 12 }}>
-                    <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Vzdělání</div>
-                    <div style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 14.5 }}>{education}</div>
-                  </div>
-                )}
-                {cvUrl && (
-                  <a href={cvUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 18px', borderRadius: 14, background: '#fff', boxShadow: cardShadow, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, textDecoration: 'none' }}>
-                    <Icon name="document-text-bold" size={16} color={T.primary} />Můj životopis
-                  </a>
-                )}
               </div>
-              <div>
-                <div style={{ ...labelStyle, padding: '0 4px' }}>Dovednosti</div>
-                {skills.length === 0 ? (
-                  <div style={prazdnaKarta}>
-                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, marginBottom: 3 }}>Přidej svoje dovednosti</div>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>
-                      Třeba práce na kase, řidičák B nebo angličtina. Přes <b style={{ color: T.primary, fontFamily: T.fontHead }}>Upravit</b> je doplníš a firma hned vidí, na co se hodíš.
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    {skills.map((sk, i) => <span key={i} style={pillStyle}>{sk}</span>)}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* ── Nastavení ── */}
             <div style={{ ...KARTA, padding: 0, overflow: 'hidden' }}>

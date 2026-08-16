@@ -73,7 +73,7 @@ function WPrilohaFotka({ priloha, nahravam, chyba, onOtevri }) {
 function WPrilohaSoubor({ priloha }) {
   async function stahni() {
     const url = await wOdkazPrilohy(priloha.cesta);
-    if (url) window.open(url, '_blank', 'noopener');
+    if (url) _wOpenExternal(url);
   }
   return (
     <button onClick={stahni} style={{

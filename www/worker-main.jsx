@@ -234,13 +234,446 @@ function WToast({ toasts, onRemove }) {
   );
 }
 
+// Měsíc/rok z ISO data recenze (7/2026).
+function _wRevDate(iso) {
+  try { const d = new Date(iso); return (d.getMonth() + 1) + '/' + d.getFullYear(); } catch (e) { return ''; }
+}
+// Hvězdy s částečnou výplní poslední hvězdy podle desetinné části (4,8 → pátá z 80 %).
+// U celých čísel (jednotlivé recenze) je vždy celá/prázdná.
+function WStars({ value, size }) {
+  const path = 'M6 1l1.6 3.2 3.4.5-2.5 2.4.6 3.4L6 8.9 2.9 10.5l.6-3.4L1 4.7l3.4-.5L6 1z';
+  const full = Math.floor(value);
+  const frac = value - full;
+  const pct = Math.round(frac * 100);
+  const gid = 'wStarG' + pct;
+  return (
+    <span style={{ display: 'inline-flex', gap: 2 }} aria-label={value.toFixed(1).replace('.', ',') + ' z 5 hvězd'}>
+      {[0, 1, 2, 3, 4].map(i => {
+        const partial = i === full && frac > 0.05;
+        const fill = i < full ? '#FFC46B' : (partial ? 'url(#' + gid + ')' : '#E6E9F5');
+        return (
+          <svg key={i} width={size} height={size} viewBox="0 0 12 12" aria-hidden="true">
+            {partial && (
+              <defs><linearGradient id={gid} x1="0" x2="1" y1="0" y2="0">
+                <stop offset={pct + '%'} stopColor="#FFC46B" />
+                <stop offset={pct + '%'} stopColor="#E6E9F5" />
+              </linearGradient></defs>
+            )}
+            <path d={path} fill={fill} />
+          </svg>
+        );
+      })}
+    </span>
+  );
+}
+
+// ── Recenze firmy — spodní panel (proklik z hodnocení v inzerátu) ──────────────
+function WReviewsPanel({ employerId, data, onClose }) {
+  const company = (data && data.company) || {};
+  const [items, setItems] = useStateW(() => (data && Array.isArray(data.items)) ? data.items : (employerId ? null : []));
+  const [loading, setLoading] = useStateW(!!employerId);
+
+  useEffectW(() => {
+    if (!employerId) return;   // demo → recenze z data
+    let alive = true;
+    sb.from('reviews').select('*, reviewer:profiles!reviews_reviewer_id_fkey(name)').eq('reviewed_id', employerId).order('created_at', { ascending: false })
+      .then(({ data: rows }) => { if (alive) { setItems(rows || []); setLoading(false); } });
+    return () => { alive = false; };
+  }, [employerId]);
+
+  const norm = (items || []).map(r => {
+    const author = r.author || (r.reviewer && r.reviewer.name) || 'Brigádník';
+    return {
+      author,
+      initials: r.initials || author.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '??',
+      rating: Number(r.rating) || 0,
+      text: r.text || '',
+      date: r.date || (r.created_at ? _wRevDate(r.created_at) : ''),
+      role: r.role || '',
+      shifts: Number(r.shifts) || 0,
+      reply: r.reply || null,
+    };
+  });
+
+  const rating = Number((data && data.rating) || (norm.length ? norm.reduce((a, r) => a + r.rating, 0) / norm.length : 0));
+  const count = (data && data.count) || norm.length;
+  const dist = (data && data.distribution) || (() => {
+    const d = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    norm.forEach(r => { const k = Math.round(r.rating); if (d[k] != null) d[k]++; });
+    return d;
+  })();
+  const distTotal = [5, 4, 3, 2, 1].reduce((a, k) => a + (dist[k] || 0), 0) || 1;
+  const noLow = (dist[2] || 0) === 0 && (dist[1] || 0) === 0;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-label={'Recenze firmy ' + (company.name || '')} style={{
+        background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden',
+        boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', height: 'min(660px, 88vh)',
+        display: 'flex', flexDirection: 'column', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both',
+      }}>
+        {/* Úchyt */}
+        <div style={{ flex: 'none', padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}>
+          <span style={{ width: 38, height: 4, borderRadius: 999, background: T.border }} />
+        </div>
+
+        {/* Hlavička firmy */}
+        <div style={{ flex: 'none', padding: '14px 20px 15px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid ' + T.border }}>
+          <span style={{ width: 44, height: 44, flex: 'none', borderRadius: 14, background: company.color || T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{company.logo}</span>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, color: T.ink, minWidth: 0 }}>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{company.name}</span>
+              {company.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={15} /> : <Icon name="verified-check-bold" size={14} color={T.primary} />)}
+            </span>
+            {[company.category, company.district].filter(Boolean).length > 0 && (
+              <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[company.category, company.district].filter(Boolean).join(' · ')}</span>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke={T.muted} strokeWidth="2" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+
+        {/* Souhrn: velké číslo + rozložení hvězd */}
+        <div style={{ flex: 'none', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 18, borderBottom: '1px solid ' + T.border }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flex: 'none' }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 38, fontWeight: 800, color: T.ink, letterSpacing: -1, lineHeight: 1 }}>{rating.toFixed(1).replace('.', ',')}</span>
+            <WStars value={rating} size={12} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {[5, 4, 3, 2, 1].filter(k => (dist[k] || 0) > 0).map(k => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, color: T.mutedSoft, width: 8 }}>{k}</span>
+                <span style={{ flex: 1, height: 6, borderRadius: 999, background: T.bg, overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: T.primary, width: Math.round((dist[k] / distTotal) * 100) + '%' }} /></span>
+                <span style={{ fontFamily: T.fontUI, fontSize: 10, fontWeight: 700, color: T.muted, width: 20, textAlign: 'right' }}>{dist[k]}</span>
+              </div>
+            ))}
+            <span style={{ fontFamily: T.fontUI, fontSize: 11, color: T.mutedSoft, paddingTop: 1 }}>{count} {_wPlural(count, 'hodnocení', 'hodnocení', 'hodnocení')}{noLow && count > 0 ? ' · nikdo nedal míň než tři' : ''}</span>
+          </div>
+        </div>
+
+        {/* Seznam recenzí */}
+        <div className="wgallery" style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '2px 20px 0' }}>
+          {loading ? (
+            <div style={{ padding: '20px 0', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 13 }}>Načítám…</div>
+          ) : norm.length === 0 ? (
+            <div style={{ padding: '24px 2px', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>Tahle firma zatím nemá žádné recenze.</div>
+          ) : norm.map((r, i) => (
+            <div key={i} style={{ padding: '16px 0', display: 'flex', gap: 12, borderTop: i > 0 ? '1px solid ' + T.border : 'none' }}>
+              <span style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{r.initials}</span>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: T.ink }}>{r.author}</span>
+                  <WStars value={r.rating} size={11} />
+                  {r.date && <span style={{ marginLeft: 'auto', fontFamily: T.fontUI, fontSize: 11, color: T.mutedSoft }}>{r.date}</span>}
+                </div>
+                {r.text && <span style={{ fontFamily: T.fontUI, fontSize: 13, color: T.inkSoft, lineHeight: 1.55 }}>{r.text}</span>}
+                {(r.role || r.shifts > 0) && <span style={{ fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: T.muted }}>{[r.role, r.shifts > 0 ? r.shifts + ' ' + _wPlural(r.shifts, 'směna', 'směny', 'směn') : ''].filter(Boolean).join(' · ')}</span>}
+                {r.reply && (
+                  <div style={{ background: T.surfaceAlt, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 5, marginTop: 2 }}>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, color: T.primary }}>Odpověď firmy</span>
+                    <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.inkSoft, lineHeight: 1.5 }}>{r.reply}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Patka */}
+        <div style={{ flex: 'none', borderTop: '1px solid ' + T.border, padding: '13px 20px calc(18px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <span style={{ fontFamily: T.fontUI, fontSize: 11, color: T.mutedSoft }}>Hodnotí jen brigádník po odpracované směně</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Pracovní doba — spodní panel (proklik z dlaždice „Kdy") ────────────────────
+const _W_DNY_ZKR  = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+const _W_DNY_FULL = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
+function _wExpandWhen(s) {
+  s = (s || '').trim();
+  for (let i = 0; i < _W_DNY_ZKR.length; i++) if (s.indexOf(_W_DNY_ZKR[i] + ' ') === 0) return _W_DNY_FULL[i] + s.slice(_W_DNY_ZKR[i].length);
+  return s;
+}
+function _wParseHoursStr(t) {
+  const m = (t || '').match(/(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/);
+  if (!m) return 0;
+  const a = +m[1] * 60 + +m[2], b = +m[3] * 60 + +m[4];
+  return Math.round(((b - a + 1440) % 1440) / 6) / 10;
+}
+function _wWeekFromWhen(s) {
+  s = (s || '').trim();
+  let idx = 4;
+  for (let i = 0; i < _W_DNY_ZKR.length; i++) if (s.indexOf(_W_DNY_ZKR[i]) === 0) { idx = i; break; }
+  const dm = s.match(/(\d{1,2})\s*\./);
+  const day = dm ? +dm[1] : 8;
+  const monday = day - idx;
+  return _W_DNY_ZKR.map((n, i) => ({ n, d: monday + i, on: i === idx, busy: (i === idx - 1 || i === idx - 3) && (i >= 0) }));
+}
+function _wHodPlural(h) { return h === 1 ? 'hodinu' : (h >= 2 && h <= 4 ? 'hodiny' : 'hodin'); }
+
+function WWhenPanel({ job, onClose }) {
+  const factK = { fontFamily: T.fontHead, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#5B6488' };
+  const factV = { fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, letterSpacing: -0.2 };
+  const lbl   = { display: 'block', fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, letterSpacing: '.07em', textTransform: 'uppercase', color: '#5B6488' };
+
+  const dateText  = _wExpandWhen(job.when || job.date || '');
+  const time      = job.time || '';
+  const onSite    = _wParseHoursStr(time) || Number(job.shiftHours) || 0;
+  const breakMin  = Number(job.breakMinutes) || 30;
+  const breakPaid = job.breakPaid !== false;   // demo: placená
+  const paidHours = breakPaid ? onSite : Math.max(0, Math.round((onSite - breakMin / 60) * 10) / 10);
+  const rate      = Number(job.pay) || 0;
+  const unit      = job.payUnit || 'Kč/h';
+  const total     = Number(job.shiftTotal || job.total) || Math.round(rate * paidHours);
+  const week      = _wWeekFromWhen(job.when || '');
+  const role      = (job.title || '').split(/\s+/)[0] || 'Směna';
+  const fmtKc     = n => (Number(n) || 0).toLocaleString('cs-CZ').replace(/\s|,/g, ' ');
+  const weekShifts = [
+    { logo: job.logo, title: 'Zvažuješ · ' + role, when: [job.when, time].filter(Boolean).join(' · '), prospective: true },
+    { logo: 'D4', title: 'Skladník · Depo 4', when: 'Čt · 14:00–22:00', prospective: false },
+  ];
+
+  const openPay = () => {
+    if (!job.payBand || typeof window === 'undefined' || !window.wOpenPay) return;
+    window.wOpenPay({ pay: rate, unit, band: job.payBand, category: ((job.employer && job.employer.industry) || '').split('·')[0].trim(), locality: job.location || '', shiftTotal: total });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Pracovní doba" style={{ background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+        <div style={{ padding: '9px 0 0', display: 'flex', justifyContent: 'center', flex: 'none' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: T.border }} /></div>
+        <div style={{ overflowY: 'auto' }}>
+          {/* Hlavička */}
+          <div style={{ padding: '16px 20px 0', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, color: T.ink }}>Pracovní doba</span>
+              <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#5B6488' }}>Porovnáno s tvým plánem směn</span>
+            </div>
+            <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+              <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke="#5B6488" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+
+          {/* Datum a čas */}
+          <div style={{ padding: '18px 20px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 31, fontWeight: 800, color: T.ink, letterSpacing: -1, lineHeight: 1 }}>{dateText}</span>
+            {time && <span style={{ fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: '#2E3555', letterSpacing: -0.4 }}>{time}</span>}
+          </div>
+
+          {/* Rozpad směny */}
+          <div style={{ padding: '18px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1, background: T.surfaceAlt, borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={factK}>Na místě</span><span style={factV}>{onSite} h</span>
+              </div>
+              <div style={{ flex: 1, background: T.surfaceAlt, borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={factK}>Pauza</span><span style={factV}>{breakMin} min</span>
+              </div>
+              <button onClick={openPay} disabled={!job.payBand} style={{ position: 'relative', flex: 1.15, background: T.tint, border: 0, borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left', fontFamily: 'inherit', cursor: job.payBand ? 'pointer' : 'default', WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ ...factK, color: '#3A4266' }}>Vyděláš</span>
+                <span style={{ ...factV, paddingRight: 14 }}>{fmtKc(total)} Kč</span>
+                {job.payBand && <svg width="6" height="10" viewBox="0 0 7 12" style={{ position: 'absolute', right: 10, bottom: 12 }} aria-hidden="true"><path d="M1 1l5 5-5 5" fill="none" stroke="#3A4266" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              </button>
+            </div>
+            <span style={{ fontFamily: T.fontUI, fontSize: 11.5, color: '#5B6488', lineHeight: 1.5 }}>
+              {breakPaid
+                ? <>Pauza je <b style={{ color: T.ink }}>placená</b>, takže firma platí všech {onSite} {_wHodPlural(onSite)} — {rate} {unit} hrubého.</>
+                : <>Pauza {breakMin} min je <b style={{ color: T.ink }}>neplacená</b>, platí se {paidHours} {_wHodPlural(paidHours)} — {rate} {unit} hrubého.</>}
+            </span>
+          </div>
+
+          {/* Tvůj týden */}
+          <div style={{ padding: '18px 20px 0' }}>
+            <span style={lbl}>Tvůj týden</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginTop: 11 }}>
+              {week.map((d, i) => (
+                <div key={i} style={{ background: d.on ? T.primary : T.surfaceAlt, borderRadius: 11, padding: '9px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, color: d.on ? '#DCE2FF' : '#5B6488' }}>{d.n}</span>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: d.on ? '#fff' : T.ink }}>{d.d}</span>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: d.on ? '#fff' : (d.busy ? '#C7CCE3' : 'transparent') }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Náhled týdne */}
+          <div style={{ padding: '16px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={lbl}>Náhled týdne</span>
+            {weekShifts.map((s, i) => (
+              <div key={i} style={{ background: s.prospective ? T.tint : T.surfaceAlt, border: s.prospective ? '1.5px solid #C7D0FF' : 'none', borderRadius: 12, padding: s.prospective ? '11px 12px' : '12px 13px', display: 'flex', alignItems: 'center', gap: 11 }}>
+                <span style={{ width: 34, height: 34, flex: 'none', borderRadius: 11, background: s.prospective ? T.primary : '#E6E9F5', color: s.prospective ? '#fff' : '#5B6488', fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{s.logo}</span>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</span>
+                  <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#5B6488' }}>{s.when}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Patka */}
+          <div style={{ padding: '12px 20px calc(22px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#5B6488', lineHeight: 1.45 }}>Porovnáváme jen směny přijaté na Makej.</span>
+            <button onClick={onClose} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Odměna v okolí — spodní panel (proklik z odměny v inzerátu) ────────────────
+function WPayPanel({ data, onClose }) {
+  const [infoOpen, setInfoOpen] = useStateW(false);
+  const pay  = Number(data.pay) || 0;
+  const unit = data.unit || 'Kč/h';
+  const band = data.band || { min: Math.round(pay * 0.8), avg: pay, max: Math.round(pay * 1.2) };
+  const avg = Number(band.avg) || pay;
+  const BINS = 7;
+  const binStart = Math.floor((Number(band.min) || pay) / 10) * 10;
+  const jobIdx = Math.max(0, Math.min(BINS - 1, Math.floor((pay - binStart) / 10)));
+  const avgIdx = Math.max(0, Math.min(BINS - 1, Math.round((avg - binStart) / 10)));
+  // Syntetické rozložení (zvon kolem průměru) — jen pro demo; naostro počítá backend.
+  const counts = Array.from({ length: BINS }, (_, i) => Math.max(1, Math.round(12 * Math.exp(-((i - avgIdx) * (i - avgIdx)) / (2 * 1.3 * 1.3)))));
+  const sample = data.sample || counts.reduce((a, b) => a + b, 0);
+  const maxCount = Math.max.apply(null, counts);
+  const commonFrom = binStart + Math.max(0, avgIdx - 1) * 10;
+  const commonTo   = binStart + Math.min(BINS - 1, avgIdx + 1) * 10;
+  const commonRange = commonFrom + '–' + commonTo + ' ' + unit;
+  const dIdx = jobIdx - avgIdx;
+  const position = dIdx >= 2 ? 'nad obvyklým pásmem'
+    : dIdx === 1 ? 'na horní hranici obvyklého pásma'
+    : dIdx === 0 ? 'v nejčastějším pásmu'
+    : dIdx === -1 ? 'na spodní hranici obvyklého pásma'
+    : 'pod obvyklým pásmem';
+  const above = pay - avg >= 5;
+  const tagText = above ? 'Nad průměrem' : (pay - avg <= -5 ? 'Pod průměrem' : 'Průměr oboru');
+  const tick = i => (binStart + i * 10) + (i === BINS - 1 ? '+' : '');
+  const subtitle = [data.category, data.locality, sample + ' brigád'].filter(Boolean).join(' · ');
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Odměna v okolí" style={{ position: 'relative', background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+        <div style={{ padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: T.border }} /></div>
+
+        {/* Bublina s metodikou */}
+        {infoOpen && (<>
+          <div onClick={() => setInfoOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 5 }} />
+          <div role="dialog" aria-label="Odkud čísla bereme" style={{ position: 'absolute', left: 16, right: 16, top: 62, zIndex: 6, animation: 'wBubbleIn .18s cubic-bezier(.34,1.3,.5,1) both' }}>
+            <span style={{ position: 'absolute', left: 138, top: -6, width: 12, height: 12, background: '#fff', borderLeft: '1px solid ' + T.border, borderTop: '1px solid ' + T.border, transform: 'rotate(45deg)', borderRadius: 2 }} />
+            <div style={{ position: 'relative', background: '#fff', border: '1px solid ' + T.border, borderRadius: 16, boxShadow: '0 16px 40px rgba(11,18,51,0.18)', padding: '16px 17px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ flex: 1, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: T.ink }}>Odkud čísla bereme</span>
+                <button onClick={() => setInfoOpen(false)} aria-label="Zavřít" style={{ width: 22, height: 22, flex: 'none', border: 0, borderRadius: 7, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                  <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke={T.muted} strokeWidth="2.2" strokeLinecap="round" /></svg>
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  <>Ze sazeb v inzerátech na Makej — {sample} brigád ve stejném oboru do 5 km, za posledních 90 dní.</>,
+                  <>Sazby za den nebo za akci přepočítáváme na hodinu podle délky směny. Neplacenou pauzu do ní nepočítáme.</>,
+                  <>Průměr je vážený počtem směn, ne prostý průměr sazeb.</>,
+                  <>Všechny částky jsou <b style={{ color: T.ink }}>hrubé</b>. Kolik dostaneš na ruku, závisí na typu smlouvy a podepsaném prohlášení poplatníka.</>,
+                  <>Spropitné, bonusy ani cestovné v číslech nejsou.</>,
+                ].map((t, i) => (
+                  <span key={i} style={{ position: 'relative', paddingLeft: 14, fontFamily: T.fontUI, fontSize: 12.5, color: '#2E3555', lineHeight: 1.5 }}>
+                    <span style={{ position: 'absolute', left: 0, top: 7, width: 5, height: 5, borderRadius: '50%', background: T.primary }} />{t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>)}
+
+        {/* Hlavička s „i" */}
+        <div style={{ padding: '16px 20px 0', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, color: T.ink }}>Odměna v okolí</span>
+              <button onClick={() => setInfoOpen(o => !o)} aria-expanded={infoOpen} aria-label="Jak čísla počítáme" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', width: 32, height: 32, margin: -6, border: 0, padding: 0, background: 'none', cursor: 'pointer' }}>
+                <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#4a94f7" /><circle cx="12" cy="7.3" r="1.5" fill="#fff" /><rect x="10.6" y="10" width="2.8" height="8" rx="1.4" fill="#fff" /></svg>
+              </button>
+            </span>
+            <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#5B6488' }}>{subtitle}</span>
+          </div>
+          <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke={T.muted} strokeWidth="2" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+
+        {/* Sazba */}
+        <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ fontFamily: T.fontHead, fontSize: 44, fontWeight: 800, color: T.ink, letterSpacing: -1.5, lineHeight: 1 }}>{pay}</span>
+          <span style={{ fontFamily: T.fontUI, fontSize: 17, color: '#5B6488' }}>{unit}</span>
+          <span style={{ marginLeft: 'auto', fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '7px 11px', borderRadius: 999, color: above ? '#0B7B4B' : '#5B6488', background: above ? '#E6F7EF' : T.surfaceAlt }}>{tagText}</span>
+        </div>
+
+        {/* Graf — 7 pásem po 10 Kč */}
+        <div style={{ padding: '24px 20px 0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, alignItems: 'end', height: 132 }}>
+            {counts.map((c, i) => {
+              const h = Math.max(8, Math.round(c / maxCount * 100));
+              const isJob = i === jobIdx;
+              return (
+                <div key={i} style={{ position: 'relative', height: h + '%', background: isJob ? T.primary : T.tint, borderRadius: '6px 6px 3px 3px' }}>
+                  {isJob && <span style={{ position: 'absolute', left: '50%', top: -24, transform: 'translateX(-50%)', fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, color: T.primary, whiteSpace: 'nowrap', animation: 'wPinDrop .4s cubic-bezier(.34,1.3,.5,1) .2s both' }}>Tahle</span>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginTop: 8 }}>
+            {counts.map((c, i) => (
+              <span key={i} style={{ fontFamily: T.fontUI, fontSize: 9, fontWeight: i === jobIdx ? 800 : 700, color: i === jobIdx ? T.primary : '#5B6488', textAlign: 'center' }}>{tick(i)}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Věta */}
+        <div style={{ padding: '20px 20px 0' }}>
+          <span style={{ display: 'block', fontFamily: T.fontUI, fontSize: 13, color: '#2E3555', lineHeight: 1.55, background: T.surfaceAlt, borderRadius: 12, padding: '13px 14px' }}>
+            Nejčastěji se v okolí platí <b style={{ color: T.ink, fontFamily: T.fontHead }}>{commonRange}</b>. Tahle brigáda je {position}.
+          </span>
+        </div>
+
+        {/* Dvě dlaždice */}
+        <div style={{ padding: '14px 20px 0', display: 'flex', gap: 9 }}>
+          <div style={{ flex: 1, background: T.surfaceAlt, borderRadius: 12, padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: '#5B6488' }}>Průměr</span>
+            <span style={{ fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: T.ink }}>{avg} {unit}</span>
+          </div>
+          {data.shiftTotal > 0 && (
+            <div style={{ flex: 1, background: T.tint, borderRadius: 12, padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: '#5B6488' }}>Za směnu hrubého</span>
+              <span style={{ fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: T.primary }}>{data.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ')} Kč</span>
+            </div>
+          )}
+        </div>
+
+        {/* Patka */}
+        <div style={{ padding: '18px 20px calc(22px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#5B6488', lineHeight: 1.5 }}>Počítáno z {sample} brigád ve stejném oboru do 5 km, zveřejněných za posledních 90 dní.</span>
+          <button onClick={onClose} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Profil zaměstnavatele (pohled brigádníka) ──────────────────
-function WEmployerModal({ employerId, fallback, onClose }) {
+function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
   const [p, setP]         = useStateW(fallback || null);
   const [reviews, setRev] = useStateW(null);   // null = načítá se
   const [loading, setL]   = useStateW(true);
 
   useEffectW(() => {
+    // Demo firma nemá profil v DB — vezmi vše z předaného objektu (fallback).
+    if (!employerId) {
+      setRev((fallback && fallback.reviews) || []);
+      setL(false);
+      return;
+    }
     let alive = true;
     (async () => {
       const [pRes, rRes] = await Promise.all([
@@ -271,7 +704,9 @@ function WEmployerModal({ employerId, fallback, onClose }) {
   const socials = (p && p.socials && typeof p.socials === 'object') ? p.socials : {};
   const socialLinks = Object.entries(socials).filter(([, v]) => v);
   const memberSince = (p && p.created_at) ? new Date(p.created_at).getFullYear() : null;
-  const hasInfo = industry || krajTxt || address || website || ic || memberSince;
+  const founded = (p && p.founded) || null;
+  const openPositions = Number((p && p.openPositions) || 0);
+  const hasInfo = industry || krajTxt || address || website || ic || memberSince || founded;
 
   const webHref = website ? (/^https?:\/\//i.test(website) ? website : 'https://' + website) : '';
   const webLabel = website.replace(/^https?:\/\//i, '').replace(/\/$/, '');
@@ -331,6 +766,21 @@ function WEmployerModal({ employerId, fallback, onClose }) {
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 22px 20px' }}>
+          {/* Proklik z hodnocení = jen recenze; vše ostatní schováme */}
+          {!reviewsOnly && (<>
+          {/* Otevřené pozice */}
+          {openPositions > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, margin: '12px 0 2px', padding: '12px 14px', borderRadius: 14, background: T.tint }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <Icon name="case-round-bold" size={18} color={T.primary} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>{openPositions} {_wPlural(openPositions, 'otevřená pozice', 'otevřené pozice', 'otevřených pozic')}</div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12 }}>u téhle firmy právě teď</div>
+              </div>
+            </div>
+          )}
+
           {/* Fotky firmy */}
           {photos.length > 0 && (
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', margin: '10px -22px 4px', padding: '0 22px', scrollbarWidth: 'none' }}>
@@ -351,6 +801,7 @@ function WEmployerModal({ employerId, fallback, onClose }) {
             <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: '18px 0 4px' }}>Informace</div>
             <div>
               {infoRow('buildings-2-bold', 'Obor', industry)}
+              {founded && infoRow('calendar-bold', 'Založeno', founded)}
               {infoRow('map-point-bold', 'Kraj', krajTxt)}
               {infoRow('map-point-bold', 'Sídlo', address)}
               {infoRow('global-linear', 'Web', webLabel, webHref)}
@@ -377,8 +828,9 @@ function WEmployerModal({ employerId, fallback, onClose }) {
               Tahle firma zatím nevyplnila víc informací o sobě.
             </div>
           )}
+          </>)}
 
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: '18px 0 8px' }}>
+          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: reviewsOnly ? '10px 0 8px' : '18px 0 8px' }}>
             Recenze{reviews && reviews.length > 0 ? ` · ${reviews.length}` : ''}
           </div>
           {loading ? (
@@ -437,6 +889,9 @@ function WorkerApp() {
   // panel neotevře sám při návratu.
   useEffectW(() => { if (tab !== 'swipe') setBellOpen(false); }, [tab]);
   const [employerTarget, setEmployerTarget] = useStateW(null);
+  const [reviewsTarget, setReviewsTarget]   = useStateW(null);   // spodní panel recenzí firmy
+  const [payTarget, setPayTarget]           = useStateW(null);   // spodní panel „Odměna v okolí"
+  const [whenTarget, setWhenTarget]         = useStateW(null);   // spodní panel „Pracovní doba"
   const [settingsOpen, setSettingsOpen] = useStateW(false);   // Nastavení = bývalý Profil, teď fullscreen overlay z ozubeného kola
   const [calendarOpen, setCalendarOpen] = useStateW(false);   // Kalendář přesunutý z bottom nav do horní ikony
   const userId = useRefW(null);
@@ -450,7 +905,10 @@ function WorkerApp() {
   }
   if (typeof window !== 'undefined') {
     window.wOpenChat = openChat;
-    window.wOpenEmployer = (employerId, fallback) => { if (employerId) setEmployerTarget({ employerId, fallback }); };
+    window.wOpenEmployer = (employerId, fallback, opts) => { if (employerId || fallback) setEmployerTarget({ employerId, fallback, reviewsOnly: !!(opts && opts.reviewsOnly) }); };
+    window.wOpenReviews = (employerId, data) => { if (employerId || data) setReviewsTarget({ employerId, data }); };
+    window.wOpenPay = (data) => { if (data) setPayTarget(data); };
+    window.wOpenWhen = (job) => { if (job) setWhenTarget(job); };
     window.wSetDetailOpen = setDetailOpen;   // detail inzerátu ovládá viditelnost horní lišty
   }
 
@@ -919,8 +1377,25 @@ function WorkerApp() {
         <WEmployerModal
           employerId={employerTarget.employerId}
           fallback={employerTarget.fallback}
+          reviewsOnly={employerTarget.reviewsOnly}
           onClose={() => setEmployerTarget(null)}
         />
+      )}
+
+      {reviewsTarget && (
+        <WReviewsPanel
+          employerId={reviewsTarget.employerId}
+          data={reviewsTarget.data}
+          onClose={() => setReviewsTarget(null)}
+        />
+      )}
+
+      {whenTarget && (
+        <WWhenPanel job={whenTarget} onClose={() => setWhenTarget(null)} />
+      )}
+
+      {payTarget && (
+        <WPayPanel data={payTarget} onClose={() => setPayTarget(null)} />
       )}
 
       {/* Bottom navigation — tmavě-modrý pill, aktivní tab modrý s popiskem.

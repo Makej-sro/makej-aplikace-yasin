@@ -81,6 +81,27 @@
       @keyframes wBellRing { 0%, 100% { transform: rotate(0); } }
     }
 
+    /* „Zájem odeslán" panel — vyjede zdola, 6s časomíra sama zavře; fajfka ve stylu potvrzení platby */
+    @keyframes wSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes wBarGrow { from { width: 100%; } to { width: 0%; } }
+    @keyframes wApRing  { to { stroke-dashoffset: 0; } }
+    @keyframes wApCheck { to { stroke-dashoffset: 0; } }
+    @keyframes wApFill  { 0% { transform: scale(.2); opacity: 0; } 55% { opacity: 1; } 70% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes wApHalo  { 0% { transform: scale(.9); opacity: 0; } 45% { opacity: .35; } 100% { transform: scale(1.28); opacity: 0; } }
+    @keyframes wDotPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 4px rgba(0,32,246,.13); } 50% { transform: scale(1.08); box-shadow: 0 0 0 5px rgba(0,32,246,.09); } }
+    @keyframes wRadarSm { 0% { transform: scale(1); opacity: .45; } 75% { opacity: 0; } 100% { transform: scale(2.3); opacity: 0; } }
+    @keyframes wScrimIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Zlatý odznáček „Byl jsem u toho" (brigádník) jako na webovém waitlistu */
+    @keyframes wGoldFlow { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    @keyframes wGoldSheen { 0%, 8% { transform: translateX(-160%) skewX(-22deg); } 46%, 100% { transform: translateX(420%) skewX(-22deg); } }
+    /* Onyxový odznak „Zakládající partner" (firma) — tělo teče (wGoldFlow), text i pruh sheenují */
+    @keyframes wSheenSweep { 0%, 8% { transform: translateX(-200%) skewX(-22deg); } 46%, 100% { transform: translateX(900%) skewX(-22deg); } }
+    @keyframes wTextSheen { 0%, 8% { background-position: 100% 50%; } 46%, 100% { background-position: 0% 50%; } }
+    /* Panel „Odměna v okolí" — dopad značky na sloupci grafu + bublina s metodikou */
+    @keyframes wPinDrop { from { opacity: 0; transform: translate(-50%,-14px); } to { opacity: 1; transform: translate(-50%,0); } }
+    @keyframes wBubbleIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
     /* ── Auth (registrace / přihlášení) — dle Registrace.html ── */
     #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto; }
     #auth-gate.hidden { display: none; }
@@ -157,6 +178,9 @@
     /* Vodorovný výběr měsíce/roku v kalendáři — bez viditelného posuvníku */
     .w-wheel { scrollbar-width: none; -ms-overflow-style: none; }
     .w-wheel::-webkit-scrollbar { display: none; }
+    /* Galerie fotek v detailu inzerátu — swipe bez viditelného posuvníku */
+    .wgallery { scrollbar-width: none; -ms-overflow-style: none; }
+    .wgallery::-webkit-scrollbar { display: none; }
     button, input, textarea, select { font-family: inherit; }
 
   </style>
@@ -269,11 +293,13 @@
   const ACCESS_KEY = '8939';
   function accessKeyOk() {
     if (!ACCESS_KEY) return true;
-    try { if (sessionStorage.getItem('makej-gate-ok') === ACCESS_KEY) return true; } catch (e) {}
+    // localStorage (ne sessionStorage) → brána se pamatuje i po zavření appky na telefonu,
+    // takže se nezadává klíč pořád dokola a přihlášení nevyprší (viz odhlášení při „neověřené bráně").
+    try { if (localStorage.getItem('makej-gate-ok') === ACCESS_KEY) return true; } catch (e) {}
     const el = document.getElementById('login-key');
     return !!el && el.value.trim() === ACCESS_KEY;
   }
-  function markGateOk() { try { sessionStorage.setItem('makej-gate-ok', ACCESS_KEY); } catch (e) {} }
+  function markGateOk() { try { localStorage.setItem('makej-gate-ok', ACCESS_KEY); } catch (e) {} }
 
   const gate = document.getElementById('auth-gate');
   function showGate() { gate.classList.remove('hidden'); }
