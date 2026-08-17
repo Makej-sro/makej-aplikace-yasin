@@ -718,11 +718,8 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
                 }}>{initials}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
                   <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, background: 'rgba(255,255,255,0.18)', padding: '4px 9px', borderRadius: 999 }}>
-                      {trust.index > 0 && <Icon name="verified-check-bold" size={11} color="#fff" />}
-                      <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 11, fontWeight: 800 }}>{trust.tier.nazev}</span>
-                    </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <WLevelBadge level={trust.tier.blevel} label={trust.tier.nazev} sm />
                     <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{heroMeta}</span>
                   </span>
                 </div>
@@ -770,14 +767,13 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
                   <span key={t.key} style={{ height: 6, borderRadius: 999, background: i <= trust.index ? T.primary : T.tint }} />
                 ))}
               </div>
-              {/* Názvy stupňů pod segmenty */}
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${trust.stupnu}, 1fr)`, gap: 5, marginBottom: 11 }}>
+              {/* Odznáčky všech stupňů — jak který vypadá. Dosažené svítí,
+                  další jsou ztlumené, ten aktuální je maličko zvětšený. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 7, rowGap: 9, marginBottom: 12 }}>
                 {W_TIERS.map((t, i) => (
-                  <span key={t.key} style={{
-                    fontFamily: T.fontUI, fontSize: 10, fontWeight: i === trust.index ? 800 : 700,
-                    color: i === trust.index ? T.primary : T.mutedSoft,
-                    textAlign: i === 0 ? 'left' : (i === trust.stupnu - 1 ? 'right' : 'center'),
-                  }}>{t.nazev}</span>
+                  <span key={t.key} style={{ display: 'inline-flex', transform: i === trust.index ? 'scale(1.06)' : 'none', transition: 'transform .2s' }}>
+                    <WLevelBadge level={t.blevel} label={t.nazev} sm locked={i > trust.index} />
+                  </span>
                 ))}
               </div>
 
@@ -1573,25 +1569,22 @@ function WTrustPage({ trust, onClose }) {
               return (
                 <div key={t.key} style={{
                   ...karta, padding: '14px 16px',
-                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  display: 'flex', alignItems: 'center', gap: 13,
                   outline: tenhle ? '2px solid ' + t.barva : 'none', outlineOffset: -1,
                 }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: 999, flexShrink: 0, marginTop: 1,
-                    background: dosazeno ? t.barva : T.surfaceAlt,
-                    display: 'grid', placeItems: 'center',
-                    color: '#fff', fontFamily: T.fontHead, fontSize: 11, fontWeight: 800,
-                  }}>
-                    {dosazeno ? <Icon name="check-circle-bold" size={13} color="#fff" /> : <span style={{ color: T.mutedSoft }}>{i + 1}</span>}
+                  {/* Skutečný odznáček stupně — dosažené svítí, další jsou ztlumené */}
+                  <span style={{ flexShrink: 0 }}>
+                    <WLevelBadge level={t.blevel} label={t.nazev} locked={!dosazeno} />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ color: dosazeno ? t.barva : T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>{t.nazev}</span>
-                      {tenhle && (
-                        <span style={{ padding: '2px 8px', borderRadius: 999, background: t.barva + '1f', color: t.barva, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800 }}>máš teď</span>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+                      {tenhle
+                        ? <span style={{ padding: '2px 8px', borderRadius: 999, background: t.barva + '1f', color: t.barva, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800 }}>máš teď</span>
+                        : dosazeno
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: T.green, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800 }}><Icon name="check-circle-bold" size={12} color={T.green} />splněno</span>
+                          : <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800 }}>{i + 1}. stupeň</span>}
                     </div>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 3, lineHeight: 1.45 }}>{kriteria(t)}</div>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45 }}>{kriteria(t)}</div>
                   </div>
                 </div>
               );

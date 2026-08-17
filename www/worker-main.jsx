@@ -414,6 +414,38 @@ function _wWeekFromWhen(s) {
 }
 function _wHodPlural(h) { return h === 1 ? 'hodinu' : (h >= 2 && h <= 4 ? 'hodiny' : 'hodin'); }
 
+// Iconly Light-Outline — Kalendář. Barvitelný (fill = color), aby vzal barvu jako Solar ikona.
+function WIcoCalendar({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g transform="translate(2,1)" fill={color} fillRule="evenodd">
+        <path d="M13.7935,-6.03961325e-14 C14.2075,-6.03961325e-14 14.5435,0.336 14.5435,0.75 L14.54396,1.59781054 C16.0040654,1.69791596 17.2167254,2.19804662 18.075,3.0581 C19.012,3.9991 19.505,5.3521 19.5000377,6.9751 L19.5000377,16.0981 C19.5000377,19.4301 17.384,21.5001 13.979,21.5001 L5.521,21.5001 C2.116,21.5001 0,19.4011 0,16.0221 L0,6.9731 C0,3.83029205 1.88705568,1.8129398 4.96468634,1.59815387 L4.9653,0.75 C4.9653,0.336 5.3013,-6.03961325e-14 5.7153,-6.03961325e-14 C6.1293,-6.03961325e-14 6.4653,0.336 6.4653,0.75 L6.465,1.579 L13.043,1.579 L13.0435,0.75 C13.0435,0.336 13.3795,-6.03961325e-14 13.7935,-6.03961325e-14 Z M18,8.904 L1.5,8.904 L1.5,16.0221 C1.5,18.5881 2.928,20.0001 5.521,20.0001 L13.979,20.0001 C16.572,20.0001 18.0000357,18.6141 18.0000357,16.0981 L18,8.904 Z M14.2012,15.1963 C14.6152,15.1963 14.9512,15.5323 14.9512,15.9463 C14.9512,16.3603 14.6152,16.6963 14.2012,16.6963 C13.7872,16.6963 13.4472,16.3603 13.4472,15.9463 C13.4472,15.5323 13.7782,15.1963 14.1922,15.1963 L14.2012,15.1963 Z M9.7637,15.1963 C10.1777,15.1963 10.5137,15.5323 10.5137,15.9463 C10.5137,16.3603 10.1777,16.6963 9.7637,16.6963 C9.3497,16.6963 9.0097,16.3603 9.0097,15.9463 C9.0097,15.5323 9.3407,15.1963 9.7547,15.1963 L9.7637,15.1963 Z M5.3169,15.1963 C5.7309,15.1963 6.0669,15.5323 6.0669,15.9463 C6.0669,16.3603 5.7309,16.6963 5.3169,16.6963 C4.9029,16.6963 4.5619,16.3603 4.5619,15.9463 C4.5619,15.5323 4.8939,15.1963 5.3079,15.1963 L5.3169,15.1963 Z M14.2012,11.3096 C14.6152,11.3096 14.9512,11.6456 14.9512,12.0596 C14.9512,12.4736 14.6152,12.8096 14.2012,12.8096 C13.7872,12.8096 13.4472,12.4736 13.4472,12.0596 C13.4472,11.6456 13.7782,11.3096 14.1922,11.3096 L14.2012,11.3096 Z M9.7637,11.3096 C10.1777,11.3096 10.5137,11.6456 10.5137,12.0596 C10.5137,12.4736 10.1777,12.8096 9.7637,12.8096 C9.3497,12.8096 9.0097,12.4736 9.0097,12.0596 C9.0097,11.6456 9.3407,11.3096 9.7547,11.3096 L9.7637,11.3096 Z M5.3169,11.3096 C5.7309,11.3096 6.0669,11.6456 6.0669,12.0596 C6.0669,12.4736 5.7309,12.8096 5.3169,12.8096 C4.9029,12.8096 4.5619,12.4736 4.5619,12.0596 C4.5619,11.6456 4.8939,11.3096 5.3079,11.3096 L5.3169,11.3096 Z M13.043,3.079 L6.465,3.079 L6.4653,4.041 C6.4653,4.455 6.1293,4.791 5.7153,4.791 C5.3013,4.791 4.9653,4.455 4.9653,4.041 L4.96476779,3.10170243 C2.72453716,3.2898928 1.5,4.64785567 1.5,6.9731 L1.5,7.404 L18,7.404 L18.0000357,6.9731 C18.004,5.7381 17.672,4.7781 17.013,4.1181 C16.4345144,3.53790796 15.5888563,3.19140086 14.5443509,3.10218199 L14.5435,4.041 C14.5435,4.455 14.2075,4.791 13.7935,4.791 C13.3795,4.791 13.0435,4.455 13.0435,4.041 L13.043,3.079 Z" />
+      </g>
+    </svg>
+  );
+}
+
+// Iconly Light-Outline — Zvoneček (Notification). Barvitelný.
+function WIcoBell({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g transform="translate(3,1)" fill={color} fillRule="evenodd">
+        <path d="M7.3243,19.106 C7.8423,19.683 8.5073,20 9.1973,20 L9.1983,20 C9.8913,20 10.5593,19.683 11.0783,19.105 C11.3563,18.798 11.8303,18.773 12.1373,19.05 C12.4453,19.327 12.4703,19.802 12.1933,20.109 C11.3853,21.006 10.3223,21.5 9.1983,21.5 L9.1963,21.5 C8.0753,21.499 7.0143,21.005 6.2093,20.108 C5.9323,19.801 5.9573,19.326 6.2653,19.05 C6.5733,18.772 7.0473,18.797 7.3243,19.106 Z M9.2471,0 C13.6921,0 16.6781,3.462 16.6781,6.695 C16.6781,8.358 17.1011,9.063 17.5501,9.811 C17.9941,10.549 18.4971,11.387 18.4971,12.971 C18.1481,17.018 13.9231,17.348 9.2471,17.348 C4.5711,17.348 0.3451,17.018 8.66453236e-05,13.035 C-0.0029,11.387 0.5001,10.549 0.9441,9.811 L1.10084456,9.54715551 C1.48677474,8.88385813 1.8161,8.16235294 1.8161,6.695 C1.8161,3.462 4.8021,0 9.2471,0 Z M9.2471,1.5 C5.7521,1.5 3.3161,4.238 3.3161,6.695 C3.3161,8.774 2.7391,9.735 2.2291,10.583 C1.8201,11.264 1.4971,11.802 1.4971,12.971 C1.6641,14.857 2.9091,15.848 9.2471,15.848 C15.5501,15.848 16.8341,14.813 17.0001,12.906 C16.9971,11.802 16.6741,11.264 16.2651,10.583 C15.7551,9.735 15.1781,8.774 15.1781,6.695 C15.1781,4.238 12.7421,1.5 9.2471,1.5 Z" />
+      </g>
+    </svg>
+  );
+}
+
+// Iconly Light-Outline — Profil. Barvitelný.
+function WIcoProfile({ size = 22, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 25 25" fill="none" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M12.216 4C10.1884 4 8.54492 5.64275 8.54492 7.66973C8.54492 9.69672 10.1884 11.3395 12.216 11.3395C14.2421 11.3395 15.8857 9.69686 15.8857 7.66973C15.8857 5.6426 14.2421 4 12.216 4ZM7.04492 7.66973C7.04492 4.81374 9.36055 2.5 12.216 2.5C15.0702 2.5 17.3857 4.81389 17.3857 7.66973C17.3857 10.5256 15.0702 12.8395 12.216 12.8395C9.36055 12.8395 7.04492 10.5257 7.04492 7.66973Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M6.12892 19.685C7.91289 20.6222 9.98939 21.0057 12.2481 21.0001H12.2517C14.5104 21.0057 16.5869 20.6222 18.3708 19.685C17.3464 17.2392 15.0595 16.0617 12.2518 16.0689H12.248C9.43683 16.0617 7.15365 17.2364 6.12892 19.685ZM12.2499 14.5689C8.75048 14.5605 5.63352 16.1881 4.49194 19.7981L4.31468 20.3586L4.81665 20.6646C7.02101 22.0084 9.58365 22.5064 12.2499 22.5001C14.9162 22.5064 17.4788 22.0084 19.6832 20.6646L20.1851 20.3586L20.0079 19.7981C18.8675 16.1917 15.7459 14.5605 12.2499 14.5689Z" fill={color} />
+    </svg>
+  );
+}
+
 function WWhenPanel({ job, onClose }) {
   const factK = { fontFamily: T.fontHead, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#5B6488' };
   const factV = { fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, letterSpacing: -0.2 };
@@ -1189,8 +1221,8 @@ function WorkerApp() {
   // nav zůstává jen na tři hlavní, často používané záložky.
   const NAV = [
     { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
-    { id: 'people',   label: 'Lidé',     img: 'icons/people-icon.png' },
-    { id: 'messages', label: 'Zprávy',   img: 'icons/messages-icon.png', badge: unreadMessages },
+    { id: 'people',   label: 'Lidé',     img: 'icons/people-outline.svg' },
+    { id: 'messages', label: 'Zprávy',   img: 'icons/messages-outline.svg', badge: unreadMessages },
   ];
 
   let body;
@@ -1234,17 +1266,18 @@ function WorkerApp() {
       {loaded && !chatOpen && !detailOpen && (
         <div style={{
           position: 'fixed', top: 14, left: 16, zIndex: 8500,
-          display: 'inline-flex', alignItems: 'center', gap: 2,
-          background: '#fff', borderRadius: 999, padding: 5,
-          boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          background: '#fff', borderRadius: 999, padding: 3,
+          border: '1px solid rgba(16,24,64,0.07)',
+          boxShadow: '0 8px 22px -6px rgba(16,24,64,0.22), 0 2px 6px -2px rgba(16,24,64,0.10)',
         }}>
           {/* Kalendář */}
           <button onClick={() => setCalendarOpen(true)} title="Kalendář" style={{
-            position: 'relative', width: 38, height: 38, borderRadius: 999,
+            position: 'relative', width: 30, height: 30, borderRadius: 999,
             background: 'transparent', border: 'none', cursor: 'pointer',
             display: 'grid', placeItems: 'center',
           }}>
-            <Icon name="calendar-minimalistic-bold" size={18} color="#4a4f6b" />
+            <WIcoCalendar size={20} color="#4a4f6b" />
             {reviewsToDo > 0 && (
               <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 999, background: T.destructive, border: '2px solid #fff' }} />
             )}
@@ -1266,12 +1299,12 @@ function WorkerApp() {
               }}
               title="Upozornění"
               style={{
-                width: 38, height: 38, borderRadius: 999, position: 'relative',
+                width: 30, height: 30, borderRadius: 999, position: 'relative',
                 background: bellOpen ? T.tint : 'transparent', border: 'none', cursor: 'pointer',
                 display: 'grid', placeItems: 'center',
               }}>
               <span style={{ display: 'grid', placeItems: 'center', animation: bellRing ? 'wBellRing .7s cubic-bezier(.36,.07,.19,.97)' : 'none', transformOrigin: 'top center' }}>
-                <Icon name="bell-bold" size={18} color="#4a4f6b" />
+                <WIcoBell size={20} color="#4a4f6b" />
               </span>
               {unreadNotifs > 0 && (
                 <span style={{ position: 'absolute', top: -1, right: -1, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: T.destructive, color: '#fff', fontSize: 9.5, fontWeight: 800, fontFamily: T.fontUI, display: 'grid', placeItems: 'center', border: '2px solid #fff' }}>{unreadNotifs}</span>
@@ -1339,18 +1372,27 @@ function WorkerApp() {
         </div>
       )}
 
-      {/* Horní lišta — vpravo ikona Profilu (bývalé Nastavení / ozubené kolo).
-          Proklik na obrazovku profilu a nastavení. */}
-      {loaded && !chatOpen && !detailOpen && (
-        <button onClick={() => setSettingsOpen(true)} title="Profil" style={{
-          position: 'fixed', top: 14, right: 16, zIndex: 8500,
-          width: 44, height: 44, borderRadius: 999,
-          background: '#fff', border: 'none', cursor: 'pointer',
-          display: 'grid', placeItems: 'center', boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-        }}>
-          <Icon name="user-bold" size={20} color="#4a4f6b" />
-        </button>
-      )}
+      {/* Horní lišta — vpravo odznáček úrovně + ikona Profilu (bývalé Nastavení).
+          Odznáček ukazuje aktuální stupeň brigádníka hned vedle profilu. */}
+      {loaded && !chatOpen && !detailOpen && (() => {
+        const myTier = makejTrust({ ...W_TRUST, hodnoceni: Number(W_PROFILE.rating) || 0 }).tier;
+        return (
+          <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => setSettingsOpen(true)} title={'Tvůj stupeň: ' + myTier.nazev} style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', display: 'flex',
+            }}>
+              <WLevelBadge level={myTier.blevel} label={myTier.nazev} sm />
+            </button>
+            <button onClick={() => setSettingsOpen(true)} title="Profil" style={{
+              width: 44, height: 44, borderRadius: 999, flexShrink: 0,
+              background: '#fff', border: '1px solid rgba(16,24,64,0.07)', cursor: 'pointer',
+              display: 'grid', placeItems: 'center', boxShadow: '0 8px 22px -6px rgba(16,24,64,0.22), 0 2px 6px -2px rgba(16,24,64,0.10)',
+            }}>
+              <WIcoProfile size={22} color="#4a4f6b" />
+            </button>
+          </div>
+        );
+      })()}
 
       {settingsOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
@@ -1437,7 +1479,7 @@ function WorkerApp() {
                 <div style={{ position: 'relative', flexShrink: 0, display: 'grid', placeItems: 'center' }}>
                   {n.img
                     ? <span style={{
-                        display: 'block', width: 19, height: 19,
+                        display: 'block', width: 23, height: 23,
                         background: active ? '#fff' : T.light,
                         WebkitMaskImage: `url(${n.img})`, maskImage: `url(${n.img})`,
                         WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
@@ -1445,7 +1487,7 @@ function WorkerApp() {
                         WebkitMaskSize: 'contain', maskSize: 'contain',
                         transition: 'background .28s ease',
                       }} />
-                    : <Icon name={n.icon} size={19} color={active ? '#fff' : T.light} />}
+                    : <Icon name={n.icon} size={23} color={active ? '#fff' : T.light} />}
                   {n.badge > 0 && (
                     <span style={{
                       position: 'absolute', top: -6, right: -8,

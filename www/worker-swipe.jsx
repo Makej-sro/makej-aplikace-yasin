@@ -365,25 +365,10 @@ function WSwipe({ tick }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
 
-      {/* Header */}
-      <div style={{ padding: '12px 20px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
-        {/* Počet nabídek zatím neukazujeme: `remaining` je odpočet do konce zásobníku,
-            ne velikost nabídky — a "v okolí" nesedí, dokud appka nezná polohu. */}
-        <div />
-        <div title={'Stupeň důvěry: ' + trust.tier.nazev} style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          padding: '6px 12px 6px 6px', borderRadius: 22, marginRight: 50,
-          background: T.navBg, flexShrink: 0,
-        }}>
-          <span style={{
-            width: 24, height: 24, borderRadius: 999, flexShrink: 0,
-            background: trust.tier.barva,
-            display: 'grid', placeItems: 'center',
-          }}>
-            <Icon name={trust.index === 0 ? 'user-bold' : 'verified-check-bold'} size={13} color="#fff" />
-          </span>
-          <span style={{ color: '#fff', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700 }}>{trust.tier.nazev}</span>
-        </div>
+      {/* Odsazení pod plovoucí horní lištu (odznáček úrovně + profil vpravo nahoře).
+          Stupeň důvěry se teď ukazuje tam, ať není dvakrát. */}
+      <div style={{ padding: '12px 20px 12px', flexShrink: 0 }} aria-hidden="true">
+        <div style={{ height: 38 }} />
       </div>
 
       {/* Filtr krajů má přijít do samostatného tlačítka filtrů, ne na hlavní plochu.
@@ -430,7 +415,7 @@ function WSwipe({ tick }) {
                 drag={isTop ? drag : { x: 0, y: 0, dragging: false, moved: false }}
                 isTop={isTop}
                 depth={shownDepth}
-                onTap={() => setDetailJob(job)}
+                onTap={() => openDetail(job)}
               />
             );
           })}
@@ -721,6 +706,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
   // „Expand" detailu z karty: po mountu se list roztáhne z rectu karty do celé
   // obrazovky (rohy 26→0, scale, fade), při zavření se smrskne zpět a pak odmountuje.
   const [shown, setShown] = useStateW(false);
+  const [closing, setClosing] = useStateW(null);         // null | 'fast' | 'slow' — zavírání; při zmenšení se detail plynule ztratí (bez „pop" cuknutí)
   const [detailDone, setDetailDone] = useStateW(null);   // 'like'|'pass' → potvrzení (Odesláno/Odmítnuto) na tlačítku detailu
   const [photoIdx, setPhotoIdx] = useStateW(0);          // aktivní fotka v galerii
   const closeTimer = useRefW(null);
@@ -730,10 +716,15 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
     const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setShown(true)); });
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(closeTimer.current); if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false); };
   }, []);
-  const animClose = () => {
+  // slow = pomalé „vrácení" šipkou zpět (detail se ~0.9s plynule zmenší na kartu).
+  // Bez slow (po „Ano/Ne") je zavření rychlé, ať na něj naváže odlet karty.
+  const animClose = (slow) => {
+    setClosing(slow ? 'slow' : 'fast');
     setShown(false);
     if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false);   // vrať horní lištu
-    closeTimer.current = setTimeout(onClose, 360);
+    // Odmountuj až po dojetí celé zavírací animace, ať se zmenšení stihne plynule
+    // dohrát a nezmizí dřív, než dojede (dřív se to „useklo" na 360 ms).
+    closeTimer.current = setTimeout(onClose, slow ? 720 : 440);
   };
   const EXP_CURVE = 'cubic-bezier(.32,.72,0,1)';
   const startTransform = fromRect
@@ -745,6 +736,21 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
         return `translate(${dx}px, ${dy}px) scale(.9)`;
       })()
     : 'scale(.94)';
+  // Cíl „vrácení" (varianta A) — detail se rovnoměrně (bez kroucení, zachová si
+  // tvar) zmenší směrem ke kartě ve stacku a přitom se rozplyne. Uniform scale =
+  // menší z poměrů, ať se vejde do karty; posun vede jeho střed na střed karty.
+  const closeTransform = fromRect
+    ? (() => {
+        const MW = Math.min(window.innerWidth, 440);       // šířka detailu (maxWidth 440)
+        const ML = (window.innerWidth - MW) / 2;           // jeho levý okraj (detail je vycentrovaný)
+        const MH = window.innerHeight;                     // výška detailu (celá obrazovka)
+        const scale = Math.min(fromRect.width / MW, fromRect.height / MH);   // uniform → tvar zůstane
+        const tx = Math.round((fromRect.left + fromRect.width / 2) - (ML + MW / 2));   // střed detailu → střed karty
+        const ty = Math.round((fromRect.top + fromRect.height / 2) - MH / 2);
+        return `translate(${tx}px, ${ty}px) scale(${scale})`;
+      })()
+    : 'scale(.85)';
+  const closeSlow = closing === 'slow';
 
   const JOB_TYPE_LABEL = {
     jednrazova_vypomoc: 'Jednorázová výpomoc',
@@ -799,7 +805,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
   const revCount = ((job.employer && Array.isArray(job.employer.reviews)) ? job.employer.reviews.length : job.ratingCount) || 0;
 
   return (
-    <div onClick={animClose} style={{
+    <div onClick={() => animClose(true)} style={{
       position: 'fixed', inset: 0, zIndex: 120,
       background: shown ? 'rgba(11,18,51,0.5)' : 'rgba(11,18,51,0)',
       backdropFilter: shown ? 'blur(4px)' : 'blur(0px)', WebkitBackdropFilter: shown ? 'blur(4px)' : 'blur(0px)',
@@ -812,11 +818,18 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 24px 60px rgba(20,22,40,0.28)',
         borderRadius: shown ? 0 : 26,
-        transform: shown ? 'none' : startTransform,
+        transform: shown ? 'none' : (closeSlow ? closeTransform : startTransform),
         transformOrigin: 'center center',
-        opacity: shown ? 1 : (fromRect ? 1 : 0),
-        transition: `transform .42s ${EXP_CURVE}, border-radius .42s ${EXP_CURVE}, opacity .30s ease`,
-        willChange: 'transform',
+        // Při zavírání se detail během zmenšování plynule ztratí (jinak zůstane
+        // viditelný a „cukne" pryč). Otevírání se z karty pořád roztáhne bez fadu.
+        opacity: closing ? 0 : (shown ? 1 : (fromRect ? 1 : 0)),
+        // „Vrácení" (šipka zpět, varianta A): 0.7s — detail se rovnoměrně zmenší
+        // ke kartě a plynule se rozplyne (fade jede skoro celou dobu a končí spolu
+        // s dojetím). Rychlé zavření (Ano/Ne) i otevírání zůstávají svižné.
+        transition: closeSlow
+          ? 'transform .7s cubic-bezier(.4,0,.2,1), border-radius .7s cubic-bezier(.4,0,.2,1), opacity .6s ease .1s'
+          : `transform ${closing ? '.44s' : '.42s'} ${EXP_CURVE}, border-radius ${closing ? '.44s' : '.42s'} ${EXP_CURVE}, opacity ${closing ? '.44s' : '.30s'} ease`,
+        willChange: 'transform, opacity',
       }}>
         {/* Scroll: fotka hero + obsah inzerátu */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -852,7 +865,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             )}
 
             <div style={{ position: 'absolute', top: 14, left: 16, right: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <button onClick={animClose} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <button onClick={() => animClose(true)} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#0B1233" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
               <button onClick={() => { try { if (navigator.share) navigator.share({ title: job.title, text: job.company + ' — ' + job.title }); } catch (e) {} }} aria-label="Sdílet inzerát" title="Sdílet" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>

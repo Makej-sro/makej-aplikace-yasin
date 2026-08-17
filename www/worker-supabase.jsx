@@ -226,12 +226,31 @@ function wVelikostPrilohy(b) {
 // co jde ověřit v datech: kolik brigád má člověk odpracovaných, kolik
 // potvrzených směn zrušil a jak ho hodnotí firmy. Je to signál pro
 // zaměstnavatele, ne herní skóre — proto žádné XP a jen čtyři stupně.
+// Pořadí stupňů drží eskalaci odznáčku (WLevelBadge): matný „Nový" →
+// smaragdový „Spolehlivý" → modrý „Ověřený" → černo-zlatý „Top". `blevel`
+// mapuje stupeň na data-level odznáčku, `barva` je jen doplňkový akcent
+// (tečky, obrysy) na světlých kartách.
 const W_TIERS = [
-  { key: 'novy',       nazev: 'Nový',       barva: '#6b7192', brigady: 0,  spolehlivost: 0,  hodnoceni: 0   },
-  { key: 'overeny',    nazev: 'Ověřený',    barva: '#0020F6', brigady: 3,  spolehlivost: 90, hodnoceni: 0   },
-  { key: 'spolehlivy', nazev: 'Spolehlivý', barva: '#16a34a', brigady: 10, spolehlivost: 95, hodnoceni: 4.5 },
-  { key: 'top',        nazev: 'Top',        barva: '#F5A623', brigady: 30, spolehlivost: 98, hodnoceni: 4.8 },
+  { key: 'novy',       nazev: 'Nový',       blevel: 'new',      barva: '#5f6b96', brigady: 0,  spolehlivost: 0,  hodnoceni: 0   },
+  { key: 'spolehlivy', nazev: 'Spolehlivý', blevel: 'reliable', barva: '#12967f', brigady: 3,  spolehlivost: 90, hodnoceni: 0   },
+  { key: 'overeny',    nazev: 'Ověřený',    blevel: 'verified', barva: '#1e7fd0', brigady: 10, spolehlivost: 95, hodnoceni: 4.5 },
+  { key: 'top',        nazev: 'Top',        blevel: 'top',      barva: '#b98a2e', brigady: 30, spolehlivost: 98, hodnoceni: 4.8 },
 ];
+
+// Odznáček úrovně — kovová pilulka dle stupně (styl v index.html: .wlvl).
+// level = data-level ('new' | 'reliable' | 'verified' | 'top'), label = nápis.
+// sm/lg mění velikost, locked ztlumí ještě nedosažený stupeň (ať je vidět jak vypadá).
+function WLevelBadge({ level, label, sm, lg, locked }) {
+  const cls = 'wlvl'
+    + (sm ? ' wlvl--sm' : '') + (lg ? ' wlvl--lg' : '')
+    + (locked ? ' wlvl--locked' : '');
+  return (
+    <span className={cls} data-level={level}>
+      {level === 'top' && !locked && <span className="wlvl__aura" aria-hidden="true" />}
+      <span className="wlvl__pill">{label}<span className="wlvl__sheen" aria-hidden="true" /></span>
+    </span>
+  );
+}
 
 // Statistiky pro stupeň — plní se ve fetchWorkerData z tabulky matches
 const W_TRUST = { dokoncene: 0, zrusene: 0, spolehlivost: null };

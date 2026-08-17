@@ -110,6 +110,76 @@
     }
     @media (prefers-reduced-motion: reduce) { [data-whint] { animation: none !important; } }
 
+    /* ── Odznáčky úrovní brigádníka: Nový · Spolehlivý · Ověřený · Top ──
+       Jedna komponenta (WLevelBadge), úroveň řídí data-level, efekt roste
+       se stupněm. Kovový přeliv + přejíždějící odlesk, u „Top" perleť + aura. */
+    .wlvl { position: relative; display: inline-flex; align-items: center; justify-content: center; font-family: inherit; vertical-align: middle; }
+    .wlvl__pill {
+      position: relative; overflow: hidden; display: inline-block;
+      padding: 5px 13px; border-radius: 999px;
+      font-size: 12px; font-weight: 800; letter-spacing: .2px; white-space: nowrap;
+      color: var(--lv-text); border: 1px solid var(--lv-edge);
+      background-image: var(--lv-metal); background-size: 260% 100%;
+      box-shadow: inset 0 1px 0 var(--lv-top-light), inset 0 -1px 0 var(--lv-bottom-dark), var(--lv-drop-shadow);
+      animation: var(--lv-anim, none);
+    }
+    .wlvl__sheen {
+      position: absolute; top: -40%; left: 0; width: var(--lv-sheen-width); height: 180%; pointer-events: none;
+      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, var(--lv-sheen) 50%, rgba(255,255,255,0) 100%);
+      animation: wLvlSheen var(--lv-sheen-dur) var(--lv-sheen-ease) infinite; animation-delay: var(--lv-sheen-delay);
+    }
+    .wlvl__aura {
+      position: absolute; inset: -8px; border-radius: 999px; pointer-events: none;
+      background: radial-gradient(60% 70% at 50% 50%, var(--lv-aura) 0%, rgba(255,255,255,0) 72%);
+      animation: wLvlAura 7s ease-in-out infinite;
+    }
+    .wlvl--sm .wlvl__pill { padding: 4px 10px; font-size: 11px; }
+    .wlvl--sm .wlvl__aura { inset: -7px; }
+    .wlvl--lg .wlvl__pill { padding: 7px 16px; font-size: 13.5px; }
+    /* Zamčený (ještě nedosažený) stupeň — ztlumený, bez animací, ať je vidět jak vypadá */
+    .wlvl--locked { opacity: .48; filter: saturate(.8); }
+    .wlvl--locked .wlvl__pill { animation: none; }
+    .wlvl--locked .wlvl__sheen, .wlvl--locked .wlvl__aura { display: none; }
+
+    .wlvl[data-level="new"] {
+      --lv-metal: linear-gradient(105deg, #CFE2F5 0%, #E4F0FB 22%, #F6FBFF 42%, #BCD6EE 62%, #A8C7E4 82%, #DCEAF8 100%);
+      --lv-text: #173A5E; --lv-edge: #9DBBD8;
+      --lv-top-light: rgba(255,255,255,.9); --lv-bottom-dark: rgba(23,58,94,.2);
+      --lv-sheen: rgba(255,255,255,.95); --lv-drop-shadow: 0 1px 3px -1px rgba(60,95,135,.35);
+      --lv-anim: none; --lv-sheen-dur: 13s; --lv-sheen-ease: ease-in-out; --lv-sheen-delay: 0s; --lv-sheen-width: 22px;
+    }
+    .wlvl[data-level="reliable"] {
+      --lv-metal: linear-gradient(105deg, #0C6F62 0%, #128C7B 22%, #24B39B 42%, #0F7E6E 62%, #095B50 82%, #1AA08C 100%);
+      --lv-text: #FFFFFF; --lv-edge: #095B50;
+      --lv-top-light: rgba(196,244,232,.5); --lv-bottom-dark: rgba(3,40,34,.48);
+      --lv-sheen: rgba(238,255,250,.9); --lv-drop-shadow: 0 2px 7px -2px rgba(12,111,98,.55);
+      --lv-anim: wLvlMetal 12s ease-in-out infinite -1.4s; --lv-sheen-dur: 10s; --lv-sheen-ease: ease-in-out; --lv-sheen-delay: -1s; --lv-sheen-width: 28px;
+    }
+    .wlvl[data-level="verified"] {
+      --lv-metal: linear-gradient(105deg, #1878C4 0%, #2D93E0 22%, #58B4F0 42%, #2384D2 62%, #1466A8 82%, #3EA0E8 100%);
+      --lv-text: #FFFFFF; --lv-edge: #1466A8;
+      --lv-top-light: rgba(214,239,255,.55); --lv-bottom-dark: rgba(6,44,80,.45);
+      --lv-sheen: rgba(240,250,255,.92); --lv-drop-shadow: 0 3px 10px -3px rgba(24,120,196,.6);
+      --lv-anim: wLvlMetal 10s ease-in-out infinite -2.6s; --lv-sheen-dur: 8.5s; --lv-sheen-ease: cubic-bezier(.5,0,.3,1); --lv-sheen-delay: -2s; --lv-sheen-width: 30px;
+    }
+    .wlvl[data-level="top"] {
+      --lv-metal: linear-gradient(105deg, #08090C 0%, #2B2F38 16%, #6E7481 32%, #C9CEDA 46%, #8E93A4 60%, #33373F 76%, #101218 90%, #08090C 100%);
+      --lv-text: #F0CE72; --lv-edge: #0A0B0F;
+      --lv-top-light: rgba(226,232,244,.45); --lv-bottom-dark: rgba(0,0,0,.55);
+      --lv-sheen: rgba(245,249,255,.95); --lv-drop-shadow: 0 5px 15px -3px rgba(10,12,18,.65);
+      --lv-anim: wLvlMetal 8.5s ease-in-out infinite -3.4s, wLvlPearl 14s linear infinite;
+      --lv-sheen-dur: 7s; --lv-sheen-ease: cubic-bezier(.5,0,.3,1); --lv-sheen-delay: -1.6s; --lv-sheen-width: 34px; --lv-aura: rgba(200,208,225,.7);
+    }
+
+    @keyframes wLvlMetal { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    @keyframes wLvlSheen { 0%, 8% { transform: translateX(-200%) skewX(-22deg); } 46%, 100% { transform: translateX(900%) skewX(-22deg); } }
+    @keyframes wLvlPearl { 0%, 100% { filter: hue-rotate(-14deg) saturate(1.05); } 50% { filter: hue-rotate(14deg) saturate(1.2); } }
+    @keyframes wLvlAura  { 0%, 100% { opacity: .22; transform: scale(1); } 50% { opacity: .6; transform: scale(1.16); } }
+    @media (prefers-reduced-motion: reduce) {
+      .wlvl__pill, .wlvl__sheen, .wlvl__aura { animation: none; }
+      .wlvl__sheen, .wlvl__aura { display: none; }
+    }
+
     /* ── Auth (registrace / přihlášení) — dle Registrace.html ── */
     #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto; }
     #auth-gate.hidden { display: none; }
@@ -626,19 +696,20 @@
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
 <script type="text/babel" src="app.jsx"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
-<script type="text/babel" src="worker-supabase.jsx"></script>
-<script type="text/babel" src="worker-swipe.jsx"></script>
+<script type="text/babel" src="worker-supabase.jsx?v=2"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=11"></script>
 <script type="text/babel" src="worker-people.jsx"></script>
 <script type="text/babel" src="worker-messages.jsx"></script>
-<script type="text/babel" src="worker-profile.jsx"></script>
+<script type="text/babel" src="worker-profile.jsx?v=2"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>
-<script type="text/babel" src="worker-main.jsx?v=2"></script>
+<script type="text/babel" src="worker-main.jsx?v=7"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
 <script>
 (function () {
-  if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname)) return;
+  // Auto-reload i přes ngrok (testování na telefonu) — vedle localhostu a lokální sítě.
+  if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname) && !/ngrok/.test(location.hostname)) return;
   const files = ['index.html', 'app.jsx', 'worker-theme.jsx', 'worker-supabase.jsx',
     'worker-swipe.jsx', 'worker-people.jsx', 'worker-messages.jsx', 'worker-profile.jsx',
     'worker-history.jsx', 'worker-main.jsx'];
