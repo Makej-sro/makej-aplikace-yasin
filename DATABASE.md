@@ -135,3 +135,41 @@ alter table profiles
   add column if not exists drivers_license boolean default false,
   add column if not exists has_car boolean default false;
 ```
+
+### 2026-08-18 · Yasin (appka) · Rozšíření inzerátu (demo) — pole pro dashboard/DB
+V appce (`www/worker-swipe.jsx` detail inzerátu) jsme na DEMO datech (`www/app.jsx`)
+postavili bohatý inzerát. Až se to bude zadávat v dashboardu, tabulka `jobs`
+(a profil firmy) bude potřebovat tato pole. Zatím ŽÁDNÁ změna DB nenasazena —
+je to podklad, ať Sam ví, co chystat.
+
+- `contract` text — typ smlouvy (DPP / DPČ / HPP / IČO), v kartě i detailu.
+- `payout` text — kdy je výplata (Týdně / Měsíčně / Hned po akci / Do 14 dní).
+- `created_at` timestamptz — datum vložení → v kartě „Přidáno …" (relativní čas).
+- `duties` text — podrobná náplň práce (víceřádkový popis celé směny).
+- `expectations` text[] — „Co od tebe čekáme" (povinné).
+- `bonuses` text[] — „Co oceníme" (nepovinné výhody).
+- `offer` text[] — „Co ti nabídneme" (co firma dává).
+- `perks` text[] — „Benefity" (konkrétní perky).
+- `photos` text[] — galerie fotek (už dřív avizováno).
+
+Profil firmy (employer/company) v „O nás":
+- `bio` text — popis firmy (bez limitu délky).
+- `founded` int — rok založení → „Na trhu od roku …".
+
+```sql
+-- až se bude nasazovat (návrh):
+alter table public.jobs
+  add column if not exists contract text,
+  add column if not exists payout text,
+  add column if not exists duties text,
+  add column if not exists expectations text[] default '{}',
+  add column if not exists bonuses text[] default '{}',
+  add column if not exists offer text[] default '{}',
+  add column if not exists perks text[] default '{}',
+  add column if not exists photos text[] default '{}';
+-- created_at už zpravidla existuje
+
+-- profil firmy:
+-- alter table public.profiles add column if not exists bio text;      -- pokud chybí
+-- alter table public.profiles add column if not exists founded int;
+```

@@ -180,6 +180,16 @@
       .wlvl__sheen, .wlvl__aura { display: none; }
     }
 
+    /* ── Skeleton při načítání — šedé „duchy" obsahu se shimmer efektem (jako YT) ── */
+    .wsk { position: relative; overflow: hidden; background: #e7ebf4; }
+    .wsk::after {
+      content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 50%, rgba(255,255,255,0) 100%);
+      animation: wskShimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes wskShimmer { 100% { transform: translateX(100%); } }
+    @media (prefers-reduced-motion: reduce) { .wsk::after { animation: none; } }
+
     /* ── Auth (registrace / přihlášení) — dle Registrace.html ── */
     #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto; }
     #auth-gate.hidden { display: none; }
@@ -694,16 +704,16 @@
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel" src="app.jsx"></script>
+<script type="text/babel" src="app.jsx?v=6"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
 <script type="text/babel" src="worker-supabase.jsx?v=2"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=11"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=29"></script>
 <script type="text/babel" src="worker-people.jsx"></script>
 <script type="text/babel" src="worker-messages.jsx"></script>
 <script type="text/babel" src="worker-profile.jsx?v=2"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>
-<script type="text/babel" src="worker-main.jsx?v=7"></script>
+<script type="text/babel" src="worker-main.jsx?v=12"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
 <script>

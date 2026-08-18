@@ -387,13 +387,13 @@ function WSwipe({ tick }) {
           }}
         />
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 8px 6px', minHeight: 0, gap: 12 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 5px 5px', minHeight: 0, gap: 10 }}>
         <div
           ref={deckRef}
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: 460,
+            maxWidth: 500,
             flex: 1, minHeight: 0,
             userSelect: 'none', touchAction: 'none',
           }}
@@ -423,7 +423,7 @@ function WSwipe({ tick }) {
 
           {/* Akce pod kartou — obdélníky na šířku karty:
               Nemám zájem (červený obrys) + Mám zájem (plná zelená, bílý text) */}
-          <div style={{ flex: 'none', width: '100%', maxWidth: 460, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 6px' }}>
+          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0 4px' }}>
             {/* ConfirmButton 3c: po stisku/swipu se vyplní a přepne popisek na výsledek
                 (Odmítnuto/Odesláno), po 700 ms zpět. Obrys „Nemám zájem" je inset stín,
                 aby mělo stejnou šířku jako plné tlačítko vedle. */}
@@ -577,6 +577,11 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
   const distanceTxt = job.distance != null ? String(job.distance).replace('.', ',') + ' km' : null;
   const typeLabel = job.jobType === 'jednrazova_vypomoc' ? 'Výpomoc' : job.jobType === 'part_time' ? 'Part-time' : job.jobType === 'full_time' ? 'Full-time' : 'Brigáda';
   const payPer = /(\/\s*h|hod|kč\/h)/i.test(job.payUnit || '') ? '/h' : ((job.payUnit || '').replace(/\s*Kč\s*/i, '') || '');
+  // Podmínky, které brigádníka zajímají hned: typ smlouvy a kdy dostane výplatu.
+  const contract = job.contract || job.smlouva || '';
+  const payout   = job.payout || job.vyplata || '';
+  // Datum vložení inzerátu (čerstvost) — relativní popisek („dnes", „před 2 dny").
+  const posted   = job.posted || job.postedAgo || '';
 
   return (
     <div
@@ -598,7 +603,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
         boxShadow: '0 18px 40px rgba(11,18,51,0.16), 0 2px 8px rgba(20,22,40,0.06)',
       }}>
         {/* ── Fotka provozu (nahoře) ── */}
-        <div style={{ position: 'relative', height: 212, flex: 'none', background: '#EEF1FF' }}>
+        <div style={{ position: 'relative', height: 240, flex: 'none', background: '#EEF1FF' }}>
           {heroImg
             ? <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             : (<div style={{ position: 'absolute', inset: 0, background: T.heroGrad, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
@@ -637,39 +642,65 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
         </div>
 
         {/* ── Tělo karty ── */}
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 18px 0' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 18px 12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div style={{ fontFamily: T.fontHead, fontSize: 23, fontWeight: 800, color: '#0B1233', letterSpacing: -0.4, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{job.title}</div>
-            {job.location && <span style={{ fontFamily: T.fontUI, fontSize: 13, color: '#7A82A6' }}>{job.location}</span>}
+            {(job.location || posted) && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                {job.location
+                  ? <span style={{ fontFamily: T.fontUI, fontSize: 13, color: '#7A82A6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.location}</span>
+                  : <span />}
+                {posted && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, fontFamily: T.fontUI, fontSize: 12, color: '#9AA1BD' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#9AA1BD" strokeWidth="1.8" /><path d="M12 7.5V12l3 1.8" stroke="#9AA1BD" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    Přidáno {posted}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Odměna */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#F6F7FC', borderRadius: 16, padding: '13px 15px' }}>
+          {/* Klíčové údaje v jednom oválku: hodinovka + smlouva + výplata při sobě */}
+          <div style={{ background: '#F6F7FC', borderRadius: 16, padding: '13px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>Odměna</span>
               <span style={{ fontFamily: T.fontHead, fontSize: 24, fontWeight: 800, color: '#0B1233', letterSpacing: -0.4, lineHeight: 1.1 }}>{job.pay} Kč<span style={{ fontFamily: T.fontUI, fontSize: 14, fontWeight: 600, color: '#7A82A6' }}>{payPer}</span></span>
             </div>
-            {job.shiftTotal > 0 && <span style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: '#0B7B4B', background: '#E6F7EF', padding: '8px 12px', borderRadius: 10, whiteSpace: 'nowrap' }}>{job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ')} Kč za směnu</span>}
+            {(contract || payout) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {contract && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#A6ADCB' }}>Smlouva</span>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{contract}</span>
+                  </div>
+                )}
+                {payout && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end', borderLeft: contract ? '1px solid #E1E5F1' : 'none', paddingLeft: contract ? 14 : 0 }}>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#A6ADCB' }}>Výplata</span>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{payout}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Fakta */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(job.when || job.time) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="calendar-minimalistic-bold" size={15} color={T.primary} /></span>
+                <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><WIcoCalendar size={17} color={T.primary} /></span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                   <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{[job.when, job.time].filter(Boolean).join(' · ')}</span>
                   {job.shiftHours ? <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{job.shiftHours} {_wPlural(job.shiftHours, 'hodina', 'hodiny', 'hodin')}</span> : null}
                 </div>
               </div>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="users-group-rounded-bold" size={15} color={T.primary} /></span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{job.positions > 1 ? 'Hledají ' + job.positions + ' ' + _wPlural(job.positions, 'člověka', 'lidi', 'lidí') : 'Hledají 1 člověka'}</span>
-                {distanceTxt && <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{distanceTxt} od tebe</span>}
+            {distanceTxt && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><WIcoPin size={17} color={T.primary} /></span>
+                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{distanceTxt} od tebe</span>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Tagy (max 4) */}
@@ -680,9 +711,10 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           )}
         </div>
 
-        {/* Nápověda „táhni nahoru" */}
-        <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '12px 0 14px', color: '#A6ADCB', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700 }}>
-          <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true" data-whint style={{ animation: 'wHintHop 2s cubic-bezier(.34,1.3,.5,1) infinite' }}><path d="M1 6.5L6 1.5l5 5" fill="none" stroke="#A6ADCB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        {/* Nápověda „táhni nahoru" — plovoucí přes obsah (jen text + šipka),
+            místo bílého bloku jen jemné zesvětlení, ať se obsah protáhne níž. */}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '24px 0 12px', color: '#8990AE', fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, background: 'linear-gradient(to top, #ffffff 26%, rgba(255,255,255,0.82) 58%, rgba(255,255,255,0) 100%)', pointerEvents: 'none' }}>
+          <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true" data-whint style={{ animation: 'wHintHop 2s cubic-bezier(.34,1.3,.5,1) infinite' }}><path d="M1 6.5L6 1.5l5 5" fill="none" stroke="#8990AE" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           Táhni nahoru pro celý inzerát
         </div>
 
@@ -885,10 +917,10 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
               )}
               <h1 style={{ margin: 0, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1.15 }}>{job.title}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <span style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{job.logo}</span>
+                <button onClick={openEmployer} title="Zobrazit profil firmy" style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{job.logo}</button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233' }}>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.company}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <button onClick={openEmployer} title="Zobrazit profil firmy" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>{job.company}</button>
                     {job.verified && <WVerifiedBadge size={15} />}
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -908,11 +940,11 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             </div>
 
             {/* Čtyři klíčové údaje — „Kde" je proklik do map */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
               {[
                 { l: 'Odměna', v: job.pay + ' ' + job.payUnit, s: job.shiftTotal > 0 ? (job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč za směnu') : '', onClick: job.payBand ? openPay : null, hint: 'Srovnat v okolí' },
                 { l: 'Kdy', v: job.when || job.date || '—', onClick: openWhen, hint: ([job.time, job.shiftHours ? job.shiftHours + ' h' : ''].filter(Boolean).join(' · ')) || 'Rozpis směny' },
-                { l: 'Kde', v: job.location || '—', s: kmTxt, onClick: job.location ? openMaps : null, hint: 'Ukázat na mapě' },
+                { l: 'Kde', v: job.location || '—', s: kmTxt, onClick: job.location ? openMaps : null, hint: 'Ukázat na mapě', wrap: true },
                 { l: 'Smlouva', v: contract, s: payoutTag },
               ].map((f, i) => {
                 const El = f.onClick ? 'button' : 'div';
@@ -924,7 +956,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
                     WebkitTapHighlightColor: 'transparent',
                   }}>
                     <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>{f.l}</span>
-                    <span style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233', letterSpacing: -0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.v}</span>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233', letterSpacing: -0.3, lineHeight: 1.2, ...(f.wrap ? { overflowWrap: 'break-word', wordBreak: 'break-word' } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{f.v}</span>
                     {f.onClick
                       ? <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#5B6488', whiteSpace: 'nowrap' }}>{f.hint} ›</span>
                       : (f.s ? <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#7A82A6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span> : null)}
@@ -933,10 +965,65 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
               })}
             </div>
 
-            {job.desc && (
+            {job.employer && job.employer.bio && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co budeš dělat</span>
-                <p style={{ margin: 0, fontFamily: T.fontUI, fontSize: 14, color: '#3A4266', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{job.desc}</p>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>O nás</span>
+                <p style={{ margin: 0, fontFamily: T.fontUI, fontSize: 14, color: '#3A4266', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{job.employer.bio}</p>
+                {(job.employer.founded || job.employer.industry) && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 1 }}>
+                    {job.employer.founded && (
+                      <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: T.primary, background: T.tint, padding: '7px 12px', borderRadius: 999 }}>Na trhu od roku {job.employer.founded}</span>
+                    )}
+                    {job.employer.industry && (
+                      <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#3A4266', background: '#F1F3FB', padding: '7px 12px', borderRadius: 999 }}>{job.employer.industry}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(job.duties || job.desc) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Náplň tvojí práce</span>
+                <p style={{ margin: 0, fontFamily: T.fontUI, fontSize: 14, color: '#3A4266', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{job.duties || job.desc}</p>
+              </div>
+            )}
+
+            {/* Co od tebe čekáme — povinné (modrá fajfka) */}
+            {Array.isArray(job.expectations) && job.expectations.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co od tebe čekáme</span>
+                {bullets(job.expectations, 'check-circle-bold', T.primary)}
+              </div>
+            )}
+
+            {/* Co oceníme — nepovinné bonusy (zlatá hvězda) */}
+            {Array.isArray(job.bonuses) && job.bonuses.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co oceníme <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#9AA1BD' }}>· výhodou</span></span>
+                {bullets(job.bonuses, 'star-bold', '#E8A33D')}
+              </div>
+            )}
+
+            {/* Co ti nabídneme — co firma dává (zelená fajfka) */}
+            {Array.isArray(job.offer) && job.offer.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co ti nabídneme</span>
+                {bullets(job.offer, 'check-circle-bold', T.green)}
+              </div>
+            )}
+
+            {/* Benefity — konkrétní perky (zelené odznaky s dárkem) */}
+            {Array.isArray(job.perks) && job.perks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Benefity</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {job.perks.map((p, i) => (
+                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700, color: '#0B7B4B', background: '#E6F7EF', padding: '8px 12px', borderRadius: 999 }}>
+                      <Icon name="gift-bold" size={13} color="#0B7B4B" />{p}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -953,25 +1040,6 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{job.tags.map((t, i) => <span key={i} style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#3A4266', background: '#F1F3FB', padding: '8px 12px', borderRadius: 999 }}>{t}</span>)}</div>
               </div>
             )}
-
-            {/* O firmě — otevře kartu firmy (co dělá, fotky, otevřené pozice, recenze) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>O firmě</span>
-              <button onClick={openEmployer} title="Zobrazit profil firmy" style={{
-                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-                background: '#F6F7FC', border: 'none', borderRadius: 14, padding: '14px 15px', cursor: 'pointer',
-                WebkitTapHighlightColor: 'transparent',
-              }}>
-                <span style={{ width: 40, height: 40, flex: 'none', borderRadius: 12, background: T.tint, display: 'grid', placeItems: 'center' }}>
-                  <Icon name="shop-2-bold" size={19} color={T.primary} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233' }}>Zobrazit profil firmy</span>
-                  <span style={{ display: 'block', fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>Co firma dělá, fotky, otevřené pozice a recenze</span>
-                </span>
-                <Icon name="alt-arrow-right-bold" size={14} color={T.primary} />
-              </button>
-            </div>
 
             <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#A6ADCB', lineHeight: 1.5 }}>Pravidla směny a přesnou adresu dostaneš do chatu, jakmile firma potvrdí zájem.</span>
           </div>

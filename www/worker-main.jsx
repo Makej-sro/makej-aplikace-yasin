@@ -446,6 +446,28 @@ function WIcoProfile({ size = 22, color = 'currentColor' }) {
   );
 }
 
+// Iconly Light-Outline — Lidé (skupina). Barvitelný. Stejný styl jako v navbaru.
+function WIcoPeople({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 25 25" fill="none" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M9.73137 4.36572C7.80046 4.36572 6.23535 5.93016 6.23535 7.86049C6.23535 9.79082 7.80046 11.3553 9.73137 11.3553C11.6609 11.3553 13.2261 9.79097 13.2261 7.86049C13.2261 5.93001 11.6609 4.36572 9.73137 4.36572ZM4.73535 7.86049C4.73535 5.10115 6.97261 2.86572 9.73137 2.86572C12.489 2.86572 14.7261 5.1013 14.7261 7.86049C14.7261 10.6197 12.489 12.8553 9.73137 12.8553C6.97261 12.8553 4.73535 10.6198 4.73535 7.86049Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M16.3096 5.91602C15.5772 5.91602 14.9194 6.23084 14.4624 6.7348L13.9585 7.29038L12.8474 6.28275L13.3512 5.72717C14.0806 4.92277 15.1365 4.41602 16.3096 4.41602C18.5132 4.41602 20.3009 6.20243 20.3009 8.40729C20.3009 10.6121 18.5132 12.3986 16.3096 12.3986C14.9021 12.3986 13.6651 11.6698 12.9552 10.5723L12.5479 9.94256L13.8074 9.12791L14.2147 9.75767C14.6598 10.4458 15.432 10.8986 16.3096 10.8986C17.6851 10.8986 18.8009 9.78343 18.8009 8.40729C18.8009 7.03115 17.6851 5.91602 16.3096 5.91602Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M3.92336 19.3866C5.62582 20.2747 7.60642 20.6389 9.76225 20.6336H9.76591C11.9217 20.6389 13.9023 20.2747 15.6047 19.3866C14.6212 17.0681 12.4438 15.9501 9.766 15.957H9.76216C7.08098 15.9501 4.90705 17.0654 3.92336 19.3866ZM9.76408 14.457C6.39368 14.4489 3.38615 16.0175 2.2849 19.4999L2.10765 20.0604L2.60961 20.3664C4.73277 21.6607 7.19982 22.1397 9.76408 22.1336C12.3283 22.1397 14.7954 21.6607 16.9185 20.3664L17.4205 20.0604L17.2433 19.4999C16.1432 16.0209 13.1312 14.449 9.76408 14.457Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M16.3334 14.766C14.9686 14.7625 13.8071 15.1535 12.9904 15.9051L12.4386 16.413L11.4228 15.3093L11.9747 14.8014C13.1337 13.7347 14.6923 13.2622 16.3353 13.266C18.9631 13.2599 21.3464 14.4923 22.2154 17.2406L22.3927 17.8011L21.8907 18.1071C20.2328 19.1178 18.3133 19.4873 16.3335 19.4824L15.5835 19.4806L15.5872 17.9806L16.3372 17.9824C17.9008 17.9863 19.3303 17.7324 20.5644 17.1257C19.8178 15.5367 18.2678 14.761 16.3373 14.766H16.3334Z" fill={color} />
+    </svg>
+  );
+}
+
+// Iconly Light-Outline — Lokace (špendlík). Barvitelný.
+function WIcoPin({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 25 24" fill="none" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M8.76025 10.7105C8.76025 8.91521 10.2151 7.45999 12.0097 7.45999C13.8052 7.45999 15.2603 8.91501 15.2603 10.7105C15.2603 12.5052 13.805 13.96 12.0097 13.96C10.2153 13.96 8.76025 12.505 8.76025 10.7105ZM12.0097 8.95999C11.0439 8.95999 10.2603 9.74324 10.2603 10.7105C10.2603 11.6765 11.0437 12.46 12.0097 12.46C12.977 12.46 13.7603 11.6763 13.7603 10.7105C13.7603 9.74344 12.9768 8.95999 12.0097 8.95999Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M11.9995 3.75C8.28063 3.75 5.25 6.8073 5.25 10.5986C5.25 13.0726 6.31773 15.5147 7.75334 17.3467C8.46835 18.2592 9.25791 18.9983 10.0196 19.5035C10.7928 20.0162 11.4786 20.25 11.9995 20.25C12.5207 20.25 13.2068 20.0162 13.98 19.5035C14.7419 18.9983 15.5315 18.2592 16.2466 17.3467C17.6823 15.5147 18.75 13.0726 18.75 10.5986C18.75 6.80743 15.7185 3.75 11.9995 3.75ZM3.75 10.5986C3.75 5.99763 7.43357 2.25 11.9995 2.25C16.5653 2.25 20.25 5.9975 20.25 10.5986C20.25 13.4847 19.017 16.2433 17.4272 18.2719C16.6295 19.2898 15.7252 20.146 14.809 20.7536C13.9041 21.3536 12.9278 21.75 11.9995 21.75C11.0714 21.75 10.0953 21.3536 9.19058 20.7536C8.27446 20.146 7.37027 19.2898 6.57265 18.2719C4.98301 16.2433 3.75 13.4847 3.75 10.5986Z" fill={color} />
+    </svg>
+  );
+}
+
 function WWhenPanel({ job, onClose }) {
   const factK = { fontFamily: T.fontHead, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#5B6488' };
   const factV = { fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, letterSpacing: -0.2 };
@@ -1220,22 +1242,56 @@ function WorkerApp() {
   // Kalendář žije teď jako ikona nahoře vedle Nastavení (viz níž) — spodní
   // nav zůstává jen na tři hlavní, často používané záložky.
   const NAV = [
-    { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-icon.png' },
+    { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-outline.svg' },
     { id: 'people',   label: 'Lidé',     img: 'icons/people-outline.svg' },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-outline.svg', badge: unreadMessages },
   ];
 
   let body;
   if (!loaded) {
+    // Skeleton místo spinneru — „duch" swajpovací karty, ať appka po otevření
+    // hned ukáže tvar toho, co se načítá (jako YT), a ne jen točící se kolečko.
+    const skBlok = { width: 30, height: 30, borderRadius: 10 };
     body = (
-      <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 999,
-            border: '3px solid rgba(0,32,246,0.18)', borderTopColor: '#6F80FF',
-            animation: 'empSpin .75s linear infinite', margin: '0 auto',
-          }} />
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 14 }}>Načítám brigády…</div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
+        {/* horní lišta — duch oválku vlevo + profilu vpravo */}
+        <div className="wsk" style={{ position: 'fixed', top: 14, left: 16, width: 72, height: 38, borderRadius: 999, zIndex: 20 }} />
+        <div className="wsk" style={{ position: 'fixed', top: 14, right: 16, width: 44, height: 44, borderRadius: 999, zIndex: 20 }} />
+
+        {/* odsazení pod lištu (jako ve WSwipe) */}
+        <div style={{ padding: '12px 20px 12px', flexShrink: 0 }}><div style={{ height: 38 }} /></div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 5px 5px', minHeight: 0, gap: 10 }}>
+          {/* karta */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: 500, flex: 1, minHeight: 0 }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 26, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 18px 40px rgba(11,18,51,0.10), 0 2px 8px rgba(20,22,40,0.05)' }}>
+              <div className="wsk" style={{ height: 240, flex: 'none' }} />
+              <div style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="wsk" style={{ height: 24, width: '72%', borderRadius: 8 }} />
+                <div className="wsk" style={{ height: 13, width: '45%', borderRadius: 7 }} />
+                <div className="wsk" style={{ height: 74, width: '100%', borderRadius: 16 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <div className="wsk" style={skBlok} />
+                  <div className="wsk" style={{ height: 14, width: '55%', borderRadius: 7 }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <div className="wsk" style={skBlok} />
+                  <div className="wsk" style={{ height: 14, width: '38%', borderRadius: 7 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div className="wsk" style={{ height: 28, width: 66, borderRadius: 999 }} />
+                  <div className="wsk" style={{ height: 28, width: 92, borderRadius: 999 }} />
+                  <div className="wsk" style={{ height: 28, width: 58, borderRadius: 999 }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* tlačítka Nemám / Mám zájem */}
+          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', gap: 12, padding: '8px 0 4px' }}>
+            <div className="wsk" style={{ flex: 1, height: 56, borderRadius: 16 }} />
+            <div className="wsk" style={{ flex: 1, height: 56, borderRadius: 16 }} />
+          </div>
         </div>
       </div>
     );
