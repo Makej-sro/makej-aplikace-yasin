@@ -609,8 +609,15 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
   // Podmínky, které brigádníka zajímají hned: typ smlouvy a kdy dostane výplatu.
   const contract = job.contract || job.smlouva || '';
   const payout   = job.payout || job.vyplata || '';
+  // Odměna: hlavní je celková částka za směnu, pod ní rozpad na hodinovku × hodiny.
+  const shiftTotal = Number(job.shiftTotal || job.total || 0);
+  const payNum     = Number(job.pay || 0);
+  const shiftHrs   = (payNum > 0 && shiftTotal > 0) ? Math.round(shiftTotal / payNum) : 0;
+  const hourlyTxt  = payNum > 0 ? (payNum + ' Kč' + (payPer || '/h')) : '';
   // Datum vložení inzerátu (čerstvost) — relativní popisek („dnes", „před 2 dny").
   const posted   = job.posted || job.postedAgo || '';
+  // Pravidelnost brigády — mění se jen text (Pravidelná / Jednorázová), ikonka pořád stejná.
+  const recurrenceTxt = job.recurrence || job.frequency || '';
 
   return (
     <div
@@ -681,11 +688,13 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 18px 12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div style={{ fontFamily: T.fontHead, fontSize: 23, fontWeight: 800, color: '#0B1233', letterSpacing: -0.4, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{job.title}</div>
-            {(job.location || posted) && (
+            {(job.location || distanceTxt || posted) && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                {job.location
-                  ? <span style={{ fontFamily: T.fontUI, fontSize: 13, color: '#7A82A6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.location}</span>
-                  : <span />}
+                <span style={{ display: 'flex', alignItems: 'center', minWidth: 0, fontFamily: T.fontUI, fontSize: 13, color: '#7A82A6' }}>
+                  {job.location && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.location}</span>}
+                  {job.location && distanceTxt && <span style={{ flexShrink: 0 }}>&nbsp;·&nbsp;</span>}
+                  {distanceTxt && <span style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{distanceTxt} od tebe</span>}
+                </span>
                 {posted && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, fontFamily: T.fontUI, fontSize: 12, color: '#9AA1BD' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#9AA1BD" strokeWidth="1.8" /><path d="M12 7.5V12l3 1.8" stroke="#9AA1BD" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -696,26 +705,19 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
             )}
           </div>
 
-          {/* Klíčové údaje v jednom oválku: hodinovka + smlouva + výplata při sobě */}
-          <div style={{ background: '#F6F7FC', borderRadius: 16, padding: '13px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>Odměna</span>
-              <span style={{ fontFamily: T.fontHead, fontSize: 24, fontWeight: 800, color: '#0B1233', letterSpacing: -0.4, lineHeight: 1.1 }}>{job.pay} Kč<span style={{ fontFamily: T.fontUI, fontSize: 14, fontWeight: 600, color: '#7A82A6' }}>{payPer}</span></span>
+          {/* Odměna: velká celková částka za směnu + drobný rozpad (hodinovka × hodiny).
+              Pod hairline zůstává výplata (typ smlouvy se přesunul mezi fakta). */}
+          <div style={{ background: '#EEF1FC', borderRadius: 16, padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1 }}>{shiftTotal > 0 ? fmtKc(shiftTotal) : (job.pay + ' Kč' + payPer)}</span>
+              {(hourlyTxt || shiftHrs > 0) && (
+                <span style={{ fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700, color: '#7A82A6', whiteSpace: 'nowrap' }}>{[hourlyTxt, shiftHrs > 0 ? shiftHrs + ' h' : ''].filter(Boolean).join(' · ')}</span>
+              )}
             </div>
-            {(contract || payout) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {contract && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-                    <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#A6ADCB' }}>Smlouva</span>
-                    <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{contract}</span>
-                  </div>
-                )}
-                {payout && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end', borderLeft: contract ? '1px solid #E1E5F1' : 'none', paddingLeft: contract ? 14 : 0 }}>
-                    <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#A6ADCB' }}>Výplata</span>
-                    <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{payout}</span>
-                  </div>
-                )}
+            {payout && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, borderTop: '1px solid #DEE3F5', paddingTop: 10 }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#9AA2C4' }}>Výplata</span>
+                <span style={{ fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{payout}</span>
               </div>
             )}
           </div>
@@ -724,17 +726,23 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(job.when || job.time) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><WIcoCalendar size={17} color={T.primary} /></span>
+                <span style={{ width: 22, flex: 'none', display: 'flex', justifyContent: 'center' }}><WIcoCalendar size={20} color={T.primary} /></span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                   <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{[job.when, job.time].filter(Boolean).join(' · ')}</span>
                   {job.shiftHours ? <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{job.shiftHours} {_wPlural(job.shiftHours, 'hodina', 'hodiny', 'hodin')}</span> : null}
                 </div>
               </div>
             )}
-            {distanceTxt && (
+            {recurrenceTxt && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 10, background: '#EEF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><WIcoPin size={17} color={T.primary} /></span>
-                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{distanceTxt} od tebe</span>
+                <span style={{ width: 22, flex: 'none', display: 'flex', justifyContent: 'center' }}><WIcoRepeat size={19} color={T.primary} /></span>
+                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{recurrenceTxt}</span>
+              </div>
+            )}
+            {contract && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                <span style={{ width: 22, flex: 'none', display: 'flex', justifyContent: 'center' }}><WIcoEdit size={19} color={T.primary} /></span>
+                <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{contract}</span>
               </div>
             )}
           </div>
