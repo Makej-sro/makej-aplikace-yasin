@@ -285,6 +285,8 @@ function WSwipe({ tick }) {
   }, [currentJob && currentJob.id]);
   const trust        = makejTrust({ ...W_TRUST, hodnoceni: Number(W_PROFILE.rating) || 0 });
   const remaining    = Math.max(0, jobs.length - topIdx);
+  // Částka na tlačítko „Mám zájem" — kolik si vydělá za směnu u aktuální karty.
+  const acceptAmount = Number((currentJob && (currentJob.shiftTotal || currentJob.total)) || 0);
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
 
@@ -367,8 +369,8 @@ function WSwipe({ tick }) {
 
       {/* Odsazení pod plovoucí horní lištu (odznáček úrovně + profil vpravo nahoře).
           Stupeň důvěry se teď ukazuje tam, ať není dvakrát. */}
-      <div style={{ padding: '12px 20px 12px', flexShrink: 0 }} aria-hidden="true">
-        <div style={{ height: 38 }} />
+      <div style={{ padding: '8px 20px 8px', flexShrink: 0 }} aria-hidden="true">
+        <div style={{ height: 36 }} />
       </div>
 
       {/* Filtr krajů má přijít do samostatného tlačítka filtrů, ne na hlavní plochu.
@@ -421,32 +423,46 @@ function WSwipe({ tick }) {
           })}
         </div>
 
-          {/* Akce pod kartou — obdélníky na šířku karty:
-              Nemám zájem (červený obrys) + Mám zájem (plná zelená, bílý text) */}
-          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0 4px' }}>
-            {/* ConfirmButton 3c: po stisku/swipu se vyplní a přepne popisek na výsledek
-                (Odmítnuto/Odesláno), po 700 ms zpět. Obrys „Nemám zájem" je inset stín,
-                aby mělo stejnou šířku jako plné tlačítko vedle. */}
+          {/* Akce pod kartou — malé „přeskočit" (křížek) + velké „Mám zájem · částka".
+              Fill + fajfka při přijetí, přeskok krátce zčervená. Vše nabité na naše
+              doPass/doLike (odlet karty + panel „Zájem odeslán"); animace jen přes
+              inline transitions, žádné keyframes — nekope se to s našimi animacemi. */}
+          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px' }}>
+            {/* Přeskočit */}
             <button onClick={doPass} title="Nemám zájem" style={{
-              flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
-              border: 'none', outline: 'none', cursor: 'pointer',
-              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+              width: 54, height: 54, flex: 'none', borderRadius: 17, boxSizing: 'border-box', padding: 0, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: actionAnim === 'pass' ? '#FDECEC' : '#fff',
+              border: '1px solid ' + (actionAnim === 'pass' ? '#E5484D' : '#E6E9F5'),
+              transform: actionAnim === 'pass' ? 'scale(.94)' : 'scale(1)',
+              transition: 'background .18s ease, border-color .18s ease, transform .18s ease',
               WebkitTapHighlightColor: 'transparent',
-              background: actionAnim === 'pass' ? '#D63A24' : '#fff',
-              color: actionAnim === 'pass' ? '#fff' : '#D63A24',
-              boxShadow: actionAnim === 'pass' ? 'inset 0 0 0 2px #D63A24' : 'inset 0 0 0 2px #E2543F',
-              transition: `background ${actionAnim === 'pass' ? 160 : 240}ms ease-out, color ${actionAnim === 'pass' ? 160 : 240}ms ease-out, box-shadow ${actionAnim === 'pass' ? 160 : 240}ms ease-out`,
-            }}>{actionAnim === 'pass' ? 'Odmítnuto' : 'Nemám zájem'}</button>
+            }}>
+              <svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke={actionAnim === 'pass' ? '#E5484D' : '#5B6488'} strokeWidth="2.4" strokeLinecap="round" /></svg>
+            </button>
 
+            {/* Mám zájem */}
             <button onClick={() => doLike(false)} title="Mám zájem" style={{
-              flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
-              border: 'none', outline: 'none', cursor: 'pointer', color: '#fff',
-              fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+              position: 'relative', flex: 1, height: 54, borderRadius: 17, boxSizing: 'border-box',
+              border: 0, outline: 'none', cursor: 'pointer', overflow: 'hidden', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: T.primary, boxShadow: 'none',
+              transform: actionAnim === 'like' ? 'scale(1.03)' : 'scale(1)',
+              transition: 'transform .22s cubic-bezier(.34,1.2,.5,1)',
               WebkitTapHighlightColor: 'transparent',
-              background: actionAnim === 'like' ? '#0F6B32' : '#16803D',
-              boxShadow: actionAnim === 'like' ? '0 2px 8px rgba(22,128,61,.3)' : '0 6px 16px rgba(22,128,61,.28)',
-              transition: `background ${actionAnim === 'like' ? 160 : 240}ms ease-out, box-shadow ${actionAnim === 'like' ? 160 : 240}ms ease-out`,
-            }}>{actionAnim === 'like' ? 'Odesláno' : 'Mám zájem'}</button>
+            }}>
+              {/* Fill sweep (přijetí) */}
+              <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '100%', background: T.primaryDeep, transformOrigin: 'left', transform: actionAnim === 'like' ? 'scaleX(1)' : 'scaleX(0)', transition: 'transform .38s cubic-bezier(.4,0,.2,1)' }} />
+              {/* Popisek + částka */}
+              <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: '#fff', opacity: actionAnim === 'like' ? 0 : 1, transition: 'opacity .16s ease' }}>
+                Mám zájem
+                {acceptAmount > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: '#C7D0FF' }}>· {fmtKc(acceptAmount)}</span>}
+              </span>
+              {/* Fajfka */}
+              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: actionAnim === 'like' ? 1 : 0, transition: 'opacity .16s ease .1s' }}>
+                <svg width="26" height="20" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 32, strokeDashoffset: actionAnim === 'like' ? 0 : 32, transition: 'stroke-dashoffset .3s cubic-bezier(.4,0,.2,1) .08s' }} /></svg>
+              </span>
+            </button>
           </div>
         </div>
       )}
@@ -559,7 +575,20 @@ function WSwipe({ tick }) {
 }
 
 // ── Swipovací karta (light styl podle mockupu) ─────────────────
+// Uložené brigády — zatím lokálně v prohlížeči (localStorage). Backend/Supabase
+// (tabulka saved_jobs) přijde později; teď se uloží na zařízení.
+function _wSavedSet() {
+  try { return new Set(JSON.parse(localStorage.getItem('makej-saved-jobs') || '[]')); } catch (e) { return new Set(); }
+}
+function _wIsSaved(id) { return _wSavedSet().has(id); }
+function _wSetSaved(id, on) {
+  const s = _wSavedSet();
+  if (on) s.add(id); else s.delete(id);
+  try { localStorage.setItem('makej-saved-jobs', JSON.stringify([...s])); } catch (e) {}
+}
+
 function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
+  const [saved, setSaved] = useStateW(() => _wIsSaved(job.id));
   const x = isTop ? drag.x : 0;
   const y = isTop ? drag.y : 0;
   const rot = isTop ? (x / 18) : 0;
@@ -600,7 +629,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
       <div style={{
         position: 'absolute', inset: 0, borderRadius: 26, overflow: 'hidden',
         background: '#fff', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 18px 40px rgba(11,18,51,0.16), 0 2px 8px rgba(20,22,40,0.06)',
+        border: '1px solid ' + T.border,
       }}>
         {/* ── Fotka provozu (nahoře) ── */}
         <div style={{ position: 'relative', height: 240, flex: 'none', background: '#EEF1FF' }}>
@@ -612,12 +641,19 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
               </div>)}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.42) 0%, rgba(11,18,51,0) 38%, rgba(11,18,51,.55) 100%)' }} />
 
-          {/* horní odznaky: typ + vzdálenost */}
-          <div style={{ position: 'absolute', top: 14, left: 14, right: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff' }}>{typeLabel}</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {distanceTxt && <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#fff', background: 'rgba(11,18,51,.55)' }}>{distanceTxt}</span>}
-            </div>
+          {/* horní odznaky: typ (vlevo) + uložit (vpravo) */}
+          <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff', marginTop: 2 }}>{typeLabel}</span>
+            {/* Uložit (záložka) — nahradilo pilulku vzdálenosti; vzdálenost je dole ve faktech */}
+            <button onClick={(e) => { e.stopPropagation(); const nv = !saved; setSaved(nv); _wSetSaved(job.id, nv); }} title={saved ? 'Uloženo' : 'Uložit'} style={{
+              width: 34, height: 34, flex: 'none', borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
+              background: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 2px 8px rgba(11,18,51,0.16)',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? T.primary : 'none'} aria-hidden="true">
+                <path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={saved ? T.primary : '#0B1233'} strokeWidth="1.7" strokeLinejoin="round" />
+              </svg>
+            </button>
           </div>
 
           {/* dole: logo firmy + název + hodnocení (klik = profil firmy) */}
@@ -1078,30 +1114,39 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             )}
           </div>
         ) : (
-        <div style={{ flexShrink: 0, borderTop: '1px solid #E6E9F5', background: '#fff', padding: '12px 16px calc(16px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Stejná tlačítka i chování jako na kartě (ConfirmButton 3c). Po stisku se
-              potvrdí (Odmítnuto/Odesláno), detail se smrskne zpět a karta odletí — popisek
-              plynule „přejde" na tlačítko karty (actionAnim drží 700 ms). */}
+        <div style={{ flexShrink: 0, borderTop: '1px solid #E6E9F5', background: '#fff', padding: '12px 16px calc(16px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Stejná nová tlačítka jako na kartě — přeskočit (křížek) + Mám zájem (fill + fajfka).
+              Chování zůstává: potvrdí se (detailDone), detail se zavře a karta odletí. */}
           <button onClick={() => { if (detailDone) return; setDetailDone('pass'); animClose(); setTimeout(onPass, 380); }} title="Nemám zájem" style={{
-            flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
-            border: 'none', outline: 'none', cursor: 'pointer',
-            fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+            width: 54, height: 54, flex: 'none', borderRadius: 17, boxSizing: 'border-box', padding: 0, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: detailDone === 'pass' ? '#FDECEC' : '#fff',
+            border: '1px solid ' + (detailDone === 'pass' ? '#E5484D' : '#E6E9F5'),
+            transform: detailDone === 'pass' ? 'scale(.94)' : 'scale(1)',
+            transition: 'background .18s ease, border-color .18s ease, transform .18s ease',
             WebkitTapHighlightColor: 'transparent',
-            background: detailDone === 'pass' ? '#D63A24' : '#fff',
-            color: detailDone === 'pass' ? '#fff' : '#D63A24',
-            boxShadow: detailDone === 'pass' ? 'inset 0 0 0 2px #D63A24' : 'inset 0 0 0 2px #E2543F',
-            transition: `background ${detailDone === 'pass' ? 160 : 240}ms ease-out, color ${detailDone === 'pass' ? 160 : 240}ms ease-out, box-shadow ${detailDone === 'pass' ? 160 : 240}ms ease-out`,
-          }}>{detailDone === 'pass' ? 'Odmítnuto' : 'Nemám zájem'}</button>
+          }}>
+            <svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke={detailDone === 'pass' ? '#E5484D' : '#5B6488'} strokeWidth="2.4" strokeLinecap="round" /></svg>
+          </button>
 
           <button onClick={() => { if (detailDone) return; setDetailDone('like'); animClose(); setTimeout(onLike, 380); }} title="Mám zájem" style={{
-            flex: 1, height: 56, borderRadius: 16, boxSizing: 'border-box',
-            border: 'none', outline: 'none', cursor: 'pointer', color: '#fff',
-            fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800,
+            position: 'relative', flex: 1, height: 54, borderRadius: 17, boxSizing: 'border-box',
+            border: 0, outline: 'none', cursor: 'pointer', overflow: 'hidden', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: T.primary,
+            transform: detailDone === 'like' ? 'scale(1.03)' : 'scale(1)',
+            transition: 'transform .22s cubic-bezier(.34,1.2,.5,1)',
             WebkitTapHighlightColor: 'transparent',
-            background: detailDone === 'like' ? '#0F6B32' : '#16803D',
-            boxShadow: detailDone === 'like' ? '0 2px 8px rgba(22,128,61,.3)' : '0 6px 16px rgba(22,128,61,.28)',
-            transition: `background ${detailDone === 'like' ? 160 : 240}ms ease-out, box-shadow ${detailDone === 'like' ? 160 : 240}ms ease-out`,
-          }}>{detailDone === 'like' ? 'Odesláno' : 'Mám zájem'}</button>
+          }}>
+            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '100%', background: T.primaryDeep, transformOrigin: 'left', transform: detailDone === 'like' ? 'scaleX(1)' : 'scaleX(0)', transition: 'transform .38s cubic-bezier(.4,0,.2,1)' }} />
+            <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: '#fff', opacity: detailDone === 'like' ? 0 : 1, transition: 'opacity .16s ease' }}>
+              Mám zájem
+              {Number(job.shiftTotal || job.total) > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: '#C7D0FF' }}>· {fmtKc(Number(job.shiftTotal || job.total))}</span>}
+            </span>
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: detailDone === 'like' ? 1 : 0, transition: 'opacity .16s ease .1s' }}>
+              <svg width="26" height="20" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 32, strokeDashoffset: detailDone === 'like' ? 0 : 32, transition: 'stroke-dashoffset .3s cubic-bezier(.4,0,.2,1) .08s' }} /></svg>
+            </span>
+          </button>
         </div>
         )}
       </div>

@@ -1245,6 +1245,7 @@ function WorkerApp() {
     { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-outline.svg' },
     { id: 'people',   label: 'Lidé',     img: 'icons/people-outline.svg' },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-outline.svg', badge: unreadMessages },
+    { id: 'profile',  label: 'Profil',   img: 'icons/profile-outline.svg' },
   ];
 
   let body;
@@ -1255,11 +1256,11 @@ function WorkerApp() {
     body = (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
         {/* horní lišta — duch oválku vlevo + profilu vpravo */}
-        <div className="wsk" style={{ position: 'fixed', top: 14, left: 16, width: 72, height: 38, borderRadius: 999, zIndex: 20 }} />
-        <div className="wsk" style={{ position: 'fixed', top: 14, right: 16, width: 44, height: 44, borderRadius: 999, zIndex: 20 }} />
+        <div className="wsk" style={{ position: 'fixed', top: 8, left: 16, width: 72, height: 38, borderRadius: 999, zIndex: 20 }} />
+        <div className="wsk" style={{ position: 'fixed', top: 8, right: 16, width: 44, height: 44, borderRadius: 999, zIndex: 20 }} />
 
         {/* odsazení pod lištu (jako ve WSwipe) */}
-        <div style={{ padding: '12px 20px 12px', flexShrink: 0 }}><div style={{ height: 38 }} /></div>
+        <div style={{ padding: '8px 20px 8px', flexShrink: 0 }}><div style={{ height: 36 }} /></div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 5px 5px', minHeight: 0, gap: 10 }}>
           {/* karta */}
@@ -1287,10 +1288,10 @@ function WorkerApp() {
             </div>
           </div>
 
-          {/* tlačítka Nemám / Mám zájem */}
-          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', gap: 12, padding: '8px 0 4px' }}>
-            <div className="wsk" style={{ flex: 1, height: 56, borderRadius: 16 }} />
-            <div className="wsk" style={{ flex: 1, height: 56, borderRadius: 16 }} />
+          {/* tlačítka: přeskočit (čtvereček) + Mám zájem (široké) */}
+          <div style={{ flex: 'none', width: '100%', maxWidth: 500, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px' }}>
+            <div className="wsk" style={{ width: 54, height: 54, flex: 'none', borderRadius: 17 }} />
+            <div className="wsk" style={{ flex: 1, height: 54, borderRadius: 17 }} />
           </div>
         </div>
       </div>
@@ -1301,6 +1302,8 @@ function WorkerApp() {
     body = <WPeople tick={tick} />;
   } else if (tab === 'messages') {
     body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={onThreadRead} />;
+  } else if (tab === 'profile') {
+    body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
   }
 
   return (
@@ -1318,14 +1321,14 @@ function WorkerApp() {
       </div>
 
       {/* Horní lišta — vlevo oválek s nástroji (Kalendář + Zvoneček).
-          Viditelné na všech záložkách, jen ne v otevřeném chatu. */}
-      {loaded && !chatOpen && !detailOpen && (
+          Na všech záložkách kromě Profilu (ten má vlastní hlavičku) a otevřeného chatu. */}
+      {loaded && !chatOpen && !detailOpen && tab !== 'profile' && (
         <div style={{
-          position: 'fixed', top: 14, left: 16, zIndex: 8500,
+          position: 'fixed', top: 8, left: 16, zIndex: 8500,
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: '#fff', borderRadius: 999, padding: 3,
           border: '1px solid rgba(16,24,64,0.07)',
-          boxShadow: '0 8px 22px -6px rgba(16,24,64,0.22), 0 2px 6px -2px rgba(16,24,64,0.10)',
+          boxShadow: 'none',
         }}>
           {/* Kalendář */}
           <button onClick={() => setCalendarOpen(true)} title="Kalendář" style={{
@@ -1430,31 +1433,19 @@ function WorkerApp() {
 
       {/* Horní lišta — vpravo odznáček úrovně + ikona Profilu (bývalé Nastavení).
           Odznáček ukazuje aktuální stupeň brigádníka hned vedle profilu. */}
-      {loaded && !chatOpen && !detailOpen && (() => {
+      {loaded && !chatOpen && !detailOpen && tab !== 'profile' && (() => {
         const myTier = makejTrust({ ...W_TRUST, hodnoceni: Number(W_PROFILE.rating) || 0 }).tier;
         return (
-          <div style={{ position: 'fixed', top: 14, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setSettingsOpen(true)} title={'Tvůj stupeň: ' + myTier.nazev} style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', display: 'flex',
-            }}>
-              <WLevelBadge level={myTier.blevel} label={myTier.nazev} sm />
-            </button>
-            <button onClick={() => setSettingsOpen(true)} title="Profil" style={{
-              width: 44, height: 44, borderRadius: 999, flexShrink: 0,
-              background: '#fff', border: '1px solid rgba(16,24,64,0.07)', cursor: 'pointer',
-              display: 'grid', placeItems: 'center', boxShadow: '0 8px 22px -6px rgba(16,24,64,0.22), 0 2px 6px -2px rgba(16,24,64,0.10)',
-            }}>
-              <WIcoProfile size={22} color="#4a4f6b" />
-            </button>
-          </div>
+          <button onClick={() => setTab('profile')} title={'Tvůj stupeň: ' + myTier.nazev} style={{
+            position: 'fixed', top: 8, right: 16, zIndex: 8500,
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', display: 'flex',
+          }}>
+            <WLevelBadge level={myTier.blevel} label={myTier.nazev} sm />
+          </button>
         );
       })()}
 
-      {settingsOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
-          <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={t => { setSettingsOpen(false); setTab(t); }} onClose={() => setSettingsOpen(false)} />
-        </div>
-      )}
+      {/* Profil je teď 4. záložka (viz body výše), ne overlay. */}
 
       {calendarOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
@@ -1502,16 +1493,13 @@ function WorkerApp() {
         <nav style={{
           display: 'flex', alignItems: 'center', gap: 4,
           margin: '2px 16px',
-          marginBottom: 'max(6px, env(safe-area-inset-bottom))',
-          padding: 7,
-          // Na klidném pozadí už sklo nemá co chytat, takže si drží vlastní
-          // krytí — jinak by se bar s plochou slil.
-          background: 'rgba(255,255,255,0.78)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: '0.5px solid rgba(255,255,255,0.9)',
-          borderRadius: 26,
-          boxShadow: 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4), 0 16px 34px -14px rgba(20,22,43,0.22)',
+          marginBottom: 'max(4px, calc(env(safe-area-inset-bottom) - 2px))',
+          padding: 6,
+          // Clean navbar — bílá plocha, tenký okraj, žádný stín ani sklo/odlesk.
+          background: '#fff',
+          border: '1px solid ' + T.border,
+          borderRadius: 22,
+          boxShadow: 'none',
           flexShrink: 0,
           position: 'relative', zIndex: 10,
         }}>
@@ -1524,26 +1512,26 @@ function WorkerApp() {
                 title={n.label}
                 style={{
                   flexGrow: active ? 1.6 : 1, flexShrink: 1, flexBasis: 0, minWidth: 0,
-                  height: 50, borderRadius: 19,
+                  height: 46, borderRadius: 17,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   padding: '0 6px', border: 'none', cursor: 'pointer',
-                  background: active ? T.primary : 'transparent',
-                  boxShadow: active ? '0 12px 22px -8px rgba(0,32,246,0.75)' : 'none',
-                  transition: 'flex-grow .4s cubic-bezier(.34,1.3,.5,1), background .28s ease, box-shadow .28s ease',
+                  background: 'transparent',
+                  boxShadow: 'none',
+                  transition: 'flex-grow .4s cubic-bezier(.34,1.3,.5,1)',
                   position: 'relative',
                 }}>
                 <div style={{ position: 'relative', flexShrink: 0, display: 'grid', placeItems: 'center' }}>
                   {n.img
                     ? <span style={{
                         display: 'block', width: 23, height: 23,
-                        background: active ? '#fff' : T.light,
+                        background: active ? T.primary : T.light,
                         WebkitMaskImage: `url(${n.img})`, maskImage: `url(${n.img})`,
                         WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
                         WebkitMaskPosition: 'center', maskPosition: 'center',
                         WebkitMaskSize: 'contain', maskSize: 'contain',
                         transition: 'background .28s ease',
                       }} />
-                    : <Icon name={n.icon} size={23} color={active ? '#fff' : T.light} />}
+                    : <Icon name={n.icon} size={23} color={active ? T.primary : T.light} />}
                   {n.badge > 0 && (
                     <span style={{
                       position: 'absolute', top: -6, right: -8,
@@ -1552,14 +1540,14 @@ function WorkerApp() {
                       // Červená vždy (i na aktivní modré dlaždici) — nepřečtená
                       // zpráva musí "křičet", ne splynout s barvou appky.
                       background: T.destructive,
-                      color: '#fff', border: active ? '1.5px solid #fff' : 'none',
+                      color: '#fff', border: '2px solid #fff',
                       fontSize: 9, fontWeight: 800, fontFamily: T.fontHead,
                       display: 'grid', placeItems: 'center',
                     }}>{n.badge}</span>
                   )}
                 </div>
                 <span style={{
-                  color: '#fff', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700,
+                  color: T.primary, fontFamily: T.fontUI, fontSize: 13, fontWeight: 800,
                   whiteSpace: 'nowrap', overflow: 'hidden',
                   maxWidth: active ? 84 : 0,
                   opacity: active ? 1 : 0,

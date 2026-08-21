@@ -173,3 +173,21 @@ alter table public.jobs
 -- alter table public.profiles add column if not exists bio text;      -- pokud chybí
 -- alter table public.profiles add column if not exists founded int;
 ```
+
+### 2026-08-21 · Yasin (appka) · Uložené brigády — zatím jen localStorage
+V kartě inzerátu je tlačítko „Uložit" (záložka). Zatím se ukládá **lokálně na
+zařízení** (`localStorage`, klíč `makej-saved-jobs`), ŽÁDNÁ DB. Až se to bude
+napojovat na účet (obrazovka „Uložené"), přidá se tabulka:
+
+```sql
+-- návrh (až se bude nasazovat):
+create table if not exists public.saved_jobs (
+  user_id uuid references auth.users on delete cascade,
+  job_id  uuid references public.jobs on delete cascade,
+  created_at timestamptz default now(),
+  primary key (user_id, job_id)
+);
+alter table public.saved_jobs enable row level security;
+create policy "own saved" on public.saved_jobs
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```

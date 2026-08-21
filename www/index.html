@@ -12,11 +12,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="theme-color" content="#f3f2ec" />
+  <meta name="theme-color" content="#f7f8fc" />
   <title>makej. — najdi brigádu</title>
-  <link rel="icon" type="image/png" href="favicon.png?v=6" />
+  <link rel="icon" type="image/png" href="favicon.png?v=7" />
   <!-- Ikona a název pro „Přidat na plochu" (iPhone) — appka na ploše, ne screenshot stránky -->
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=6" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7" />
   <meta name="apple-mobile-web-app-title" content="Makej" />
 
   <!-- Lokální fonty (offline, bez Google CDN) -->
@@ -36,7 +36,7 @@
     html, body, #root { width: 100%; height: 100%; }
     html, body {
       margin: 0; padding: 0;
-      background: #f3f2ec;
+      background: #f7f8fc;
       font-family: "Inter", -apple-system, system-ui, sans-serif;
       color: #14141b;
       -webkit-font-smoothing: antialiased;
@@ -707,19 +707,19 @@
 <script type="text/babel" src="app.jsx?v=6"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
 <script type="text/babel" src="worker-supabase.jsx?v=2"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=29"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=35"></script>
 <script type="text/babel" src="worker-people.jsx"></script>
 <script type="text/babel" src="worker-messages.jsx"></script>
 <script type="text/babel" src="worker-profile.jsx?v=2"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>
-<script type="text/babel" src="worker-main.jsx?v=12"></script>
+<script type="text/babel" src="worker-main.jsx?v=19"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
 <script>
 (function () {
   // Auto-reload i přes ngrok (testování na telefonu) — vedle localhostu a lokální sítě.
-  if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname) && !/ngrok/.test(location.hostname)) return;
+  if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname) && !/ngrok|trycloudflare/.test(location.hostname)) return;
   const files = ['index.html', 'app.jsx', 'worker-theme.jsx', 'worker-supabase.jsx',
     'worker-swipe.jsx', 'worker-people.jsx', 'worker-messages.jsx', 'worker-profile.jsx',
     'worker-history.jsx', 'worker-main.jsx'];
