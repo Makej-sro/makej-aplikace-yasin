@@ -86,7 +86,7 @@ function WHistory({ tick, onReviewed, embedded }) {
         {needsReview.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ color: T.super, fontFamily: T.fontUI, fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Icon name="star-bold" size={14} color={T.super} /> Ohodnoť své brigády
+              <WStar size={14} color={T.super} /> Ohodnoť své brigády
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {needsReview.map(it => (
@@ -118,7 +118,7 @@ function WHistory({ tick, onReviewed, embedded }) {
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       boxShadow: '0 14px 26px -14px rgba(0,0,0,0.35)',
                     }}>
-                      <Icon name="star-bold" size={16} color={T.primary} /> Napsat hodnocení
+                      <WStar size={16} color={T.primary} /> Napsat hodnocení
                     </button>
                   </div>
                 </div>
@@ -163,8 +163,8 @@ function WHistory({ tick, onReviewed, embedded }) {
               {cancelTarget.jobTitle} u <b style={{ color: T.ink }}>{cancelTarget.company}</b>. Zaměstnavateli se směna zruší a tuhle akci nevrátíš.
             </div>
             <div style={{ marginTop: 12, padding: '11px 13px', borderRadius: 12, background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)', color: '#f43f5e', fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, lineHeight: 1.45, display: 'flex', alignItems: 'flex-start', gap: 8, textAlign: 'left' }}>
-              <Icon name="star-bold" size={15} color="#f43f5e" />
-              <span>Za zrušení potvrzené směny dostaneš od zaměstnavatele hodnocení <b>1★</b>, které ti stáhne průměr.</span>
+              <WStar size={15} color="#f43f5e" />
+              <span>Za zrušení potvrzené směny dostaneš od zaměstnavatele hodnocení <b style={{ whiteSpace: 'nowrap' }}>1<WStar size={12} color="#f43f5e" /></b>, které ti stáhne průměr.</span>
             </div>
             <button onClick={async () => {
               if (cancelling) return;
@@ -242,7 +242,7 @@ function WReviewModal({ item, onClose, onDone }) {
               onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)}
               onClick={() => { setRating(n); setErr(''); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, lineHeight: 0 }}>
-              <Icon name="star-bold" size={36} color={n <= shown ? T.super : 'rgba(18,18,26,0.14)'} />
+              <WStar size={36} color={n <= shown ? T.super : 'rgba(18,18,26,0.14)'} />
             </button>
           ))}
         </div>

@@ -92,7 +92,7 @@ function WPersonCard({ person, drag, isTop, depth = 0, onTap }) {
               {person.city && <span>{person.city}</span>}
               {person.rating > 0 && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                  <Icon name="star-bold" size={12} color={T.super} />{Number(person.rating).toFixed(1).replace('.', ',')}
+                  <WStar size={12} color={T.super} />{Number(person.rating).toFixed(1).replace('.', ',')}
                 </span>
               )}
             </div>

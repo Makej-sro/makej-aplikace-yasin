@@ -145,6 +145,10 @@ je to podklad, ať Sam ví, co chystat.
 - `contract` text — typ smlouvy (DPP / DPČ / HPP / IČO), v kartě i detailu.
 - `recurrence` text — pravidelnost brigády („Pravidelná" / „Jednorázová"); v kartě
   vlastní řádek s ikonkou (opakování vs. blesk). 2026-08-21.
+- `obor` text — kategorie brigády pro filtr (`gastro` / `sklad` / `promo` / `foto` /
+  `prodej`). Nové pole kvůli filtru inzerátů (trychtýř). 2026-08-22.
+  Filtr staví i na `job_type` (úvazek: brigada/part_time/full_time/jednrazova_vypomoc),
+  `pay` (cenové pásmo), `payout` (výplata), `recurrence` — vše už výše.
 - `payout` text — kdy je výplata (Týdně / Měsíčně / Hned po akci / Do 14 dní).
 - `created_at` timestamptz — datum vložení → v kartě „Přidáno …" (relativní čas).
 - `duties` text — podrobná náplň práce (víceřádkový popis celé směny).
@@ -163,6 +167,7 @@ Profil firmy (employer/company) v „O nás":
 alter table public.jobs
   add column if not exists contract text,
   add column if not exists recurrence text,
+  add column if not exists obor text,
   add column if not exists payout text,
   add column if not exists duties text,
   add column if not exists expectations text[] default '{}',

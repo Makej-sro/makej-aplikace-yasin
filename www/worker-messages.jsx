@@ -942,7 +942,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
             </button>
             {thread.rating > 0 && (
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.06)', flexShrink: 0 }}>
-                <Icon name="star-bold" size={14} color={T.super} />
+                <WStar size={14} color={T.super} />
                 <span style={{ color: T.ink, fontFamily: T.fontHead, fontWeight: 800, fontSize: 14 }}>{thread.rating.toFixed(1).replace('.', ',')}</span>
               </div>
             )}

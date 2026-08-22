@@ -238,25 +238,39 @@ function WToast({ toasts, onRemove }) {
 function _wRevDate(iso) {
   try { const d = new Date(iso); return (d.getMonth() + 1) + '/' + d.getFullYear(); } catch (e) { return ''; }
 }
+// Plná silueta hvězdy z Iconly Light-Outline (jen vnější obrys → vyplněný tvar).
+// Sdílená všemi hvězdami v appce (rating, recenze, štítky…).
+const W_STAR_PATH = 'M6.94691609,21.5 C6.53391609,21.5 6.12391609,21.37 5.77291609,21.114 C5.16691609,20.67 4.86991609,19.937 4.99891609,19.199 L5.69491609,15.189 C5.72091609,15.04 5.66991609,14.889 5.55991609,14.783 L2.60391609,11.943 C2.05991609,11.422 1.86491609,10.652 2.09491609,9.937 C2.32691609,9.214 2.94091609,8.697 3.69791609,8.589 L7.78591609,8 C7.94391609,7.978 8.07991609,7.881 8.14791609,7.743 L9.97491609,4.091 C10.3119161,3.418 10.9919161,3 11.7499161,3 L11.7499161,3 C12.5079161,3 13.1879161,3.418 13.5249161,4.091 L15.3529161,7.742 C15.4219161,7.881 15.5569161,7.978 15.7139161,8 L19.8019161,8.589 C20.5589161,8.697 21.1729161,9.214 21.4049161,9.937 C21.6349161,10.652 21.4389161,11.422 20.8949161,11.943 L17.9389161,14.783 C17.8289161,14.889 17.7789161,15.04 17.8049161,15.188 L18.5019161,19.199 C18.6299161,19.938 18.3329161,20.671 17.7259161,21.114 C17.1109161,21.565 16.3099161,21.626 15.6309161,21.272 L11.9779161,19.379 C11.8349161,19.305 11.6639161,19.305 11.5209161,19.379 L7.86791609,21.273 C7.57591609,21.425 7.26091609,21.5 6.94691609,21.5 Z';
+
+// Jedna hvězda — barvitelná, stejný tvar jako v recenzích. Nahrazuje „star-bold".
+function WStar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: 'middle', flex: 'none' }}>
+      <path d={W_STAR_PATH} fill={color} />
+    </svg>
+  );
+}
+
 // Hvězdy s částečnou výplní poslední hvězdy podle desetinné části (4,8 → pátá z 80 %).
 // U celých čísel (jednotlivé recenze) je vždy celá/prázdná.
 function WStars({ value, size }) {
-  const path = 'M6 1l1.6 3.2 3.4.5-2.5 2.4.6 3.4L6 8.9 2.9 10.5l.6-3.4L1 4.7l3.4-.5L6 1z';
+  const path = W_STAR_PATH;
   const full = Math.floor(value);
   const frac = value - full;
   const pct = Math.round(frac * 100);
   const gid = 'wStarG' + pct;
+  const GOLD = T.super, EMPTY = '#E6E9F5';
   return (
     <span style={{ display: 'inline-flex', gap: 2 }} aria-label={value.toFixed(1).replace('.', ',') + ' z 5 hvězd'}>
       {[0, 1, 2, 3, 4].map(i => {
         const partial = i === full && frac > 0.05;
-        const fill = i < full ? '#FFC46B' : (partial ? 'url(#' + gid + ')' : '#E6E9F5');
+        const fill = i < full ? GOLD : (partial ? 'url(#' + gid + ')' : EMPTY);
         return (
-          <svg key={i} width={size} height={size} viewBox="0 0 12 12" aria-hidden="true">
+          <svg key={i} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
             {partial && (
               <defs><linearGradient id={gid} x1="0" x2="1" y1="0" y2="0">
-                <stop offset={pct + '%'} stopColor="#FFC46B" />
-                <stop offset={pct + '%'} stopColor="#E6E9F5" />
+                <stop offset={pct + '%'} stopColor={GOLD} />
+                <stop offset={pct + '%'} stopColor={EMPTY} />
               </linearGradient></defs>
             )}
             <path d={path} fill={fill} />
@@ -489,6 +503,17 @@ function WIcoRepeat({ size = 20, color = 'currentColor' }) {
         <path d="M15 8.1 18.6 8.3 18.8 4.7" />
         <path d="M18.5 15.6A7.4 7.4 0 0 1 5.6 15.9" />
         <path d="M9 15.9 5.4 15.7 5.2 19.3" />
+      </g>
+    </svg>
+  );
+}
+
+// Iconly Light-Outline — Filtr (trychtýř). Barvitelný, stejná rodina jako zvoneček/kalendář.
+function WIcoFilter({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g transform="translate(2,2)" fill={color} fillRule="evenodd">
+        <path d="M6.7734,9.5987 C6.7914,9.6147 6.8084,9.6297 6.8254,9.6477 C7.9044,10.7537 8.4994,12.2187 8.4994,13.7737 L8.4994,17.7577 L10.7354,16.5397 C10.9114,16.4437 11.0204,16.2557 11.0204,16.0487 L11.0204,13.7617 C11.0204,12.2127 11.6094,10.7527 12.6784,9.6527 L17.5154,4.5077 C17.8284,4.1747 18.0004,3.7377 18.0004,3.2767 L18.0004,2.3407 C18.0004,1.8767 17.6344,1.4997 17.1864,1.4997 L2.3154,1.4997 C1.8664,1.4997 1.5004,1.8767 1.5004,2.3407 L1.5004,3.2767 C1.5004,3.7377 1.6724,4.1747 1.9854,4.5067 L6.7734,9.5987 Z M8.1464,19.5007 C7.9444,19.5007 7.7444,19.4467 7.5624,19.3387 C7.2104,19.1287 6.9994,18.7577 6.9994,18.3457 L6.9994,13.7737 C6.9994,12.6387 6.5764,11.5697 5.8054,10.7507 C5.7824,10.7317 5.7594,10.7107 5.7394,10.6887 L0.8934,5.5357 C0.3174,4.9237 0.0004,4.1207 0.0004,3.2767 L0.0004,2.3407 C0.0004,1.0497 1.0394,-0.0003 2.3154,-0.0003 L17.1864,-0.0003 C18.4614,-0.0003 19.5004,1.0497 19.5004,2.3407 L19.5004,3.2767 C19.5004,4.1197 19.1834,4.9217 18.6094,5.5347 L13.7624,10.6887 C12.9594,11.5167 12.5204,12.6057 12.5204,13.7617 L12.5204,16.0487 C12.5204,16.8047 12.1114,17.4967 11.4534,17.8567 L8.6924,19.3607 C8.5204,19.4537 8.3334,19.5007 8.1464,19.5007 L8.1464,19.5007 Z" />
       </g>
     </svg>
   );
@@ -835,7 +860,7 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontFamily: T.fontUI, fontSize: 13 }}>{industry || 'Zaměstnavatel'}</span>
                 {rating > 0 && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                    <Icon name="star-bold" size={12} color={T.super} />
+                    <WStar size={12} color={T.super} />
                     <span style={{ color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 13 }}>{rating.toFixed(1).replace('.', ',')}</span>
                   </span>
                 )}
@@ -928,7 +953,7 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
                       <div style={{ width: 32, height: 32, borderRadius: 9, background: W_AVATAR_BG, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 11, flexShrink: 0 }}>{av}</div>
                       <div style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{author}</div>
                       <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                        {[1, 2, 3, 4, 5].map(n => <Icon key={n} name="star-bold" size={12} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
+                        {[1, 2, 3, 4, 5].map(n => <WStar key={n} size={12} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
                       </div>
                     </div>
                     {r.text && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>„{r.text}"</div>}
@@ -1417,7 +1442,7 @@ function WorkerApp() {
                           onClick={() => { setBellOpen(false); r.go(); }}
                           style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
                           <div style={{ width: 40, height: 40, borderRadius: 11, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                            <Icon name={r.icon} size={18} color={T.primary} />
+                            {r.icon === 'star-bold' ? <WStar size={18} color={T.primary} /> : <Icon name={r.icon} size={18} color={T.primary} />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>

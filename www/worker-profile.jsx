@@ -1396,7 +1396,7 @@ function WReviewsPage({ reviews, onClose }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                    {[1, 2, 3, 4, 5].map(n => <Icon key={n} name="star-bold" size={15} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
+                    {[1, 2, 3, 4, 5].map(n => <WStar key={n} size={15} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
                   </div>
                 </div>
                 {r.text && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.55, fontStyle: 'italic' }}>„{r.text}"</div>}

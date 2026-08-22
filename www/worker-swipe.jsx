@@ -11,8 +11,58 @@ const KRAJE_W = [
 ];
 const _krajName = id => (KRAJE_W.find(k => k.id === id) || {}).name || id;
 
+// ── Filtr inzerátů (trychtýř vpravo nahoře) ─────────────────────────────
+// 5 sekcí, každá multi-výběr. Hodnoty se ukládají do localStorage a rovnou
+// filtrují feed. Prázdná sekce = bez omezení. Mapováno na pole karty inzerátu.
+const W_FILTERS = [
+  { key: 'jobType', label: 'Úvazek', opts: [
+    ['brigada', 'Brigáda'], ['part_time', 'Částečný úvazek'], ['full_time', 'Plný úvazek'], ['jednrazova_vypomoc', 'Jednorázová výpomoc'],
+  ] },
+  { key: 'obor', label: 'Obor', opts: [
+    ['gastro', 'Gastro'], ['sklad', 'Sklad & logistika'], ['promo', 'Promo & eventy'], ['foto', 'Foto & video'], ['prodej', 'Prodej'],
+  ] },
+  { key: 'pay', label: 'Odměna', opts: [
+    ['0-150', 'Do 150 Kč/h'], ['150-200', '150–200 Kč/h'], ['200-250', '200–250 Kč/h'], ['250-100000', '250+ Kč/h'],
+  ] },
+  { key: 'payout', label: 'Výplata', opts: [
+    ['Týdně', 'Týdně'], ['Hned po akci', 'Hned po akci'], ['Do 14 dní', 'Do 14 dní'], ['Měsíčně', 'Měsíčně'],
+  ] },
+  { key: 'recurrence', label: 'Pravidelnost', opts: [
+    ['Pravidelná', 'Pravidelná'], ['Jednorázová', 'Jednorázová'],
+  ] },
+];
+const W_FILTER_EMPTY = { jobType: [], obor: [], pay: [], payout: [], recurrence: [] };
+function _wLoadFilters() {
+  try { return { ...W_FILTER_EMPTY, ...JSON.parse(localStorage.getItem('makej-worker-filters') || '{}') }; }
+  catch (e) { return { ...W_FILTER_EMPTY }; }
+}
+// Spadá hodinovka do některé z vybraných cenových kategorií? (OR přes kategorie)
+function _wPayInBands(pay, bands) {
+  if (!bands || !bands.length) return true;
+  return bands.some(b => { const [lo, hi] = b.split('-').map(Number); return pay >= lo && pay < hi; });
+}
+// Projde inzerát aktivním filtrem? Prázdná dimenze = bez omezení.
+function _wJobMatchesFilters(j, f) {
+  if (!f) return true;
+  if (f.jobType.length && !f.jobType.includes(j.jobType || 'brigada')) return false;
+  if (f.obor.length && !f.obor.includes(j.obor)) return false;
+  if (f.payout.length && !f.payout.includes(j.payout)) return false;
+  if (f.recurrence.length && !f.recurrence.includes(j.recurrence)) return false;
+  if (f.pay.length && !_wPayInBands(Number(j.pay) || 0, f.pay)) return false;
+  return true;
+}
+const _wFilterCount = f => f ? Object.keys(W_FILTER_EMPTY).reduce((n, k) => n + (f[k] ? f[k].length : 0), 0) : 0;
+
+// Zdroj feedu (reálné inzeráty, jinak demo) → filtr krajů → filtr sekcí.
+function _wComputeFeed(kraje, filters) {
+  const real = W_JOBS.map(jobToCard);
+  const src  = real.length ? real : _wDemoJobs();
+  const byKraj = (kraje && kraje.length) ? src.filter(j => kraje.includes(j.kraj)) : src;
+  return byKraj.filter(j => _wJobMatchesFilters(j, filters));
+}
+
 // ── Konec zásobníku — nikdy prázdná obrazovka, vždy nabídni další krok ──
-function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
+function WDeckEnd({ kraje, otherCount, filterCount = 0, onClearFilters, onClearKraje, onRestored }) {
   // Odmítnuté načteme dopředu — tlačítko pak jen předá hotový seznam, nemá jak selhat
   const [rej, setRej] = useStateW(null);   // null = ještě načítáme; { jobs, celkem }
 
@@ -31,15 +81,18 @@ function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
   // odmítl nějaké, ale žádná už není aktivní → chceme to říct, ne mlčet
   const odmitnuteProsle = !!rej && rej.celkem > 0 && rejected === 0;
 
-  // Nejsilnější dostupná cesta ven: rozšířit kraje → jinak vrátit odmítnuté
+  // Nejsilnější dostupná cesta ven: zrušit filtr → rozšířit kraje → vrátit odmítnuté
   const loading    = rej === null;
+  const hasFilters = filterCount > 0;
   const canWiden   = kraje.length > 0 && otherCount > 0;
   const canRestore = !canWiden && rejected > 0;
 
   // Texty bez rodu — vyhýbáme se příčestí minulému (prošel/la, odmítl/a)
-  const title = canWiden ? 'Ve vybraných krajích je hotovo' : 'Konec nabídek';
+  const title = hasFilters ? 'Nic neodpovídá filtru' : canWiden ? 'Ve vybraných krajích je hotovo' : 'Konec nabídek';
 
-  const subtitle = canWiden
+  const subtitle = hasFilters
+    ? <>Zkus povolit víc možností, nebo filtr zruš.</>
+    : canWiden
     ? <>Jinde v Česku ale brigády jsou.</>
     : canRestore
       ? <>Nové přibývají každý den. Zatím se můžeš vrátit k odmítnutým.</>
@@ -66,15 +119,22 @@ function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
           width: 62, height: 62, borderRadius: 20, background: T.tint,
           display: 'grid', placeItems: 'center', margin: '0 auto 16px',
         }}>
-          <Icon name={canWiden ? 'map-point-bold' : 'check-circle-bold'} size={30} color={T.primary} />
+          {hasFilters ? <WIcoFilter size={28} color={T.primary} /> : <Icon name={canWiden ? 'map-point-bold' : 'check-circle-bold'} size={30} color={T.primary} />}
         </div>
 
         <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, marginBottom: 8 }}>{title}</div>
         <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.6, marginBottom: 20 }}>{subtitle}</div>
 
+        {hasFilters && (
+          <button onClick={onClearFilters} style={{ ...btn, background: T.primary, color: '#fff', boxShadow: '0 12px 24px -10px rgba(0,32,246,0.7)' }}>
+            <WIcoFilter size={16} color="#fff" />
+            Zrušit filtr
+          </button>
+        )}
+
         {canWiden && (
-          <button onClick={onClearKraje} style={{ ...btn, background: T.primary, color: '#fff', boxShadow: '0 12px 24px -10px rgba(0,32,246,0.7)' }}>
-            <Icon name="magnifer-linear" size={17} color="#fff" />
+          <button onClick={onClearKraje} style={{ ...btn, background: hasFilters ? T.tint : T.primary, color: hasFilters ? T.primary : '#fff', marginTop: hasFilters ? 10 : 0, boxShadow: hasFilters ? 'none' : '0 12px 24px -10px rgba(0,32,246,0.7)' }}>
+            <Icon name="magnifer-linear" size={17} color={hasFilters ? T.primary : '#fff'} />
             Zobrazit {otherCount} {_wPlural(otherCount, 'brigádu', 'brigády', 'brigád')} odjinud
           </button>
         )}
@@ -86,7 +146,7 @@ function WDeckEnd({ kraje, otherCount, onClearKraje, onRestored }) {
         )}
 
         {/* I když nic rozšířit nejde, obrazovka nikdy nezůstane bez akce */}
-        {!canWiden && !canRestore && !loading && (
+        {!hasFilters && !canWiden && !canRestore && !loading && (
           <button onClick={() => onRestored(null)} style={{ ...btn, background: T.tint, color: T.primary }}>
             <Icon name="refresh-bold" size={17} color={T.primary} />
             Zkusit znovu
@@ -236,11 +296,96 @@ function WFounderBadge({ label = 'Zakládající partner' }) {
   );
 }
 
-function WSwipe({ tick }) {
-  const [jobs,       setJobs]       = useStateW(() => {
-    const real = W_JOBS.map(jobToCard);
-    return real.length ? real : _wDemoJobs();
+// ── Trychtýř filtru vpravo nahoře (kde bývala profilovka) ─────────────────
+// Klik rozjede sekce doleva → klik na sekci otevře roletku (multi-výběr) →
+// filtr se aplikuje živě, klik na trychtýř / mimo zavře. Stav řídí WSwipe.
+function WJobFilter({ filters, onToggle, onClear, count }) {
+  const [open, setOpen]       = useStateW(false);
+  const [section, setSection] = useStateW(null);
+  const active = open || count > 0;
+  const openSec = W_FILTERS.find(s => s.key === section) || null;
+
+  const chip = on => ({
+    flex: 'none', height: 34, padding: '0 12px', borderRadius: 11,
+    border: '1px solid ' + (on ? T.primary : T.border), background: on ? T.tint : '#fff',
+    color: on ? T.primary : T.ink, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
+    display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
   });
+  const numBadge = { minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+
+  const closeAll = () => { setOpen(false); setSection(null); };
+
+  return (
+    <>
+      {/* Scrim — klik mimo zavře (filtr se už aplikoval živě) */}
+      {open && <div onClick={closeAll} style={{ position: 'fixed', inset: 0, zIndex: 8480, background: 'transparent' }} />}
+
+      <div style={{ position: 'fixed', top: 8, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Vysouvací pás se sekcemi (roste doleva) */}
+        <div className="wfilter-strip" style={{
+          display: 'flex', gap: 6, alignItems: 'center',
+          maxWidth: open ? 'calc(100vw - 168px)' : 0, opacity: open ? 1 : 0,
+          overflowX: 'auto', overflowY: 'visible', scrollbarWidth: 'none', msOverflowStyle: 'none',
+          transition: 'max-width .34s cubic-bezier(.2,.8,.2,1), opacity .26s ease',
+          pointerEvents: open ? 'auto' : 'none',
+        }}>
+          {count > 0 && (
+            <button onClick={onClear} title="Vymazat filtr" style={{ ...chip(false), color: T.destructive, borderColor: 'rgba(226,86,74,0.35)' }}>Vymazat</button>
+          )}
+          {W_FILTERS.map(sec => {
+            const n = (filters[sec.key] || []).length;
+            const sel = n > 0 || section === sec.key;
+            return (
+              <button key={sec.key} onClick={() => setSection(section === sec.key ? null : sec.key)} style={chip(sel)}>
+                {sec.label}{n > 0 && <span style={numBadge}>{n}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Trychtýř */}
+        <button onClick={() => { if (open) closeAll(); else setOpen(true); }} title="Filtr"
+          style={{ position: 'relative', width: 40, height: 40, flex: 'none', borderRadius: 13, cursor: 'pointer',
+            border: active ? 'none' : '1px solid ' + T.border, background: active ? T.primary : '#fff',
+            display: 'grid', placeItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
+          <WIcoFilter size={20} color={active ? '#fff' : T.ink} />
+          {count > 0 && !open && (
+            <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: T.primary, color: '#fff', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{count}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Roletka vybrané sekce */}
+      {open && openSec && (
+        <div style={{ position: 'fixed', top: 54, right: 16, zIndex: 8500, width: 244,
+          background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
+          boxShadow: '0 20px 44px -18px rgba(20,22,43,0.34)', padding: 8,
+          maxHeight: '62vh', overflowY: 'auto', animation: 'wFilterDrop .2s cubic-bezier(.2,.8,.2,1)' }}>
+          <div style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB', padding: '4px 8px 8px' }}>{openSec.label}</div>
+          {openSec.opts.map(([val, label]) => {
+            const on = (filters[openSec.key] || []).includes(val);
+            return (
+              <button key={val} onClick={() => onToggle(openSec.key, val)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 8px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 14, fontWeight: 600, color: T.ink, borderRadius: 10, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ width: 20, height: 20, flex: 'none', borderRadius: 6, border: '2px solid ' + (on ? T.primary : '#CBD2E6'), background: on ? T.primary : '#fff', display: 'grid', placeItems: 'center' }}>
+                  {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                </span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function WSwipe({ tick }) {
+  const [jobs,       setJobs]       = useStateW(() => _wComputeFeed(
+    (() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } })(),
+    _wLoadFilters(),
+  ));
   const [topIdx,     setTopIdx]     = useStateW(0);
   const [drag,       setDrag]       = useStateW({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
   const [matchAnim,  setMatchAnim]  = useStateW(null);
@@ -250,31 +395,31 @@ function WSwipe({ tick }) {
   const [detailJob,  setDetailJob]  = useStateW(null);
   const [detailRect, setDetailRect] = useStateW(null);   // rect karty → detail se z ní „roztáhne"
   const [kraje,      setKraje]      = useStateW(() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } });
+  const [filters,    setFilters]    = useStateW(_wLoadFilters);
   const userId  = useRefW(null);
   const dragRef = useRefW(drag);
   const deckRef = useRefW(null);   // kontejner karty → odkud se detail roztáhne
-
-  const _filterKraj = list => kraje.length ? list.filter(j => kraje.includes(j.kraj)) : list;
 
   useEffectW(() => { dragRef.current = drag; }, [drag]);
 
   useEffectW(() => {
     sb.auth.getSession().then(({ data: { session } }) => { userId.current = session?.user?.id || null; });
-    const real = _filterKraj(W_JOBS.map(jobToCard));
-    setJobs(real.length ? real : _wDemoJobs());
+    setJobs(_wComputeFeed(kraje, filters));
     setTopIdx(0);
   }, [tick]);
 
-  // Filtr krajů — ulož + přefiltruj feed
+  // Filtr (kraje + sekce) — ulož + přefiltruj feed
   useEffectW(() => {
     try { localStorage.setItem('makej-worker-kraje', JSON.stringify(kraje)); } catch (e) {}
-    const real = _filterKraj(W_JOBS.map(jobToCard));
-    setJobs(real.length ? real : _wDemoJobs());
+    try { localStorage.setItem('makej-worker-filters', JSON.stringify(filters)); } catch (e) {}
+    setJobs(_wComputeFeed(kraje, filters));
     setTopIdx(0);
-  }, [kraje]);
+  }, [kraje, filters]);
 
-  // Zatím bez ovládání v UI — čeká na společné tlačítko filtrů
-  const toggleKraj = id => setKraje(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleKraj    = id => setKraje(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleFilter  = (key, val) => setFilters(prev => { const cur = prev[key] || []; return { ...prev, [key]: cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val] }; });
+  const clearFilters  = () => setFilters({ ...W_FILTER_EMPTY });
+  const filterCount   = _wFilterCount(filters);
 
   const currentJob   = jobs[topIdx] || null;
   const visibleCards = jobs.slice(topIdx, topIdx + 3);
@@ -367,6 +512,9 @@ function WSwipe({ tick }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
 
+      {/* Filtr inzerátů — trychtýř vpravo nahoře (kde bývala profilovka) */}
+      <WJobFilter filters={filters} onToggle={toggleFilter} onClear={clearFilters} count={filterCount} />
+
       {/* Odsazení pod plovoucí horní lištu (odznáček úrovně + profil vpravo nahoře).
           Stupeň důvěry se teď ukazuje tam, ať není dvakrát. */}
       <div style={{ padding: '8px 20px 8px', flexShrink: 0 }} aria-hidden="true">
@@ -381,11 +529,13 @@ function WSwipe({ tick }) {
         <WDeckEnd
           kraje={kraje}
           otherCount={Math.max(0, W_JOBS.length - jobs.length)}
+          filterCount={filterCount}
+          onClearFilters={clearFilters}
           onClearKraje={() => setKraje([])}
           onRestored={list => {
             // Odmítnuté zobrazujeme bez filtru krajů — brigádník si o ně řekl výslovně
             if (list && list.length) { setJobs(list.map(jobToCard)); setTopIdx(0); }
-            else { setJobs(_filterKraj(W_JOBS.map(jobToCard))); setTopIdx(0); }
+            else { setJobs(_wComputeFeed(kraje, filters)); setTopIdx(0); }
           }}
         />
       ) : (
@@ -676,7 +826,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
               </span>
               {(job.rating > 0 || job.boosted) && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                  {job.rating > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}><Icon name="star-bold" size={12} color="#FFC46B" />{job.rating.toFixed(1).replace('.', ',')}{job.ratingCount ? ' · ' + job.ratingCount + ' hodnocení' : ''}</span>}
+                  {job.rating > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}><WStar size={12} color={T.super} />{job.rating.toFixed(1).replace('.', ',')}{job.ratingCount ? ' · ' + job.ratingCount + ' hodnocení' : ''}</span>}
                   {job.boosted && <WFounderBadge />}
                 </span>
               )}
@@ -853,7 +1003,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       {items.map((r, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, color: T.inkSoft, fontFamily: T.fontUI, fontSize: 14, lineHeight: 1.4 }}>
-          <span style={{ flexShrink: 0, marginTop: 1 }}><Icon name={iconName} size={16} color={iconColor} /></span>
+          <span style={{ flexShrink: 0, marginTop: 1 }}>{iconName === 'star-bold' ? <WStar size={16} color={iconColor} /> : <Icon name={iconName} size={16} color={iconColor} />}</span>
           <span>{r}</span>
         </div>
       ))}
@@ -970,7 +1120,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     {job.rating > 0 ? (
                       <button onClick={openReviews} title="Zobrazit recenze firmy" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 0, padding: 0, cursor: 'pointer', fontFamily: T.fontUI, fontSize: 12, whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>
-                        <Icon name="star-bold" size={12} color={T.super} />
+                        <WStar size={12} color={T.super} />
                         <span style={{ color: '#0B1233', fontWeight: 800 }}>{job.rating.toFixed(1).replace('.', ',')}</span>
                         <span style={{ color: T.primary, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2 }}>{revCount > 0 ? revCount + ' ' + _wPlural(revCount, 'recenze', 'recenze', 'recenzí') : 'recenze'}</span>
                       </button>
@@ -1045,7 +1195,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             {Array.isArray(job.bonuses) && job.bonuses.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                 <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co oceníme <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#9AA1BD' }}>· výhodou</span></span>
-                {bullets(job.bonuses, 'star-bold', '#E8A33D')}
+                {bullets(job.bonuses, 'star-bold', T.super)}
               </div>
             )}
 

@@ -17,7 +17,7 @@ Object.assign(T, {
   muted:     '#9096ad',
   mutedSoft: '#a6abc4',
   destructive:'#e2564a',
-  super:     '#f5b23c',           // zlatá hvězda
+  super:     '#f5b301',           // zlatá hvězda (jednotná pro všechny hvězdy)
   green:     '#1f9d5c',           // úspěch / hotovo
   greenSoft: '#e6f6ee',
   border:    '#edf0f7',           // světlé okraje karet
