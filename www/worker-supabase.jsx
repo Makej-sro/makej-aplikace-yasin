@@ -513,7 +513,7 @@ function jobToCard(job) {
     desc:      job.description || '',
     requirements: Array.isArray(job.requirements) ? job.requirements : [],
     benefits:  Array.isArray(job.benefits) ? job.benefits : [],
-    perks:     Array.isArray(job.requirements) ? job.requirements : [],
+    perks:     Array.isArray(job.perks) ? job.perks : [],
     positions: job.positions || 1,
     dressCode: job.dress_code || '',
     contactNote: job.contact_note || '',

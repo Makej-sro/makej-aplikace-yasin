@@ -53,6 +53,40 @@ galerie se rozjede sama. **Chce se říct Samovi** (sdílené, firemní strana).
 
 ## Historie provedených změn
 
+### 2026-08-22 · Yasin · SPUŠTĚNO: sloupce jobs + profiles (detail karty + filtr)
+Yasin sám pustil v Supabase SQL Editoru (main/production) additivní migraci —
+sloupce, na kterých staví bohatý detail inzerátu a filtr v appce brigádníka.
+Ověřeno přes anon API, že sloupce existují (zatím prázdné). **Nasazeno.**
+
+```sql
+alter table public.jobs
+  add column if not exists contract    text,
+  add column if not exists recurrence  text,
+  add column if not exists obor         text,
+  add column if not exists payout       text,
+  add column if not exists duties       text,
+  add column if not exists expectations text[] default '{}',
+  add column if not exists bonuses      text[] default '{}',
+  add column if not exists offer        text[] default '{}',
+  add column if not exists perks        text[] default '{}',
+  add column if not exists photos       text[] default '{}';
+alter table public.profiles
+  add column if not exists bio     text,
+  add column if not exists founded int;
+```
+
+**Zbývá firemní strana (Sam):** dashboard musí umět tato pole vyplnit při
+tvorbě/úpravě inzerátu (a profil firmy `bio`/`founded`). **DŮLEŽITÉ:** filtr
+v appce porovnává PŘESNÉ hodnoty, takže tato pole musí být v dashboardu
+**roletky s přesně danými hodnotami**, ne volný text:
+- `job_type`: `brigada` | `part_time` | `full_time` | `jednrazova_vypomoc`
+- `obor`: `gastro` | `sklad` | `promo` | `foto` | `prodej`
+- `recurrence`: `Pravidelná` | `Jednorázová`
+- `payout`: `Týdně` | `Hned po akci` | `Do 14 dní` | `Měsíčně`
+- `contract`: `DPP` | `DPČ` | `HPP` | `IČO` (volnější, jen se zobrazuje)
+Volný text/seznamy (bez vlivu na filtr): `duties` (víceřádkový popis),
+`expectations`/`bonuses`/`offer`/`perks` (pole řádků), `photos` (URL z uploadu).
+
 ### 2026-08-11 · Jan (appka, Claude) · Lidé záložka: karty brigádníků + peer-to-peer chat
 Nová funkce v appce brigádníka: kromě hledání práce si brigádník může zapnout
 vlastní "kartu" (nabídne sám sebe — skill, čím by pomohl, ne nutně
