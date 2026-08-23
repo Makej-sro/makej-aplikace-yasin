@@ -392,7 +392,9 @@ function WSwipe({ tick }) {
   const [hideInfo,   setHideInfo]   = useStateW(() => _zajemHidden());   // „Příště nezobrazovat"
   const [actionAnim, setActionAnim] = useStateW(null); // 'like' | 'pass' | 'super'
   const [flying,     setFlying]     = useStateW(0);    // 0=klid; 1/-1 = probíhá odlet → spodní karty se dorovnají o úroveň výš
+  const [savedFlash, setSavedFlash] = useStateW(0);    // čítač → spustí „Uloženo" flash uprostřed decku (pop in → podrž → plynule zmizí)
   const [detailJob,  setDetailJob]  = useStateW(null);
+  const [detailClosing, setDetailClosing] = useStateW(false);   // detail se právě zavírá (animace běží) → filtr už můžeme vrátit, ať nečeká na doběh
   const [detailRect, setDetailRect] = useStateW(null);   // rect karty → detail se z ní „roztáhne"
   const [kraje,      setKraje]      = useStateW(() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } });
   const [filters,    setFilters]    = useStateW(_wLoadFilters);
@@ -430,8 +432,6 @@ function WSwipe({ tick }) {
   }, [currentJob && currentJob.id]);
   const trust        = makejTrust({ ...W_TRUST, hodnoceni: Number(W_PROFILE.rating) || 0 });
   const remaining    = Math.max(0, jobs.length - topIdx);
-  // Částka na tlačítko „Mám zájem" — kolik si vydělá za směnu u aktuální karty.
-  const acceptAmount = Number((currentJob && (currentJob.shiftTotal || currentJob.total)) || 0);
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
 
@@ -450,6 +450,7 @@ function WSwipe({ tick }) {
     const flung = Math.abs(dragRef.current.x) > 60;
     const dist = flung ? 1400 : (window.innerWidth + 40);
     if (dir === 'super') setDrag(d => ({ ...d, x: 0, y: -1400, dragging: false }));
+    else if (dir === 'save') setDrag(d => ({ ...d, x: 260, y: 1100, dragging: false }));   // odlet dolů-vpravo „do profilu" (kde jsou uložené)
     else setDrag(d => ({ ...d, x: dir === 'like' ? dist : -dist, y: 0, dragging: false }));
     setFlying(dir === 'pass' ? -1 : 1);   // spodní karty se během odletu dorovnají o úroveň výš
     setTimeout(() => { snapBack(); setFlying(0); cb(); }, 340);
@@ -481,14 +482,28 @@ function WSwipe({ tick }) {
       if (uid && !job._demo) await createRejectionW(uid, job.id);
     });
   }
+  // Uložit z karty = plnohodnotná akce jako lajk/pass: uloží snímek brigády, na
+  // kartě problikne „Uloženo" a karta odletí „do profilu"; naskočí další.
+  // actionAnim čistíme až v cb (po odletu), ať razítko nepřeskočí na další kartu.
+  function doSave() {
+    if (!currentJob) return;
+    const job = currentJob;
+    _wSetSaved(job.id, true, job);
+    setSavedFlash(f => f + 1);   // „Uloženo" flash uprostřed — pop in, podrž, plynule zmizí (nezávisle na odletu karty)
+    animateFly('save', () => { setTopIdx(i => i + 1); });
+  }
 
   // Otevři detail a zapamatuj si rect karty, ať se detail roztáhne přesně z ní
   const openDetail = (job) => {
     if (deckRef.current) setDetailRect(deckRef.current.getBoundingClientRect());
+    setDetailClosing(false);
     setDetailJob(job);
   };
 
   const onPointerDown = e => {
+    // Klik na tlačítko v kartě (záložka „Uložit") není tah karty — nech ho proběhnout
+    // jako obyčejný klik, ať se nespustí drag ani otevření detailu.
+    if (e.target && e.target.closest && e.target.closest('button')) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({ x: 0, y: 0, dragging: true, moved: false, startX: e.clientX, startY: e.clientY });
   };
@@ -512,8 +527,11 @@ function WSwipe({ tick }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
 
-      {/* Filtr inzerátů — trychtýř vpravo nahoře (kde bývala profilovka) */}
-      <WJobFilter filters={filters} onToggle={toggleFilter} onClear={clearFilters} count={filterCount} />
+      {/* Filtr inzerátů — trychtýř vpravo nahoře (kde bývala profilovka).
+          Schová se jen po dobu plně otevřeného detailu; jakmile se detail začne
+          zavírat, vrátí se hned (stejně jako levá lišta se zvonkem/kalendářem),
+          ne až po doběhu zavírací animace. */}
+      {(!detailJob || detailClosing) && <WJobFilter filters={filters} onToggle={toggleFilter} onClear={clearFilters} count={filterCount} />}
 
       {/* Odsazení pod plovoucí horní lištu (odznáček úrovně + profil vpravo nahoře).
           Stupeň důvěry se teď ukazuje tam, ať není dvakrát. */}
@@ -568,12 +586,24 @@ function WSwipe({ tick }) {
                 isTop={isTop}
                 depth={shownDepth}
                 onTap={() => openDetail(job)}
+                onSave={doSave}
               />
             );
           })}
+
+          {/* „Uloženo" flash — uprostřed decku, drží se na místě (neletí s kartou),
+              plynule se objeví a zase zmizí. Klíč = čítač → každé uložení animaci spustí znovu. */}
+          {savedFlash > 0 && (
+            <div key={savedFlash} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 5 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '13px 22px', borderRadius: 999, background: '#fff', boxShadow: '0 14px 40px rgba(11,18,51,0.30)', fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, color: T.primary, animation: 'wSavedFlash 1.15s cubic-bezier(.34,1.2,.5,1) forwards' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill={T.primary} aria-hidden="true"><path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={T.primary} strokeWidth="1.7" strokeLinejoin="round" /></svg>
+                Uloženo
+              </span>
+            </div>
+          )}
         </div>
 
-          {/* Akce pod kartou — malé „přeskočit" (křížek) + velké „Mám zájem · částka".
+          {/* Akce pod kartou — malé „přeskočit" (křížek) + velké „Mám zájem".
               Fill + fajfka při přijetí, přeskok krátce zčervená. Vše nabité na naše
               doPass/doLike (odlet karty + panel „Zájem odeslán"); animace jen přes
               inline transitions, žádné keyframes — nekope se to s našimi animacemi. */}
@@ -606,7 +636,6 @@ function WSwipe({ tick }) {
               {/* Popisek + částka */}
               <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: '#fff', opacity: actionAnim === 'like' ? 0 : 1, transition: 'opacity .16s ease' }}>
                 Mám zájem
-                {acceptAmount > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: '#C7D0FF' }}>· {fmtKc(acceptAmount)}</span>}
               </span>
               {/* Fajfka */}
               <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: actionAnim === 'like' ? 1 : 0, transition: 'opacity .16s ease .1s' }}>
@@ -715,7 +744,8 @@ function WSwipe({ tick }) {
         <WJobDetailModal
           job={detailJob}
           fromRect={detailRect}
-          onClose={() => setDetailJob(null)}
+          onCloseStart={() => setDetailClosing(true)}
+          onClose={() => { setDetailJob(null); setDetailClosing(false); }}
           onLike={() => doLike(false)}
           onPass={() => doPass()}
         />
@@ -725,19 +755,79 @@ function WSwipe({ tick }) {
 }
 
 // ── Swipovací karta (light styl podle mockupu) ─────────────────
-// Uložené brigády — zatím lokálně v prohlížeči (localStorage). Backend/Supabase
-// (tabulka saved_jobs) přijde později; teď se uloží na zařízení.
-function _wSavedSet() {
-  try { return new Set(JSON.parse(localStorage.getItem('makej-saved-jobs') || '[]')); } catch (e) { return new Set(); }
+// Uložené brigády — zatím lokálně v prohlížeči (localStorage). Ukládá se celý
+// snímek inzerátu (ne jen ID), aby šel zobrazit v profilu → Uložené i mimo feed.
+// Backend/Supabase (tabulka saved_jobs) přijde později; teď se uloží na zařízení.
+function _wSavedList() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('makej-saved-jobs') || '[]');
+    return Array.isArray(raw) ? raw.filter(x => x && typeof x === 'object' && x.id != null) : [];
+  } catch (e) { return []; }
 }
-function _wIsSaved(id) { return _wSavedSet().has(id); }
-function _wSetSaved(id, on) {
-  const s = _wSavedSet();
-  if (on) s.add(id); else s.delete(id);
-  try { localStorage.setItem('makej-saved-jobs', JSON.stringify([...s])); } catch (e) {}
+function _wIsSaved(id) { return _wSavedList().some(j => j.id === id); }
+function _wSetSaved(id, on, job) {
+  const list = _wSavedList().filter(j => j.id !== id);
+  if (on && job) list.unshift({ ...job, savedAt: Date.now() });
+  try { localStorage.setItem('makej-saved-jobs', JSON.stringify(list)); } catch (e) {}
 }
 
-function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
+// Celostránkový přehled uložených brigád (otevírá se z Profilu → Uložené).
+// Klepnutí na řádek otevře detail (read-only), záložka na řádku brigádu odebere.
+function WSavedPage({ onClose }) {
+  const [list, setList]           = useStateW(() => _wSavedList());
+  const [detailJob, setDetailJob] = useStateW(null);
+  const remove = (id) => { _wSetSaved(id, false); setList(_wSavedList()); };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 140, background: T.bg, display: 'flex', flexDirection: 'column', animation: 'wPop .28s cubic-bezier(.2,.8,.2,1)' }}>
+      {/* Header */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 'calc(12px + env(safe-area-inset-top)) 16px 12px', background: '#fff', borderBottom: '1px solid ' + T.border }}>
+        <WZpet onClick={onClose} />
+        <div>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 18, fontWeight: 800 }}>Uložené brigády</div>
+          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5 }}>{list.length} {_wPlural(list.length, 'brigáda', 'brigády', 'brigád')}</div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px calc(20px + env(safe-area-inset-bottom))' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {list.length === 0 ? (
+            <div style={{ padding: '52px 26px', borderRadius: 20, background: '#fff', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
+              <div style={{ margin: '0 auto 16px', width: 56, height: 56, borderRadius: 999, background: T.tint, display: 'grid', placeItems: 'center' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={T.primary} strokeWidth="1.7" strokeLinejoin="round" /></svg>
+              </div>
+              <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Zatím nic uloženého</div>
+              <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.6 }}>Když u brigády ťukneš na záložku, uloží se sem, ať se k ní snadno vrátíš.</div>
+            </div>
+          ) : list.map(job => {
+            const per   = /(\/\s*h|hod|kč\/h)/i.test(job.payUnit || '') ? '/h' : ((job.payUnit || '').replace(/\s*Kč\s*/i, '') || '');
+            const total = Number(job.shiftTotal || job.total || 0);
+            const payTxt = total > 0 ? fmtKc(total) : (job.pay != null ? job.pay + ' Kč' + per : '');
+            const meta  = [job.company, job.location].filter(Boolean).join(' · ');
+            return (
+              <div key={job.id} onClick={() => setDetailJob(job)} style={{ display: 'flex', alignItems: 'center', gap: 13, background: '#fff', borderRadius: 18, padding: 14, boxShadow: '0 4px 20px rgba(0,32,246,0.06)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ width: 46, height: 46, flex: 'none', borderRadius: 13, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{job.logo || (job.company || '?').slice(0, 1)}</span>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.title}</span>
+                  {meta && <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</span>}
+                  {payTxt && <span style={{ color: T.primary, fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800 }}>{payTxt}</span>}
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); remove(job.id); }} title="Odebrat z uložených" style={{ flex: 'none', width: 38, height: 38, borderRadius: 12, border: '1px solid ' + T.border, background: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill={T.primary} aria-hidden="true"><path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={T.primary} strokeWidth="1.7" strokeLinejoin="round" /></svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {detailJob && <WJobDetailModal job={detailJob} readOnly onClose={() => setDetailJob(null)} />}
+    </div>
+  );
+}
+
+function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave }) {
   const [saved, setSaved] = useStateW(() => _wIsSaved(job.id));
   const x = isTop ? drag.x : 0;
   const y = isTop ? drag.y : 0;
@@ -756,9 +846,8 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
   const distanceTxt = job.distance != null ? String(job.distance).replace('.', ',') + ' km' : null;
   const typeLabel = job.jobType === 'jednrazova_vypomoc' ? 'Výpomoc' : job.jobType === 'part_time' ? 'Part-time' : job.jobType === 'full_time' ? 'Full-time' : 'Brigáda';
   const payPer = /(\/\s*h|hod|kč\/h)/i.test(job.payUnit || '') ? '/h' : ((job.payUnit || '').replace(/\s*Kč\s*/i, '') || '');
-  // Podmínky, které brigádníka zajímají hned: typ smlouvy a kdy dostane výplatu.
+  // Podmínka, která brigádníka zajímá hned: typ smlouvy.
   const contract = job.contract || job.smlouva || '';
-  const payout   = job.payout || job.vyplata || '';
   // Odměna: hlavní je celková částka za směnu, pod ní rozpad na hodinovku × hodiny.
   const shiftTotal = Number(job.shiftTotal || job.total || 0);
   const payNum     = Number(job.pay || 0);
@@ -801,8 +890,14 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
           {/* horní odznaky: typ (vlevo) + uložit (vpravo) */}
           <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff', marginTop: 2 }}>{typeLabel}</span>
-            {/* Uložit (záložka) — nahradilo pilulku vzdálenosti; vzdálenost je dole ve faktech */}
-            <button onClick={(e) => { e.stopPropagation(); const nv = !saved; setSaved(nv); _wSetSaved(job.id, nv); }} title={saved ? 'Uloženo' : 'Uložit'} style={{
+            {/* Uložit (záložka) — nahradilo pilulku vzdálenosti; vzdálenost je dole ve faktech.
+                pointerdown zastavíme, ať deck nezačne tah/nezachytí pointer (jinak by „spolkl" klik);
+                akci pustíme na pointerup (spolehlivé i na dotyku), klik jen zastavíme, ať neotevře detail. */}
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => { e.stopPropagation(); if (!isTop || !onSave) return; setSaved(true); onSave(); }}
+              onClick={(e) => e.stopPropagation()}
+              title="Uložit" style={{
               width: 34, height: 34, flex: 'none', borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
               background: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 2px 8px rgba(11,18,51,0.16)',
               WebkitTapHighlightColor: 'transparent',
@@ -855,20 +950,11 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
             )}
           </div>
 
-          {/* Odměna: velká celková částka za směnu + drobný rozpad (hodinovka × hodiny).
-              Pod hairline zůstává výplata (typ smlouvy se přesunul mezi fakta). */}
-          <div style={{ background: '#EEF1FC', borderRadius: 16, padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-              <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1 }}>{shiftTotal > 0 ? fmtKc(shiftTotal) : (job.pay + ' Kč' + payPer)}</span>
-              {(hourlyTxt || shiftHrs > 0) && (
-                <span style={{ fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700, color: '#7A82A6', whiteSpace: 'nowrap' }}>{[hourlyTxt, shiftHrs > 0 ? shiftHrs + ' h' : ''].filter(Boolean).join(' · ')}</span>
-              )}
-            </div>
-            {payout && (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, borderTop: '1px solid #DEE3F5', paddingTop: 10 }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#9AA2C4' }}>Výplata</span>
-                <span style={{ fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap' }}>{payout}</span>
-              </div>
+          {/* Odměna: velká celková částka za směnu + drobný rozpad (hodinovka × hodiny). */}
+          <div style={{ background: '#EEF1FC', borderRadius: 16, padding: '13px 16px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1 }}>{shiftTotal > 0 ? fmtKc(shiftTotal) : (job.pay + ' Kč' + payPer)}</span>
+            {(hourlyTxt || shiftHrs > 0) && (
+              <span style={{ fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700, color: '#7A82A6', whiteSpace: 'nowrap' }}>{[hourlyTxt, shiftHrs > 0 ? shiftHrs + ' h' : ''].filter(Boolean).join(' · ')}</span>
             )}
           </div>
 
@@ -922,13 +1008,14 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap }) {
             transition: drag.dragging ? 'none' : 'opacity .35s cubic-bezier(.2,.8,.2,1)',
           }} />
         )}
+
       </div>
     </div>
   );
 }
 
 // ── Detail inzerátu (reálná data od zaměstnavatele) ────────────
-function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, readOnly, statusLabel, onChat, onCancel }) {
+function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper, onPass, readOnly, statusLabel, onChat, onCancel }) {
   // „Expand" detailu z karty: po mountu se list roztáhne z rectu karty do celé
   // obrazovky (rohy 26→0, scale, fade), při zavření se smrskne zpět a pak odmountuje.
   const [shown, setShown] = useStateW(false);
@@ -947,6 +1034,7 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
   const animClose = (slow) => {
     setClosing(slow ? 'slow' : 'fast');
     setShown(false);
+    if (onCloseStart) onCloseStart();   // hned vrať filtr (jako levou lištu), ať nečeká na doběh animace
     if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false);   // vrať horní lištu
     // Odmountuj až po dojetí celé zavírací animace, ať se zmenšení stihne plynule
     // dohrát a nezmizí dřív, než dojede (dřív se to „useklo" na 360 ms).
@@ -1299,7 +1387,6 @@ function WJobDetailModal({ job, fromRect, onClose, onLike, onSuper, onPass, read
             <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '100%', background: T.primaryDeep, transformOrigin: 'left', transform: detailDone === 'like' ? 'scaleX(1)' : 'scaleX(0)', transition: 'transform .38s cubic-bezier(.4,0,.2,1)' }} />
             <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: '#fff', opacity: detailDone === 'like' ? 0 : 1, transition: 'opacity .16s ease' }}>
               Mám zájem
-              {Number(job.shiftTotal || job.total) > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: '#C7D0FF' }}>· {fmtKc(Number(job.shiftTotal || job.total))}</span>}
             </span>
             <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: detailDone === 'like' ? 1 : 0, transition: 'opacity .16s ease .1s' }}>
               <svg width="26" height="20" viewBox="0 0 27 21" aria-hidden="true"><path d="M2.5 11.5L9.8 18.5 24.5 2.5" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 32, strokeDashoffset: detailDone === 'like' ? 0 : 32, transition: 'stroke-dashoffset .3s cubic-bezier(.4,0,.2,1) .08s' }} /></svg>

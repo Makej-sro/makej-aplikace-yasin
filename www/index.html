@@ -101,6 +101,7 @@
     /* Panel „Odměna v okolí" — dopad značky na sloupci grafu + bublina s metodikou */
     @keyframes wPinDrop { from { opacity: 0; transform: translate(-50%,-14px); } to { opacity: 1; transform: translate(-50%,0); } }
     @keyframes wBubbleIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes wSavedFlash { 0% { opacity: 0; transform: scale(.6); } 16% { opacity: 1; transform: scale(1.07); } 28% { opacity: 1; transform: scale(1); } 70% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.98); } }
     /* Poskočí jen šipka nápovědy „táhni nahoru" — text stojí, aby řádek neposkakoval celý */
     @keyframes wHintHop {
       0%, 62%, 100% { transform: translateY(0);    opacity: .55; }
@@ -710,10 +711,10 @@
 <script type="text/babel" src="app.jsx?v=9"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
 <script type="text/babel" src="worker-supabase.jsx?v=3"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=42"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=47"></script>
 <script type="text/babel" src="worker-people.jsx"></script>
 <script type="text/babel" src="worker-messages.jsx"></script>
-<script type="text/babel" src="worker-profile.jsx?v=3"></script>
+<script type="text/babel" src="worker-profile.jsx?v=4"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>
 <script type="text/babel" src="worker-main.jsx?v=27"></script>

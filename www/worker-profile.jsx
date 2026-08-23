@@ -364,6 +364,8 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const [reviewsPageOpen, setReviewsPageOpen] = useStateW(false);
   const [earningsOpen, setEarningsOpen]       = useStateW(false);
   const [trustOpen, setTrustOpen]             = useStateW(false);
+  const [savedOpen, setSavedOpen]             = useStateW(false);
+  const savedCount = _wSavedList().length;
   const [notifsOn, setNotifsOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notifs') !== 'off'));
   const [soundOn, setSoundOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-notif-sound') !== 'off'));
   const [zajemOn, setZajemOn] = useStateW(() => (typeof localStorage === 'undefined' || localStorage.getItem('makej-hide-zajem') !== '1'));   // potvrzení „Zájem odeslán" po přijetí
@@ -813,6 +815,22 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
               })}
             </div>
 
+            {/* ── Uložené brigády — přehled toho, co sis uložil(a) záložkou na kartě ── */}
+            <button onClick={() => setSavedOpen(true)} title="Uložené brigády" style={{
+              ...KARTA, width: '100%', textAlign: 'left', marginBottom: 24,
+              border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              <span style={{ width: 44, height: 44, flex: 'none', borderRadius: 13, background: T.tint, display: 'grid', placeItems: 'center' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={T.primary} strokeWidth="1.8" strokeLinejoin="round" /></svg>
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>Uložené brigády</div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5 }}>{savedCount > 0 ? savedCount + ' ' + _wPlural(savedCount, 'uložená brigáda', 'uložené brigády', 'uložených brigád') : 'Ťukni na záložku u brigády a uloží se sem'}</div>
+              </div>
+              <span style={{ flexShrink: 0, color: T.mutedSoft, fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>›</span>
+            </button>
+
             {/* ── Doplň profil — seznam toho, co ještě chybí. Schová se, až je vše hotové. ── */}
             {todoLeft > 0 && (
               <div style={{ ...KARTA, marginBottom: 24, padding: '16px 18px' }}>
@@ -963,6 +981,7 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
       {reviewsPageOpen && <WReviewsPage reviews={reviews} onClose={() => setReviewsPageOpen(false)} />}
       {earningsOpen && <WEarningsPage vyd={vyd} onClose={() => setEarningsOpen(false)} />}
       {trustOpen && <WTrustPage trust={trust} onClose={() => setTrustOpen(false)} />}
+      {savedOpen && <WSavedPage onClose={() => setSavedOpen(false)} />}
 
       {/* Potvrzení smazání účtu (dotaz + heslo) */}
       {confirmDel && (() => {
