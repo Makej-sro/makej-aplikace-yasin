@@ -493,6 +493,33 @@ function WIcoEdit({ size = 20, color = 'currentColor' }) {
   );
 }
 
+// Dokument (typ smlouvy). NE tužka — ta znamená „upravit". Smlouva = list papíru
+// s textovými řádky. Stejná váha (~1,6) jako ostatní Iconly-laděné ikonky.
+function WIcoDoc({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2.75H7.5A2.75 2.75 0 0 0 4.75 5.5v13A2.75 2.75 0 0 0 7.5 21.25h9a2.75 2.75 0 0 0 2.75-2.75V8Z" />
+        <path d="M13.75 3v4.25A1.5 1.5 0 0 0 15.25 8.75H19.25" />
+        <path d="M8.5 13h7" />
+        <path d="M8.5 16.5h5" />
+      </g>
+    </svg>
+  );
+}
+
+// Profese (kufřík) — dodaná ikona Work.svg. Barvitelná (fill přebírá color).
+function WIcoWork({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 25 24" fill="none" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M13 13.9395V17.9765H11.5V13.9395H13Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M2.25488 5.12988H22.2449V12.8099L21.8738 13.0271C19.2852 14.5424 15.9013 15.4399 12.2449 15.4399C8.588 15.4399 5.21422 14.5422 2.626 13.0271L2.25488 12.8099V5.12988ZM3.75488 6.62988V11.9419C6.04043 13.1831 9.00031 13.9399 12.2449 13.9399C15.4899 13.9399 18.4587 13.183 20.7449 11.9418V6.62988H3.75488Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M9.25741 2.5498H15.2428L16.7361 6.00172L15.3594 6.59728L14.2574 4.0498H10.2428L9.14048 6.59731L7.76382 6.00164L9.25741 2.5498Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M3.75315 14.4179L3.94301 19.9502H20.5566L20.7465 14.4179L22.2456 14.4694L22.006 21.4502H2.49361L2.25403 14.4694L3.75315 14.4179Z" fill={color} />
+    </svg>
+  );
+}
+
 // Opakování (pravidelnost brigády) — kruhová „repeat" šipka. Vlastní kresba
 // laděná na váhu (~1,6) a styl reálných Iconly ikonek (kalendář/špendlík/tužka).
 function WIcoRepeat({ size = 20, color = 'currentColor' }) {

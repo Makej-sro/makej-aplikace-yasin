@@ -1,0 +1,25 @@
+{
+  "name": "Makej! — najdi brigádu",
+  "short_name": "Makej",
+  "description": "Makej! — mobilní aplikace pro brigádníky.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f8fc",
+  "theme_color": "#f7f8fc",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png?v=7",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -18,6 +18,8 @@
   <!-- Ikona a název pro „Přidat na plochu" (iPhone) — appka na ploše, ne screenshot stránky -->
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7" />
   <meta name="apple-mobile-web-app-title" content="Makej" />
+  <!-- Web App Manifest (Android/Chrome „Instalovat"; na iOS stačí meta výše) -->
+  <link rel="manifest" href="manifest.json?v=7" />
 
   <!-- Lokální fonty (offline, bez Google CDN) -->
   <link href="fonts.css" rel="stylesheet" />
@@ -101,7 +103,6 @@
     /* Panel „Odměna v okolí" — dopad značky na sloupci grafu + bublina s metodikou */
     @keyframes wPinDrop { from { opacity: 0; transform: translate(-50%,-14px); } to { opacity: 1; transform: translate(-50%,0); } }
     @keyframes wBubbleIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    @keyframes wSavedFlash { 0% { opacity: 0; transform: scale(.6); } 16% { opacity: 1; transform: scale(1.07); } 28% { opacity: 1; transform: scale(1); } 70% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.98); } }
     /* Poskočí jen šipka nápovědy „táhni nahoru" — text stojí, aby řádek neposkakoval celý */
     @keyframes wHintHop {
       0%, 62%, 100% { transform: translateY(0);    opacity: .55; }
@@ -274,6 +275,14 @@
     .wgallery { scrollbar-width: none; -ms-overflow-style: none; }
     .wgallery::-webkit-scrollbar { display: none; }
     button, input, textarea, select { font-family: inherit; }
+
+    /* Posuvník poloměru okolí ve filtru Území (krok 5 km). Thumb nejde přes inline styly. */
+    input.w-radius { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px;
+      background: #E2E6F2; outline: none; margin: 0; cursor: pointer; }
+    input.w-radius::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px;
+      border-radius: 999px; background: #4B60E8; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(20,22,43,.28); cursor: pointer; }
+    input.w-radius::-moz-range-thumb { width: 22px; height: 22px; border-radius: 999px; background: #4B60E8;
+      border: 3px solid #fff; box-shadow: 0 2px 6px rgba(20,22,43,.28); cursor: pointer; }
 
   </style>
 </head>
@@ -708,10 +717,13 @@
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel" src="app.jsx?v=9"></script>
+<script type="text/babel" src="app.jsx?v=12"></script>
+<script type="text/babel" src="makej-badge.jsx?v=1"></script>
+<script src="cz-mesta.js?v=1"></script>
+<script src="cz-profese.js?v=1"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
 <script type="text/babel" src="worker-supabase.jsx?v=3"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=47"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=64"></script>
 <script type="text/babel" src="worker-people.jsx"></script>
 <script type="text/babel" src="worker-messages.jsx"></script>
 <script type="text/babel" src="worker-profile.jsx?v=4"></script>
@@ -724,7 +736,7 @@
 (function () {
   // Auto-reload i přes ngrok (testování na telefonu) — vedle localhostu a lokální sítě.
   if (!/^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(location.hostname) && !/ngrok|trycloudflare/.test(location.hostname)) return;
-  const files = ['index.html', 'app.jsx', 'worker-theme.jsx', 'worker-supabase.jsx',
+  const files = ['index.html', 'app.jsx', 'makej-badge.jsx', 'worker-theme.jsx', 'worker-supabase.jsx',
     'worker-swipe.jsx', 'worker-people.jsx', 'worker-messages.jsx', 'worker-profile.jsx',
     'worker-history.jsx', 'worker-main.jsx'];
   const stamps = {};
