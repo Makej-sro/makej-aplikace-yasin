@@ -11,6 +11,17 @@ const KRAJE_W = [
 ];
 const _krajName = id => (KRAJE_W.find(k => k.id === id) || {}).name || id;
 
+// Haptika při výběru. Nativní appka (Capacitor Haptics) → Taptic Engine i na iOS.
+// Web fallback → navigator.vibrate (funguje na Androidu; iOS Safari to ignoruje).
+function wHaptic(kind) {
+  try {
+    const C = typeof window !== 'undefined' && window.Capacitor;
+    const H = C && C.Plugins && C.Plugins.Haptics;
+    if (H) { H.impact({ style: kind === 'heavy' ? 'HEAVY' : kind === 'medium' ? 'MEDIUM' : 'LIGHT' }); return; }
+  } catch (e) { /* nevadí, zkusíme web */ }
+  try { if (navigator.vibrate) navigator.vibrate(kind === 'heavy' ? 16 : 9); } catch (e) {}
+}
+
 // ── Filtr inzerátů (trychtýř vpravo nahoře) ─────────────────────────────
 // 5 sekcí, každá multi-výběr. Hodnoty se ukládají do localStorage a rovnou
 // filtrují feed. Prázdná sekce = bez omezení. Mapováno na pole karty inzerátu.
@@ -31,9 +42,6 @@ const W_FILTERS = [
   { key: 'contractType', label: 'Typ smlouvy', opts: [
     ['DPP', 'DPP'], ['DPC', 'DPČ'], ['EMPLOYMENT_CONTRACT', 'Pracovní smlouva'], ['SELF_EMPLOYED', 'IČO'],
   ] },
-  { key: 'obor', label: 'Obor', opts: [
-    ['gastro', 'Gastro'], ['sklad', 'Sklad & logistika'], ['promo', 'Promo & eventy'], ['foto', 'Foto & video'], ['prodej', 'Prodej'],
-  ] },
   { key: 'pay', label: 'Odměna', opts: [
     ['0-150', 'Do 150 Kč/h'], ['150-200', '150–200 Kč/h'], ['200-250', '200–250 Kč/h'], ['250-100000', '250+ Kč/h'],
   ] },
@@ -44,7 +52,7 @@ const W_FILTERS = [
     ['Pravidelná', 'Pravidelná'], ['Jednorázová', 'Jednorázová'],
   ] },
 ];
-const W_FILTER_EMPTY = { contractType: [], uvazek: [], proKoho: [], obor: [], pay: [], payout: [], recurrence: [] };
+const W_FILTER_EMPTY = { contractType: [], uvazek: [], proKoho: [], pay: [], payout: [], recurrence: [] };
 function _wLoadFilters() {
   try { return { ...W_FILTER_EMPTY, ...JSON.parse(localStorage.getItem('makej-worker-filters') || '{}') }; }
   catch (e) { return { ...W_FILTER_EMPTY }; }
@@ -99,7 +107,6 @@ function _wJobMatchesFilters(j, f) {
     if (!b || !f.uvazek.includes(b)) return false;
   }
   if (f.proKoho && f.proKoho.length && !_wJobMatchesProKoho(j, f.proKoho)) return false;
-  if (f.obor.length && !f.obor.includes(j.obor)) return false;
   if (f.payout.length && !f.payout.includes(j.payout)) return false;
   if (f.recurrence.length && !f.recurrence.includes(j.recurrence)) return false;
   if (f.pay.length && !_wPayInBands(Number(j.pay) || 0, f.pay)) return false;
@@ -157,35 +164,46 @@ function _wCitySuggest(query, limit) {
   return starts.concat(contains).slice(0, lim);
 }
 
-// ── Profese (CZ-ISCO): seznam, hledání, shoda s inzerátem ──────────────
+// ── Obory + profese (CZ-ISCO): seznam, hledání, shoda s inzerátem ───────
+// Jeden filtr: obory (2-místný kód, o:1) + profese (4-místný). Kód se vnořuje —
+// profese 5131 patří pod obor 51. Prázdné hledání = obory (procházení), psaní =
+// obory i profese (jako Území: prázdné kraje, psaní města).
 const _wProfeseAll = () => (typeof CZ_PROFESE !== 'undefined' ? CZ_PROFESE : []);
-// Prázdný dotaz → celý seznam (scroll). Jinak: shody na začátku, pak kdekoli.
+const _wOboryOnly  = () => _wProfeseAll().filter(p => p.o);
 function _wProfeseSuggest(query) {
-  const q = _wStripD(query); const arr = _wProfeseAll();
-  if (!q) return arr;
-  const starts = [], contains = [];
-  for (const p of arr) {
+  const q = _wStripD(query);
+  if (!q) return _wOboryOnly();
+  const rank = p => {
     const n = _wStripD(p.n), s = p.s ? _wStripD(p.s) : '';
-    if (n.startsWith(q)) starts.push(p);
-    else if (n.indexOf(q) !== -1 || (s && s.indexOf(q) !== -1)) contains.push(p);   // hledá i v hovorových synonymech
-  }
-  return starts.concat(contains);
+    if (n.startsWith(q)) return 0;
+    if (n.indexOf(q) !== -1) return 1;
+    if (s && s.indexOf(q) !== -1) return 2;   // shoda i v synonymech
+    return 9;
+  };
+  const hit = [];
+  for (const p of _wProfeseAll()) { const r = rank(p); if (r < 9) hit.push([p, r]); }
+  // Obory VŽDY první (jako kraje), uvnitř podle relevance (shoda na začátku > kdekoli > synonymum).
+  hit.sort((a, b) => { const ao = a[0].o ? 0 : 1, bo = b[0].o ? 0 : 1; return ao !== bo ? ao - bo : a[1] - b[1]; });
+  return hit.map(x => x[0]);
 }
 let _wProfeseByCode = null;
 function _wProfese(code) {
   if (!_wProfeseByCode) { _wProfeseByCode = {}; _wProfeseAll().forEach(p => { _wProfeseByCode[p.k] = p; }); }
   return _wProfeseByCode[code] || null;
 }
-// Inzerát odpovídá profesi: přímý CZ-ISCO tag (job.isco) → jinak volná shoda
-// významného slova z názvu profese v roli/titulku/oboru (prefix kvůli skloňování).
+// Inzerát odpovídá výběru: obor = PREFIX ISCO kódu (celý obor), profese = přesná
+// shoda. Fallback (inzerát bez isco): volná shoda synonym/názvu v roli/titulku.
 function _wJobMatchesProfese(job, codes) {
   if (!codes || !codes.length) return true;
-  if (job.isco && codes.indexOf(String(job.isco)) !== -1) return true;
-  const hay = _wStripD([job.role, job.title, job.name, job.position, job.obor].filter(Boolean).join(' '));
+  const isco = job.isco ? String(job.isco) : '';
+  if (isco) {
+    for (const c of codes) { if (c.length === 2 ? isco.startsWith(c) : isco === c) return true; }
+  }
+  const hay = _wStripD([job.role, job.title, job.name, job.position].filter(Boolean).join(' '));
   if (!hay) return false;
   for (const c of codes) {
     const p = _wProfese(c); if (!p) continue;
-    const toks = _wStripD(p.n).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
+    const toks = _wStripD(p.s || p.n).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
     for (const t of toks) { if (hay.indexOf(t.slice(0, 5)) !== -1) return true; }
   }
   return false;
@@ -469,221 +487,227 @@ function WFounderBadge({ label = 'Zakládající partner' }) {
 // filtr se aplikuje živě, klik na trychtýř / mimo zavře. Stav řídí WSwipe.
 const UZEMI = '__uzemi';
 const PROFESE = '__profese';
-function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, loc, onPickCity, onClearCity, onSetRadius, profese, onToggleProfese }) {
-  const [open, setOpen]       = useStateW(false);
-  const [section, setSection] = useStateW(null);
-  const [q, setQ]             = useStateW('');   // hledání ve filtru Území
-  const [pq, setPq]           = useStateW('');   // hledání ve filtru Profese
-  const active = open || count > 0;
-  const openSec = W_FILTERS.find(s => s.key === section) || null;
+// ── Panel filtrů: spodní sheet, tažený pruh kategorií, karta s volbami ──
+function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, loc, onPickCity, onClearCity, onSetRadius, profese, onToggleProfese, resultCount, countFor }) {
+  const [open, setOpen] = useStateW(false);
+  const [idx,  setIdx]  = useStateW(0);
+  const [q,  setQ]  = useStateW('');    // hledání v Území
+  const [pq, setPq] = useStateW('');    // hledání v Oboru
+  const railRef = useRefW(null);
+
+  const CATS = [
+    { key: UZEMI,   name: 'Území', special: 'uzemi' },
+    { key: PROFESE, name: 'Obor',  special: 'obor' },
+    ...W_FILTERS.map(s => ({ key: s.key, name: s.label, sec: s })),
+  ];
   const uzemiCount = (kraje ? kraje.length : 0) + (loc && loc.center ? 1 : 0);
   const profeseCount = profese ? profese.length : 0;
+  const catCount = c => c.special === 'uzemi' ? uzemiCount : c.special === 'obor' ? profeseCount : (filters[c.key] || []).length;
+  const active = open || count > 0;
+  const cat = CATS[Math.max(0, Math.min(CATS.length - 1, idx))];
   const suggestions = _wCitySuggest(q, 40);
   const profeseList = _wProfeseSuggest(pq);
 
-  const chip = on => ({
-    flex: 'none', height: 34, padding: '0 12px', borderRadius: 11,
-    border: '1px solid ' + (on ? T.primary : T.border), background: on ? T.tint : '#fff',
-    color: on ? T.primary : T.ink, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 700,
-    display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer',
-    WebkitTapHighlightColor: 'transparent',
-  });
-  const numBadge = { minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+  // Pruh kategorií: šířka pilulky 130 + mezera 8. Scale/stín plynule dle pozice scrollu.
+  const STEP = 138;
+  const paintRail = () => {
+    const rail = railRef.current; if (!rail) return;
+    const prog = rail.scrollLeft / STEP;
+    for (let i = 0; i < rail.children.length; i++) {
+      const pill = rail.children[i]; const d = Math.min(1, Math.abs(i - prog));
+      pill.style.opacity = (1 - d * 0.4).toFixed(2);
+      pill.style.transform = 'scale(' + (1 - d * 0.07).toFixed(3) + ')';
+      pill.style.boxShadow = '0 6px ' + (18 - d * 14).toFixed(0) + 'px rgba(0,32,246,' + (0.16 * (1 - d)).toFixed(3) + ')';
+    }
+  };
+  const onRailScroll = () => {
+    paintRail();
+    const rail = railRef.current; if (!rail) return;
+    const i = Math.max(0, Math.min(CATS.length - 1, Math.round(rail.scrollLeft / STEP)));
+    if (i !== idx) setIdx(i);
+  };
+  const goTo = i => { const rail = railRef.current; if (rail) rail.scrollTo({ left: i * STEP, behavior: 'smooth' }); };
+  useEffectW(() => {
+    if (!open) return;
+    const rail = railRef.current; if (!rail) return;
+    rail.scrollLeft = idx * STEP; paintRail();
+  }, [open]);
 
-  const closeAll = () => { setOpen(false); setSection(null); };
+  const close = () => setOpen(false);
+
+  // Volba bez zaškrtávátka — vybraný řádek se podbarví a text zmodrá.
+  const optRow = (on, dead) => ({
+    width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px', marginBottom: 4,
+    border: 0, borderRadius: 12, background: on ? T.tint : 'transparent', textAlign: 'left',
+    cursor: dead ? 'default' : 'pointer', fontFamily: T.fontUI, opacity: dead ? 0.45 : 1,
+    WebkitTapHighlightColor: 'transparent', transition: 'background .18s ease',
+  });
+  const headUpper = { fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB', padding: '2px 2px 6px' };
+  const searchWrap = { position: 'relative', display: 'flex', alignItems: 'center', marginBottom: 10 };
+  const searchInput = { width: '100%', boxSizing: 'border-box', height: 40, padding: '0 32px 0 13px', borderRadius: 12, border: '1px solid ' + T.border, background: '#F6F7FC', fontFamily: T.fontUI, fontSize: 14.5, color: T.ink, outline: 'none' };
+  const clearBtn = { position: 'absolute', right: 7, width: 22, height: 22, border: 0, borderRadius: 999, background: '#E2E6F2', color: '#5B6488', cursor: 'pointer', fontSize: 14, lineHeight: '22px', padding: 0 };
+  const blueRow = on => ({ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', marginBottom: 4,
+    background: on ? T.primary : '#fff', border: '1px solid ' + (on ? T.primary : T.border), cursor: 'pointer', textAlign: 'left',
+    fontFamily: T.fontUI, fontSize: 14, fontWeight: on ? 800 : 600, color: on ? '#fff' : T.ink, borderRadius: 11,
+    WebkitTapHighlightColor: 'transparent', transition: 'background .15s ease, color .15s ease, border-color .15s ease' });
+  const check = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', flex: 'none' }}><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+
+  // Obecná kategorie (Úvazek, Pro koho, Typ smlouvy, Odměna, Výplata, Pravidelnost) — volby s počty.
+  function genericBody(sec) {
+    return sec.opts.map(([val, label]) => {
+      const on = (filters[sec.key] || []).includes(val);
+      const n = countFor ? countFor(sec.key, val) : null;
+      const dead = n === 0 && !on;
+      return (
+        <button key={val} type="button" disabled={dead} onClick={() => !dead && onToggle(sec.key, val)} style={optRow(on, dead)}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: on ? 700 : 600, color: on ? T.primary : T.ink }}>{label}</span>
+          <span style={{ flex: 'none', fontSize: dead ? 12.5 : 13, fontWeight: on ? 800 : 700, color: on ? T.primary : (dead ? '#5B6488' : T.ink) }}>{n == null ? '' : (dead ? 'nic' : n)}</span>
+        </button>
+      );
+    });
+  }
+
+  // Území — vyhledávač → prázdné = kraje, psaní = města, vybrané město = okolí do X km.
+  function uzemiBody() {
+    return (
+      <div>
+        <div style={searchWrap}>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Hledej město nebo obec…" autoComplete="off" style={searchInput} />
+          {q && <button onClick={() => setQ('')} title="Smazat" style={clearBtn}>×</button>}
+        </div>
+        {q ? (
+          suggestions.length ? suggestions.map(m => (
+            <button key={m.n + m.k} onClick={() => { onPickCity(m); setQ(''); }} style={optRow(false, false)}>
+              <span style={{ flex: 'none', display: 'flex' }}><WIcoPin size={16} color={T.primary} /></span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.n}</span>
+              <span style={{ flex: 'none', fontSize: 11.5, color: '#A6ADCB' }}>{_krajName(m.k)}</span>
+            </button>
+          )) : <div style={{ padding: '12px 4px', color: '#7A82A6', fontFamily: T.fontUI, fontSize: 13 }}>Nic nenalezeno.</div>
+        ) : loc && loc.center ? (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', background: T.tint, borderRadius: 12, marginBottom: 10 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ flex: 'none', display: 'flex' }}><WIcoPin size={17} color={T.primary} /></span>
+                <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc.center.n}</span>
+              </span>
+              <button onClick={onClearCity} title="Zrušit město" style={{ flex: 'none', width: 24, height: 24, border: 0, borderRadius: 999, background: '#fff', color: T.destructive, cursor: 'pointer', fontSize: 15, lineHeight: '24px', padding: 0 }}>×</button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '2px 2px 10px' }}>
+              <span style={headUpper}>Okolí</span>
+              <span style={{ fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: T.primary }}>do {loc.radius || 25} km</span>
+            </div>
+            <input type="range" className="w-radius" min={5} max={100} step={5} value={loc.radius || 25} onChange={e => onSetRadius(Number(e.target.value))} aria-label="Poloměr okolí v km" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontFamily: T.fontUI, fontSize: 11, color: '#A6ADCB' }}><span>5 km</span><span>100 km</span></div>
+          </div>
+        ) : (
+          <div>
+            <div style={headUpper}>Kraje</div>
+            {KRAJE_W.map(k => { const on = (kraje || []).includes(k.id);
+              return <button key={k.id} onClick={() => onToggleKraj(k.id)} style={blueRow(on)}>{k.name}{on && check}</button>;
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Obor — vyhledávač → prázdné = obory, psaní = obory + profese (CZ-ISCO).
+  function oborBody() {
+    return (
+      <div>
+        <div style={searchWrap}>
+          <input value={pq} onChange={e => setPq(e.target.value)} placeholder="Hledej obor nebo profesi…" autoComplete="off" style={searchInput} />
+          {pq && <button onClick={() => setPq('')} title="Smazat" style={clearBtn}>×</button>}
+        </div>
+        <div style={headUpper}>{pq ? 'Obory & profese' : 'Obory'}<span style={{ color: '#C4CADD' }}> · {profeseList.length}</span></div>
+        {profeseList.length ? profeseList.map(p => { const on = (profese || []).includes(p.k);
+          return (
+            <button key={p.k} onClick={() => onToggleProfese(p.k)} style={{ ...blueRow(on), gap: 9, fontSize: 13.5,
+              border: '1px solid ' + (on ? T.primary : (p.o ? '#CBD2E6' : T.border)), fontWeight: on ? 800 : (p.o ? 800 : 600) }}>
+              <span style={{ flex: 'none', display: 'flex' }}><WIcoWork size={16} color={on ? '#fff' : T.primary} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>{p.n}</span>
+              {p.o && <span style={{ flex: 'none', fontSize: 10, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 999, background: on ? 'rgba(255,255,255,0.22)' : '#EEF1FA', color: on ? '#fff' : '#8A93B6' }}>obor</span>}
+              {on && check}
+            </button>
+          );
+        }) : <div style={{ padding: '12px 4px', color: '#7A82A6', fontFamily: T.fontUI, fontSize: 13 }}>Nic nenalezeno.</div>}
+      </div>
+    );
+  }
+
+  const body = cat.special === 'uzemi' ? uzemiBody() : cat.special === 'obor' ? oborBody() : genericBody(cat.sec);
 
   return (
     <>
-      {/* Scrim — klik mimo zavře (filtr se už aplikoval živě) */}
-      {open && <div onClick={closeAll} style={{ position: 'fixed', inset: 0, zIndex: 8480, background: 'transparent' }} />}
-
-      <div style={{ position: 'fixed', top: 8, right: 16, zIndex: 8500, display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Vysouvací pás se sekcemi (roste doleva) */}
-        <div className="wfilter-strip" style={{
-          display: 'flex', gap: 6, alignItems: 'center',
-          maxWidth: open ? 'calc(100vw - 168px)' : 0, opacity: open ? 1 : 0,
-          overflowX: 'auto', overflowY: 'visible', scrollbarWidth: 'none', msOverflowStyle: 'none',
-          transition: 'max-width .34s cubic-bezier(.2,.8,.2,1), opacity .26s ease',
-          pointerEvents: open ? 'auto' : 'none',
-        }}>
-          {count > 0 && (
-            <button onClick={onClear} title="Vymazat filtr" style={{ ...chip(false), color: T.destructive, borderColor: 'rgba(226,86,74,0.35)' }}>Vymazat</button>
-          )}
-          {/* Území — zvláštní sekce (vyhledávač + kraje / našeptávač měst) */}
-          <button onClick={() => setSection(section === UZEMI ? null : UZEMI)} style={chip(uzemiCount > 0 || section === UZEMI)}>
-            Území{uzemiCount > 0 && <span style={numBadge}>{uzemiCount}</span>}
-          </button>
-          {/* Profese — zvláštní sekce (vyhledávač + scroll profesí CZ-ISCO) */}
-          <button onClick={() => setSection(section === PROFESE ? null : PROFESE)} style={chip(profeseCount > 0 || section === PROFESE)}>
-            Profese{profeseCount > 0 && <span style={numBadge}>{profeseCount}</span>}
-          </button>
-          {W_FILTERS.map(sec => {
-            const n = (filters[sec.key] || []).length;
-            const sel = n > 0 || section === sec.key;
-            return (
-              <button key={sec.key} onClick={() => setSection(section === sec.key ? null : sec.key)} style={chip(sel)}>
-                {sec.label}{n > 0 && <span style={numBadge}>{n}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Trychtýř */}
-        <button onClick={() => { if (open) closeAll(); else setOpen(true); }} title="Filtr"
+      {/* Trychtýř — spouštěč panelu (vpravo nahoře) */}
+      <div style={{ position: 'fixed', top: 8, right: 16, zIndex: 8500 }}>
+        <button onClick={() => setOpen(true)} title="Filtr"
           style={{ position: 'relative', width: 40, height: 40, flex: 'none', borderRadius: 13, cursor: 'pointer',
             border: active ? 'none' : '1px solid ' + T.border, background: active ? T.primary : '#fff',
             display: 'grid', placeItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
           <WIcoFilter size={20} color={active ? '#fff' : T.ink} />
-          {count > 0 && !open && (
+          {count > 0 && (
             <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: T.primary, color: '#fff', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{count}</span>
           )}
         </button>
       </div>
 
-      {/* Roletka vybrané sekce */}
-      {open && openSec && (
-        <div style={{ position: 'fixed', top: 54, right: 16, zIndex: 8500, width: 244,
-          background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
-          boxShadow: '0 20px 44px -18px rgba(20,22,43,0.34)', padding: 8,
-          maxHeight: '62vh', overflowY: 'auto', animation: 'wFilterDrop .2s cubic-bezier(.2,.8,.2,1)' }}>
-          <div style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB', padding: '4px 8px 8px' }}>{openSec.label}</div>
-          {openSec.opts.map(([val, label]) => {
-            const on = (filters[openSec.key] || []).includes(val);
-            // Úvazek + Pro koho = modré obdélníky (jako kraje). Ostatní sekce = checkbox.
-            if (openSec.key === 'uvazek' || openSec.key === 'proKoho') {
-              return (
-                <button key={val} onClick={() => onToggle(openSec.key, val)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', marginBottom: 4,
-                    background: on ? T.primary : '#fff', border: '1px solid ' + (on ? T.primary : T.border),
-                    cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 14, fontWeight: on ? 800 : 600,
-                    color: on ? '#fff' : T.ink, borderRadius: 11, WebkitTapHighlightColor: 'transparent',
-                    transition: 'background .15s ease, color .15s ease, border-color .15s ease' }}>
-                  {label}
-                  {on && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', flex: 'none' }}><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                </button>
-              );
-            }
-            return (
-              <button key={val} onClick={() => onToggle(openSec.key, val)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 8px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 14, fontWeight: 600, color: T.ink, borderRadius: 10, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ width: 20, height: 20, flex: 'none', borderRadius: 6, border: '2px solid ' + (on ? T.primary : '#CBD2E6'), background: on ? T.primary : '#fff', display: 'grid', placeItems: 'center' }}>
-                  {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                </span>
-                {label}
+      {open && (
+        <>
+          {/* Závoj — klik mimo zavře (filtr platí živě) */}
+          <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 8590, background: 'rgba(20,22,43,.38)', animation: 'wScrimIn .2s ease both' }} />
+          {/* Spodní panel 75 % */}
+          <div role="dialog" aria-label="Filtry" style={{
+            position: 'fixed', left: 0, right: 0, bottom: 0, height: '90%', zIndex: 8600,
+            background: '#f7f8fc', borderRadius: '28px 28px 0 0', overflow: 'hidden',
+            boxShadow: '0 -16px 44px rgba(0,32,246,.12)', display: 'flex', flexDirection: 'column',
+            animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+            {/* Úchyt */}
+            <div style={{ flex: 'none', padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: '#e3e7f2' }} /></div>
+            {/* Lišta — křížek + Vymazat */}
+            <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 16px 12px' }}>
+              <button onClick={close} aria-label="Zavřít filtry" style={{ width: 38, height: 38, flex: 'none', border: '1px solid ' + T.border, borderRadius: 999, background: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke={T.ink} strokeWidth="1.7" strokeLinecap="round" /></svg>
               </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Roletka Území — vyhledávač → prázdný = kraje (scroll), psaní = našeptávač měst */}
-      {open && section === UZEMI && (
-        <div style={{ position: 'fixed', top: 54, right: 16, zIndex: 8500, width: 262,
-          background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
-          boxShadow: '0 20px 44px -18px rgba(20,22,43,0.34)', padding: 8,
-          maxHeight: '68vh', overflowY: 'auto', animation: 'wFilterDrop .2s cubic-bezier(.2,.8,.2,1)' }}>
-          {/* Vyhledávač */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 8px' }}>
-            <span style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Hledej město nebo obec…" autoComplete="off"
-                style={{ width: '100%', boxSizing: 'border-box', height: 38, padding: '0 30px 0 12px', borderRadius: 11,
-                  border: '1px solid ' + T.border, background: '#F6F7FC', fontFamily: T.fontUI, fontSize: 14, color: T.ink, outline: 'none' }} />
-              {q && <button onClick={() => setQ('')} title="Smazat" style={{ position: 'absolute', right: 6, width: 22, height: 22, border: 0, borderRadius: 999, background: '#E2E6F2', color: '#5B6488', cursor: 'pointer', fontSize: 14, lineHeight: '22px', padding: 0 }}>×</button>}
-            </span>
-          </div>
-
-          {q ? (
-            /* Psaní → našeptávač měst/obcí */
-            suggestions.length ? suggestions.map(m => (
-              <button key={m.n + m.k} onClick={() => { onPickCity(m); setQ(''); }}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 8px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 14, fontWeight: 600, color: T.ink, borderRadius: 10, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                  <span style={{ flex: 'none', display: 'flex' }}><WIcoPin size={16} color={T.primary} /></span>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.n}</span>
-                </span>
-                <span style={{ flex: 'none', fontSize: 11.5, color: '#A6ADCB' }}>{_krajName(m.k)}</span>
-              </button>
-            )) : <div style={{ padding: '12px 10px', color: '#7A82A6', fontFamily: T.fontUI, fontSize: 13 }}>Nic nenalezeno.</div>
-          ) : loc && loc.center ? (
-            /* Vybrané město → okolí do X km */
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px', background: T.tint, borderRadius: 12, marginBottom: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <span style={{ flex: 'none', display: 'flex' }}><WIcoPin size={17} color={T.primary} /></span>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc.center.n}</span>
-                </span>
-                <button onClick={onClearCity} title="Zrušit město" style={{ flex: 'none', width: 24, height: 24, border: 0, borderRadius: 999, background: '#fff', color: T.destructive, cursor: 'pointer', fontSize: 15, lineHeight: '24px', padding: 0 }}>×</button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '2px 8px 10px' }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB' }}>Okolí</span>
-                <span style={{ fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, color: T.primary }}>do {loc.radius || 25} km</span>
-              </div>
-              <div style={{ padding: '0 10px 6px' }}>
-                <input type="range" className="w-radius" min={5} max={100} step={5} value={loc.radius || 25}
-                  onChange={e => onSetRadius(Number(e.target.value))} aria-label="Poloměr okolí v km" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontFamily: T.fontUI, fontSize: 11, color: '#A6ADCB' }}>
-                  <span>5 km</span><span>100 km</span>
-                </div>
-              </div>
+              {count > 0 && <button onClick={onClear} style={{ border: 0, background: 'none', padding: 0, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700, color: T.primary, cursor: 'pointer' }}>Vymazat</button>}
             </div>
-          ) : (
-            /* Prázdné → kraje (scroll) */
-            <div>
-              <div style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB', padding: '2px 8px 6px' }}>Kraje</div>
-              {KRAJE_W.map(k => {
-                const on = (kraje || []).includes(k.id);
-                // Vybraný kraj = celý modrý obdélník; další klik ho odznačí.
+            {/* Pruh kategorií — tažení (nebo klepnutí) mění kategorii; prostřední je vybraná */}
+            <div ref={railRef} onScroll={onRailScroll} role="tablist" aria-label="Kategorie filtrů" style={{
+              flex: 'none', display: 'flex', gap: 8, padding: '7px calc((100% - 130px)/2) 0',
+              overflowX: 'auto', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+              {CATS.map((c, i) => { const on = i === idx; const n = catCount(c);
                 return (
-                  <button key={k.id} onClick={() => onToggleKraj(k.id)}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', marginBottom: 4,
-                      background: on ? T.primary : '#fff', border: '1px solid ' + (on ? T.primary : T.border),
-                      cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 14, fontWeight: on ? 800 : 600,
-                      color: on ? '#fff' : T.ink, borderRadius: 11, WebkitTapHighlightColor: 'transparent',
-                      transition: 'background .15s ease, color .15s ease, border-color .15s ease' }}>
-                    {k.name}
-                    {on && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', flex: 'none' }}><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                  <button key={c.key} type="button" role="tab" aria-selected={on ? 'true' : 'false'} onClick={() => goTo(i)} style={{
+                    position: 'relative', flex: '0 0 130px', height: 46, scrollSnapAlign: 'center',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999,
+                    fontFamily: T.fontUI, fontSize: 14.5, fontWeight: on ? 800 : 700, letterSpacing: '-.01em',
+                    color: on ? '#fff' : T.ink, background: on ? T.primary : '#fff', border: '1.5px solid ' + (on ? T.primary : T.border),
+                    cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent',
+                    transition: 'background .22s cubic-bezier(.4,0,.2,1), color .22s, border-color .22s' }}>
+                    {c.name}
+                    {n > 0 && !on && <span style={{ position: 'absolute', top: -7, right: 10, minWidth: 21, height: 21, padding: '0 6px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(0,32,246,.28)' }}>{n}</span>}
                   </button>
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Roletka Profese — vyhledávač + scroll profesí (CZ-ISCO). Modrý multi-select. */}
-      {open && section === PROFESE && (
-        <div style={{ position: 'fixed', top: 54, right: 16, zIndex: 8500, width: 288,
-          background: '#fff', border: '1px solid ' + T.border, borderRadius: 16,
-          boxShadow: '0 20px 44px -18px rgba(20,22,43,0.34)', padding: 8,
-          maxHeight: '68vh', overflowY: 'auto', animation: 'wFilterDrop .2s cubic-bezier(.2,.8,.2,1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 8px' }}>
-            <span style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-              <input value={pq} onChange={e => setPq(e.target.value)} placeholder="Hledej profesi…" autoComplete="off"
-                style={{ width: '100%', boxSizing: 'border-box', height: 38, padding: '0 30px 0 12px', borderRadius: 11,
-                  border: '1px solid ' + T.border, background: '#F6F7FC', fontFamily: T.fontUI, fontSize: 14, color: T.ink, outline: 'none' }} />
-              {pq && <button onClick={() => setPq('')} title="Smazat" style={{ position: 'absolute', right: 6, width: 22, height: 22, border: 0, borderRadius: 999, background: '#E2E6F2', color: '#5B6488', cursor: 'pointer', fontSize: 14, lineHeight: '22px', padding: 0 }}>×</button>}
-            </span>
-          </div>
-          <div style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#A6ADCB', padding: '2px 8px 6px' }}>
-            {pq ? 'Profese' : 'Všechny profese'}{!pq && <span style={{ color: '#C4CADD' }}> · {profeseList.length}</span>}
-          </div>
-          {profeseList.length ? profeseList.map(p => {
-            const on = (profese || []).includes(p.k);
-            // Vybraná profese = modrý obdélník; další klik ji odznačí.
-            return (
-              <button key={p.k} onClick={() => onToggleProfese(p.k)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '11px 12px', marginBottom: 4,
-                  background: on ? T.primary : '#fff', border: '1px solid ' + (on ? T.primary : T.border),
-                  cursor: 'pointer', textAlign: 'left', fontFamily: T.fontUI, fontSize: 13.5, fontWeight: on ? 800 : 600,
-                  color: on ? '#fff' : T.ink, borderRadius: 11, WebkitTapHighlightColor: 'transparent',
-                  transition: 'background .15s ease, color .15s ease, border-color .15s ease' }}>
-                <span style={{ flex: 'none', display: 'flex' }}><WIcoWork size={16} color={on ? '#fff' : T.primary} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}>{p.n}</span>
-                {on && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flex: 'none' }}><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+            {/* Karta s volbami */}
+            <div style={{ flex: 1, minHeight: 0, padding: '16px 16px 0', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid ' + T.border, borderRadius: 24, padding: '17px 18px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: '0 4px 20px rgba(0,32,246,.06)' }}>
+                <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-.02em' }}>{cat.name}</span>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>{body}</div>
+              </div>
+            </div>
+            {/* Patička — Ukázat N brigád */}
+            <div style={{ flex: 'none', background: '#fff', borderTop: '1px solid ' + T.border, padding: '13px 16px calc(20px + env(safe-area-inset-bottom))' }}>
+              <button onClick={close} type="button" style={{
+                display: 'block', width: '100%', border: resultCount === 0 ? '1px solid ' + T.border : 0, fontFamily: T.fontUI,
+                fontSize: 16, fontWeight: 700, textAlign: 'center', padding: 16, borderRadius: 16,
+                background: resultCount === 0 ? '#f7f8fc' : T.primary, color: resultCount === 0 ? '#9096ad' : '#fff', cursor: 'pointer' }}>
+                {resultCount === 0 ? 'Nic nenajdeme — uvolni filtr' : ('Ukázat ' + _wPlural(resultCount || 0, 'brigádu', 'brigády', 'brigád'))}
               </button>
-            );
-          }) : <div style={{ padding: '12px 10px', color: '#7A82A6', fontFamily: T.fontUI, fontSize: 13 }}>Nic nenalezeno.</div>}
-        </div>
+            </div>
+          </div>
+        </>
       )}
     </>
   );
@@ -732,14 +756,16 @@ function WSwipe({ tick }) {
   }, [kraje, filters, loc, profese]);
 
   // Kraje a „město + okolí" jsou dva výlučné režimy území — výběr jednoho zruší druhý.
-  const toggleKraj    = id => { setLoc(l => ({ center: null, radius: l.radius || 25 })); setKraje(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); };
-  const pickCity      = city => { setKraje([]); setLoc(l => ({ center: city, radius: l.radius || 25 })); };   // vybrat město → okolí do X km
+  const toggleKraj    = id => { wHaptic(); setLoc(l => ({ center: null, radius: l.radius || 25 })); setKraje(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); };
+  const pickCity      = city => { wHaptic(); setKraje([]); setLoc(l => ({ center: city, radius: l.radius || 25 })); };   // vybrat město → okolí do X km
   const clearCity     = () => setLoc(l => ({ center: null, radius: l.radius || 25 }));
   const setRadius     = r => setLoc(l => ({ ...l, radius: r }));
-  const toggleProfese = code => setProfese(prev => prev.includes(code) ? prev.filter(x => x !== code) : [...prev, code]);
-  const toggleFilter  = (key, val) => setFilters(prev => { const cur = prev[key] || []; return { ...prev, [key]: cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val] }; });
+  const toggleProfese = code => { wHaptic(); setProfese(prev => prev.includes(code) ? prev.filter(x => x !== code) : [...prev, code]); };
+  const toggleFilter  = (key, val) => { wHaptic(); setFilters(prev => { const cur = prev[key] || []; return { ...prev, [key]: cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val] }; }); };
   const clearFilters  = () => { setFilters({ ...W_FILTER_EMPTY }); setKraje([]); setLoc(l => ({ center: null, radius: l.radius || 25 })); setProfese([]); };
   const filterCount   = _wFilterCount(filters) + kraje.length + (loc.center ? 1 : 0) + profese.length;
+  // Počet u volby: kolik brigád zbyde, kdyby v této kategorii byla vybraná jen tahle volba (ostatní filtry beze změny).
+  const countFor      = (key, val) => _wComputeFeed(kraje, { ...filters, [key]: [val] }, loc, profese).length;
 
   const currentJob   = jobs[topIdx] || null;
   const visibleCards = jobs.slice(topIdx, topIdx + 3);
@@ -848,7 +874,7 @@ function WSwipe({ tick }) {
           ne až po doběhu zavírací animace. */}
       {(!detailJob || detailClosing) && <WJobFilter filters={filters} onToggle={toggleFilter} onClear={clearFilters} count={filterCount}
         kraje={kraje} onToggleKraj={toggleKraj} loc={loc} onPickCity={pickCity} onClearCity={clearCity} onSetRadius={setRadius}
-        profese={profese} onToggleProfese={toggleProfese} />}
+        profese={profese} onToggleProfese={toggleProfese} resultCount={jobs.length} countFor={countFor} />}
 
       {/* Odsazení pod plovoucí horní lištu (odznáček úrovně + profil vpravo nahoře).
           Stupeň důvěry se teď ukazuje tam, ať není dvakrát. */}
