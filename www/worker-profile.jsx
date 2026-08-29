@@ -498,6 +498,7 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
 
   const name    = W_PROFILE.name || W_PROFILE.full_name || 'Brigádník';
   const bio     = W_PROFILE.bio   || '';
+  const avatarUrl = W_PROFILE.avatar_url || '';
   const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?';
 
   const skills    = Array.isArray(W_PROFILE.skills) ? W_PROFILE.skills : [];
@@ -508,41 +509,13 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   // Počty i výdělek se počítají z odpracovaných brigád, ne z předpočítaných
   // sloupců v profilu — jinak by hlavní číslo nesedělo s rozpisem ve statistikách.
   const vyd     = makejVydelky(W_HISTORY);
-  const maxMesic = Math.max(1, ...vyd.mesice.map(m => m.castka));
   const reviews = Array.isArray(W_REVIEWS) ? W_REVIEWS : [];
-  const shownReviews = showAllReviews ? reviews : reviews.slice(0, 3);
 
   const cardShadow = '0 4px 20px rgba(0,32,246,0.06)';
   // Jeden tvar pro všechny velké karty. Dřív jich tu bylo osm různých zaoblení
   // (12 až 24 px) a každá karta jiné odsazení — profil kvůli tomu nedržel pohromadě.
   // Systém: velká karta 20, malá dlaždice 16, pilulka 999.
   const KARTA = { background: '#fff', borderRadius: 20, boxShadow: cardShadow, padding: '18px 20px' };
-  // Každé číslo má barvu podle významu, ne tři stejně modrá vedle sebe —
-  // `#0020F6` je tak syté, že ve třech velkých číslech vibrovalo.
-  // Zlatá = hodnocení, modrá = práce, zelená = čas a peníze.
-  const STATS3 = [
-    {
-      value: rating > 0 ? rating.toFixed(1).replace('.', ',') : '—',
-      // Místo obecného „Hodnocení" rovnou počet recenzí — je to informace navíc
-      // a zároveň říká, co se po klepnutí otevře.
-      label: reviews.length > 0
-        ? reviews.length + ' ' + _wPlural(reviews.length, 'recenze', 'recenze', 'recenzí')
-        : 'Hodnocení',
-      barva: '#b8791a',
-      onClick: () => setReviewsPageOpen(true),
-      title: 'Zobrazit recenze a odpovědět',
-    },
-    {
-      value: vyd.pocet, label: 'Brigády', barva: T.primaryDeep,
-      onClick: () => onGoTab && onGoTab('history'),
-      title: 'Zobrazit brigády v kalendáři',
-    },
-    {
-      value: `${vyd.hodin} h`, label: 'Odpracováno', barva: T.green,
-      onClick: () => setEarningsOpen(true),
-      title: 'Zobrazit statistiky výdělků',
-    },
-  ];
 
   // „Doplň profil" — co ještě chybí. Karta se schová, jakmile je vše hotové.
   const todoItems = [
@@ -551,7 +524,6 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
     { key: 'edu',    done: !!education,     title: 'Doplň vzdělání',       note: 'Stupeň a obor' },
   ];
   const todoLeft = todoItems.filter(t => !t.done).length;
-  const mesicTed = _W_MESICE[new Date().getMonth()].toLowerCase();
   const heroMeta = W_PROFILE.city ? W_PROFILE.city : 'Doplň si profil';
 
   return (
@@ -689,17 +661,26 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
           </>
         ) : (
           <>
-            {/* ── Modrá hlavička: jméno, stupeň, výdělek (full-bleed přes padding wrapperu) ── */}
+            {/* ── Hlavička: jen identita. Klidný modrý gradient, žádné duhové
+                   záře ani grafy. Výdělek a čísla jsou v přehledové kartě níž. ── */}
             <div style={{
-              margin: '-24px -20px 16px', background: T.primary,
-              padding: 'calc(env(safe-area-inset-top) + 20px) 20px 18px',
-              display: 'flex', flexDirection: 'column', gap: 15,
+              position: 'relative', overflow: 'hidden',
+              margin: '-24px -20px 20px', borderRadius: '0 0 30px 30px',
+              boxShadow: '0 20px 44px -24px rgba(0,20,163,0.75)',
+              background: 'linear-gradient(168deg, #1B2CF5 0%, #0A18B8 58%, #060E86 100%)',
+              padding: 'calc(env(safe-area-inset-top) + 22px) 22px 26px',
+              display: 'flex', flexDirection: 'column', gap: 22,
             }}>
+              {/* Jeden jemný lesk vpravo nahoře — dodá hloubku bez cirkusu */}
+              <span aria-hidden="true" style={{
+                position: 'absolute', top: -120, right: -60, width: 260, height: 260, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.14), transparent 66%)', pointerEvents: 'none',
+              }} />
               {/* Řádek: Můj profil + Upravit + zavřít */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4 }}>Můj profil</div>
                 <button onClick={() => setEditing(true)} title="Upravit profil" style={{
-                  marginLeft: 'auto', flexShrink: 0, padding: '7px 15px', borderRadius: 999, cursor: 'pointer',
+                  marginLeft: 'auto', flexShrink: 0, padding: '8px 16px', borderRadius: 999, cursor: 'pointer',
                   background: 'rgba(255,255,255,0.16)', border: 'none', color: '#fff',
                   fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, WebkitTapHighlightColor: 'transparent',
                 }}>Upravit</button>
@@ -713,107 +694,137 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
               </div>
 
               {/* Kdo: avatar + jméno + stupeň */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 15 }}>
                 <div style={{
-                  width: 58, height: 58, flex: 'none', borderRadius: 20, background: 'rgba(255,255,255,0.14)',
-                  display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 23,
-                }}>{initials}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
-                  <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  width: 66, height: 66, flex: 'none', borderRadius: 22, overflow: 'hidden', background: 'rgba(255,255,255,0.14)',
+                  display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 25,
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.4), 0 12px 24px -10px rgba(0,0,0,0.5)',
+                }}>
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    : initials}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                  <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                     <WLevelBadge level={trust.tier.blevel} label={trust.tier.nazev} sm />
-                    <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{heroMeta}</span>
+                    <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{heroMeta}</span>
                   </span>
                 </div>
               </div>
-
-              {/* Výdělek — klepnutí otevře statistiky */}
-              <button onClick={() => setEarningsOpen(true)} title="Zobrazit statistiky výdělků" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left',
-                background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 16, padding: '13px 15px', cursor: 'pointer',
-                WebkitTapHighlightColor: 'transparent',
-              }}>
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-                  <span style={{ color: '#A9B7FF', fontFamily: T.fontUI, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>Za {mesicTed} vyděláno</span>
-                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                    <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{_wKc(vyd.tentoMesic.castka)}</span>
-                    <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700 }}>Kč</span>
-                  </span>
-                  {vyd.pocet === 0
-                    ? <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 11, lineHeight: 1.4 }}>Až odpracuješ první brigádu, uvidíš tady výdělek.</span>
-                    : <span style={{ color: '#C7D0FF', fontFamily: T.fontUI, fontSize: 11 }}>{vyd.pocet} {_wPlural(vyd.pocet, 'brigáda', 'brigády', 'brigád')} · {vyd.hodin} h</span>}
-                </span>
-                {vyd.pocet > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, color: '#fff', fontFamily: T.fontHead, fontSize: 12, fontWeight: 800 }}>
-                    Historie<span style={{ fontSize: 15, lineHeight: 1 }}>›</span>
-                  </span>
-                )}
-              </button>
             </div>
 
-            {/* ── Cesta ke stupni — 4dílný pás s názvy, klepnutí otevře detail důvěry ── */}
-            <button onClick={() => setTrustOpen(true)} title="Co je stupeň důvěry" style={{
-              ...KARTA, width: '100%', textAlign: 'left', marginBottom: 16,
-              border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-                <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>
-                  {trust.jeMax ? 'Nejvyšší stupeň' : 'Cesta ke stupni ' + trust.dalsi.nazev}
-                </span>
-                <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{trust.index + 1} ze {trust.stupnu}</span>
-              </div>
-
-              {/* Segmenty */}
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${trust.stupnu}, 1fr)`, gap: 5, marginBottom: 8 }}>
-                {W_TIERS.map((t, i) => (
-                  <span key={t.key} style={{ height: 6, borderRadius: 999, background: i <= trust.index ? T.primary : T.tint }} />
-                ))}
-              </div>
-              {/* Odznáčky všech stupňů — jak který vypadá. Dosažené svítí,
-                  další jsou ztlumené, ten aktuální je maličko zvětšený. */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 7, rowGap: 9, marginBottom: 12 }}>
-                {W_TIERS.map((t, i) => (
-                  <span key={t.key} style={{ display: 'inline-flex', transform: i === trust.index ? 'scale(1.06)' : 'none', transition: 'transform .2s' }}>
-                    <WLevelBadge level={t.blevel} label={t.nazev} sm locked={i > trust.index} />
+            {/* ── Přehled: výdělek za měsíc + hodnocení / brigády / odpracováno
+                   v jedné klidné kartě. Bez grafu, bez zdvojených textů. ── */}
+            <div style={{ ...KARTA, padding: '20px 22px', marginBottom: 16 }}>
+              <button onClick={() => setEarningsOpen(true)} title="Zobrazit statistiky výdělků" style={{
+                width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+              }}>
+                <span>
+                  <span style={{ display: 'block', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.1, textTransform: 'uppercase' }}>Vyděláno v {_W_MESICE_2[new Date().getMonth()]}</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 6 }}>
+                    <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 32, fontWeight: 800, letterSpacing: -1, lineHeight: 1 }}>{_wKc(vyd.tentoMesic.castka)}</span>
+                    <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 15, fontWeight: 700 }}>Kč</span>
                   </span>
-                ))}
-              </div>
+                </span>
+                <span style={{ color: T.primary, fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, flexShrink: 0, marginTop: 4 }}>Statistiky ›</span>
+              </button>
 
-              <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45 }}>
-                {trust.jeMax
-                  ? 'Nejvyšší stupeň. Drž si ho a firmy tě uvidí mezi prvními.'
-                  : <>Do stupně <b style={{ color: T.ink, fontFamily: T.fontHead }}>{trust.dalsi.nazev}</b> ti chybí {_wChybi(trust)}.</>}
-              </div>
-            </button>
+              <div style={{ height: 1, background: T.border, margin: '18px -22px 0' }} />
 
-            {/* ── Čísla v jedné kartě, oddělená tenkou čárkou. Bez ikon —
-                   hvězda u „5,0" ani hodiny u „43 h" nic nepřidávaly, popisek
-                   pod číslem říká to samé. Hodnocení je proklik na recenze. ── */}
-            <div style={{ ...KARTA, padding: '18px 8px', display: 'flex', alignItems: 'stretch', marginBottom: 24 }}>
-              {STATS3.map((s, i) => {
-                const Prvek = s.onClick ? 'button' : 'div';
-                return (
+              <div style={{ display: 'flex', alignItems: 'stretch', paddingTop: 16 }}>
+                {[
+                  { value: rating > 0 ? rating.toFixed(1).replace('.', ',') : '—', star: rating > 0, label: 'hodnocení', onClick: () => setReviewsPageOpen(true), title: 'Zobrazit recenze' },
+                  { value: vyd.pocet, label: 'brigády', onClick: () => onGoTab && onGoTab('history'), title: 'Zobrazit brigády' },
+                  { value: `${vyd.hodin} h`, label: 'odpracováno', onClick: () => setEarningsOpen(true), title: 'Zobrazit statistiky' },
+                ].map((s, i) => (
                   <React.Fragment key={s.label}>
                     {i > 0 && <div style={{ width: 1, background: T.border, flexShrink: 0, margin: '2px 0' }} />}
-                    <Prvek onClick={s.onClick} title={s.title}
-                      style={{
-                        flex: 1, minWidth: 0, padding: '0 6px',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        background: 'none', border: 'none', fontFamily: 'inherit',
-                        cursor: s.onClick ? 'pointer' : 'default',
-                        WebkitTapHighlightColor: 'transparent',
-                      }}>
-                      {/* Barvu nesou čísla, ne dekorace okolo */}
-                      <span style={{ color: s.barva || T.ink, fontFamily: T.fontHead, fontSize: 24, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1.1 }}>{s.value}</span>
-                      <span style={{
-                        marginTop: 4, color: T.muted, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600,
-                        whiteSpace: 'nowrap',
-                      }}>{s.label}</span>
-                    </Prvek>
+                    <button onClick={s.onClick} title={s.title} style={{
+                      flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                      background: 'none', border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', fontFamily: 'inherit',
+                    }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1 }}>
+                        {s.value}{s.star && <span style={{ color: T.super, fontSize: 15 }}>★</span>}
+                      </span>
+                      <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{s.label}</span>
+                    </button>
                   </React.Fragment>
-                );
-              })}
+                ))}
+              </div>
             </div>
+
+            {/* ── Stupeň důvěry — klidná karta: eyebrow, cílový odznak, jeden
+                   plynulý progress. Klepnutí otevře detail důvěry. ── */}
+            {(() => {
+              const pct = Math.round((trust.progress || 0) * 100);
+              const cil = trust.jeMax ? trust.tier : trust.dalsi;   // odznak vpravo = cíl (u max sám sebe)
+              return (
+            <button onClick={() => setTrustOpen(true)} title="Co je stupeň důvěry" style={{
+              ...KARTA, width: '100%', textAlign: 'left', marginBottom: 16, padding: '20px 20px 18px',
+              border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+            }}>
+              {/* Hlavička: nadpis vlevo, cílový odznak vpravo */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.1, textTransform: 'uppercase' }}>Stupeň důvěry</span>
+                  <span style={{ display: 'block', color: T.ink, fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, letterSpacing: -0.4, marginTop: 3 }}>
+                    {trust.jeMax ? 'Nejvyšší stupeň' : 'Cesta na ' + trust.dalsi.nazev}
+                  </span>
+                </span>
+                <span style={{ flexShrink: 0 }}>
+                  <WLevelBadge level={cil.blevel} label={cil.nazev} locked={!trust.jeMax} />
+                </span>
+              </div>
+
+              {/* Jeden plynulý progress s jemným gradientem a puntíkem na konci */}
+              <div style={{ position: 'relative', height: 10, borderRadius: 999, background: T.tint, overflow: 'visible', marginBottom: 10 }}>
+                <div style={{
+                  position: 'absolute', inset: 0, width: Math.max(6, pct) + '%', borderRadius: 999,
+                  background: 'linear-gradient(90deg, #0A27FF, #5A72FF)',
+                  boxShadow: '0 2px 10px rgba(0,32,246,0.35)', transition: 'width .5s cubic-bezier(.2,.8,.2,1)',
+                }}>
+                  {!trust.jeMax && (
+                    <span style={{
+                      position: 'absolute', right: -3, top: '50%', transform: 'translateY(-50%)',
+                      width: 14, height: 14, borderRadius: 999, background: '#fff',
+                      boxShadow: '0 0 0 3px #5A72FF, 0 2px 6px rgba(0,0,0,0.2)',
+                    }} />
+                  )}
+                </div>
+              </div>
+
+              {/* Jedna věta pod pásem + % vpravo */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45, flex: 1, minWidth: 0 }}>
+                  {trust.jeMax
+                    ? 'Nejvyšší stupeň. Drž si ho a firmy tě uvidí mezi prvními.'
+                    : <>Teď jsi <b style={{ color: T.ink, fontFamily: T.fontHead }}>{trust.tier.nazev}</b> · do {trust.dalsi.nazev} ti chybí {_wChybi(trust)}.</>}
+                </span>
+                {!trust.jeMax && <span style={{ color: T.primary, fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{pct} %</span>}
+              </div>
+            </button>
+              );
+            })()}
+
+            {/* ── Recenze od firem — ukázka přímo na profilu, klik otevře všechny ── */}
+            {reviews.length > 0 && (
+              <div style={{ ...KARTA, padding: '4px 20px 12px', marginBottom: 24 }}>
+                {reviews.slice(0, 2).map((r, i) => (
+                  <div key={i} style={{ padding: '14px 0', borderTop: i > 0 ? '1px solid ' + T.border : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: r.text ? 8 : 0 }}>
+                      <span style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.author}</span>
+                      <span style={{ display: 'flex', gap: 1.5, flexShrink: 0 }}>{[1, 2, 3, 4, 5].map(n => <WStar key={n} size={13} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}</span>
+                    </div>
+                    {r.text && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.55 }}>„{r.text}"</div>}
+                  </div>
+                ))}
+                <button onClick={() => setReviewsPageOpen(true)} style={{ marginTop: 2, border: 'none', background: 'none', padding: '8px 0 0', fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                  {reviews.length > 2 ? 'Všech ' + reviews.length + ' ' + _wPlural(reviews.length, 'recenze', 'recenze', 'recenzí') : 'Zobrazit recenze'} ›
+                </button>
+              </div>
+            )}
 
             {/* ── Uložené brigády — přehled toho, co sis uložil(a) záložkou na kartě ── */}
             <button onClick={() => setSavedOpen(true)} title="Uložené brigády" style={{
@@ -1055,16 +1066,117 @@ const _W_MESICE     = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen
 // 6. pád — „v květnu", „v lednu"
 const _W_MESICE_2   = ['lednu', 'únoru', 'březnu', 'dubnu', 'květnu', 'červnu', 'červenci', 'srpnu', 'září', 'říjnu', 'listopadu', 'prosinci'];
 
+// 2. pád — „od března 2025"
+const _W_MESICE_GEN = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
+
+// Barvy firem v „Kde jsem makal" — pruh/koláč i tečky v legendě. Výrazná,
+// sytá paleta (modrá · růžová · jantar · zelená · …), přiřazuje se podle pořadí.
+const _W_ZIVE = ['#3D5AFE', '#FF3D8B', '#FFB300', '#00C853', '#9C4DFF', '#00C2E0', '#FF6D00', '#FF3B47'];
+
+// Šrafa pro nevybrané sloupce grafu
+const _W_HATCH = 'repeating-linear-gradient(45deg, #c3cce4 0, #c3cce4 2.5px, #eef1f8 2.5px, #eef1f8 8px)';
+
+// Plynulé „napočítání" čísla při změně hodnoty (přepnutí měsíce/období).
+// Vrací průběžnou hodnotu; formátování si řeší volající. easeOutCubic.
+function useCountUpW(value, duration) {
+  const [disp, setDisp] = useStateW(0);   // od nuly → napočítá se i při otevření
+  const dispRef = useRefW(0);
+  const rafRef  = useRefW(null);
+  useEffectW(() => {
+    const to = Number(value) || 0;
+    const from = dispRef.current;
+    if (from === to) { setDisp(to); return; }
+    const dur = duration || 520;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    let start = null;
+    const step = ts => {
+      if (start === null) start = ts;
+      const p = Math.min(1, (ts - start) / dur);
+      const v = from + (to - from) * ease(p);
+      dispRef.current = v; setDisp(v);
+      if (p < 1) rafRef.current = requestAnimationFrame(step);
+      else { dispRef.current = to; setDisp(to); }
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [value, duration]);
+  return disp;
+}
+
+// Animované číslo (napočítá se) — formát přes _wKc, volitelná přípona.
+function WCountUp({ value, style, suffix, suffixStyle, duration }) {
+  const v = useCountUpW(value, duration);
+  return (
+    <span style={style}>
+      {_wKc(Math.round(v))}
+      {suffix && <span style={suffixStyle}>{suffix}</span>}
+    </span>
+  );
+}
+
+// Koláč (donut), který se „nakreslí" od 12 hodin celé kolo jako hodinová
+// ručička; segmenty se přitom postupně objevují a oddělují tenkou mezerou.
+// Sweep pohání requestAnimationFrame. segments: [{ key, value, color }].
+function WDonut({ segments, size, stroke, duration }) {
+  const total = segments.reduce((a, s) => a + (Number(s.value) || 0), 0) || 1;
+  const [p, setP] = useStateW(0);
+  const sig = segments.map(s => s.key + ':' + s.value).join(',');
+  useEffectW(() => {
+    const rm = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) { setP(1); return; }
+    let raf, start = null; const dur = duration || 900;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    setP(0);
+    const step = ts => {
+      if (start === null) start = ts;
+      const t = Math.min(1, (ts - start) / dur);
+      setP(ease(t));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [sig]);
+
+  const sweep = p * 100;       // kam až ručička došla (0–100 kolem kruhu)
+  const GAP = 0;               // 0 = segmenty spojené (bez mezer)
+  let acc = 0;
+  const arcs = segments.map(s => {
+    const startU = (acc / total) * 100;
+    const valU   = (Number(s.value) || 0) / total * 100;
+    acc += Number(s.value) || 0;
+    const vis = Math.max(0, Math.min(valU - GAP, sweep - startU));   // viditelná délka
+    return { key: s.key, color: s.color, startU, vis };
+  });
+
+  return (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
+      {/* Bez podkladové kružnice — koláč vždy vyplní celé kolo, takže track
+          jen zbytečně prosvítal, dokud se ručička nedokreslila. */}
+      {arcs.map(a => a.vis > 0.01 ? (
+        <circle key={a.key} cx="20" cy="20" r="15.915" fill="none" stroke={a.color} strokeWidth={stroke}
+          strokeDasharray={a.vis + ' ' + (100 - a.vis)} strokeDashoffset={25 - a.startU} />
+      ) : null)}
+    </svg>
+  );
+}
+
 // ── Statistiky výdělků (proklik z karty na profilu) ──────────────
 function WEarningsPage({ vyd, onClose }) {
   const cardShadow = '0 4px 20px rgba(0,32,246,0.06)';
-  const [vseFirmy, setVseFirmy] = useStateW(false);
-  const [vseBrigady, setVseBrigady] = useStateW(false);
-  const [vybranyMesic, setVybranyMesic] = useStateW(null);   // klíč 'RRRR-MM', null = vše
+  const [vybranyMesic, setVybranyMesic] = useStateW(null);   // klíč 'RRRR-MM'; null = použij výchozí
+  const grafRef = useRefW(null);
+  const [grafW, setGrafW] = useStateW(0);   // šířka viditelné plochy grafu (pro 6 sloupců na obrazovku)
+  // Navádějící šipka „jezdi doprava" — jen dokud ji uživatel poprvé nepoužije
+  const [grafHint, setGrafHint] = useStateW(() => typeof localStorage === 'undefined' || localStorage.getItem('makej-graf-hint') !== 'off');
+  function dismissGrafHint() {
+    if (!grafHint) return;
+    setGrafHint(false);
+    try { localStorage.setItem('makej-graf-hint', 'off'); } catch (e) {}
+  }
 
   // ── Období grafu ──────────────────────────────────────────────
   const dnesKlic = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
-  const [obdobi, setObdobi] = useStateW('6');                 // '3' | '6' | '12' | 'vlastni'
+  const [obdobi, setObdobi] = useStateW('6');                 // '6' | '12' | 'vlastni'
   const [vlastniOd, setVlastniOd] = useStateW(_wMesicZpet(dnesKlic, 5));
   const [vlastniDo, setVlastniDo] = useStateW(dnesKlic);
 
@@ -1078,59 +1190,68 @@ function WEarningsPage({ vyd, onClose }) {
     return makejMesice([], zacatek, dnesKlic).map(m => m.klic);
   })();
 
-  // Rozsah podle zvoleného období. U „vlastní" se obrácené zadání otočí,
-  // ať uživatel nekouká na prázdný graf jen kvůli pořadí.
+  // Rozsah podle zvoleného období. U „vlastní" se obrácené zadání otočí.
   const rozsah = (() => {
     if (obdobi === 'vlastni') {
       return vlastniOd <= vlastniDo ? { od: vlastniOd, do: vlastniDo } : { od: vlastniDo, do: vlastniOd };
     }
-    return { od: _wMesicZpet(dnesKlic, Number(obdobi) - 1), do: dnesKlic };
+    return { od: _wMesicZpet(dnesKlic, obdobi === '12' ? 11 : 5), do: dnesKlic };
   })();
 
   const mesiceGrafu = makejMesice(vyd.hotove, rozsah.od, rozsah.do);
-  const vObdobi = vyd.hotove.filter(h => {
-    const k = String(h.eventDate || '').slice(0, 7);
-    return k >= rozsah.od && k <= rozsah.do;
-  });
 
-  // Klik na sloupec grafu zúží stránku na jediný měsíc; jinak platí celé období.
-  const mesicObj = vybranyMesic ? mesiceGrafu.find(m => m.klic === vybranyMesic) : null;
-  const z = vybranyMesic
-    ? makejVydelky(vyd.hotove.filter(h => String(h.eventDate || '').slice(0, 7) === vybranyMesic))
-    : makejVydelky(vObdobi);
+  // V grafu je vždy vybraný jeden měsíc — buď na který klepl, nebo (výchozí)
+  // poslední měsíc s výdělkem; když ani ten není, poslední v řadě.
+  const _sVydelkem  = [...mesiceGrafu].reverse().find(m => m.castka > 0);
+  const defaultKlic = (_sVydelkem || mesiceGrafu[mesiceGrafu.length - 1] || {}).klic;
+  const aktivniKlic = (vybranyMesic && mesiceGrafu.some(m => m.klic === vybranyMesic)) ? vybranyMesic : defaultKlic;
+  const mesicObj    = mesiceGrafu.find(m => m.klic === aktivniKlic) || null;
+  const z           = makejVydelky(vyd.hotove.filter(h => String(h.eventDate || '').slice(0, 7) === aktivniKlic));
 
-  // Vybraný měsíc musí zůstat uvnitř období — po přepnutí ho jinak nejde odznačit
-  useEffectW(() => {
-    if (vybranyMesic && !mesiceGrafu.some(m => m.klic === vybranyMesic)) setVybranyMesic(null);
-  }, [rozsah.od, rozsah.do]);
+  // % změna vybraného měsíce vůči předchozímu měsíci v řadě
+  const _idx  = mesiceGrafu.findIndex(m => m.klic === aktivniKlic);
+  const _prev = _idx > 0 ? mesiceGrafu[_idx - 1] : null;
+  const zmena = (_prev && _prev.castka > 0 && mesicObj) ? Math.round(((mesicObj.castka - _prev.castka) / _prev.castka) * 100) : null;
 
-  // Nejvyšší sloupec v zobrazeném období — podle něj se škáluje graf
+  // Nejvyšší sloupec v období — podle něj se škáluje graf
   const maxMesic = Math.max(1, ...mesiceGrafu.map(m => m.castka));
 
-  const popisObdobi = obdobi === '3' ? 'Poslední 3 měsíce'
-    : obdobi === '6' ? 'Posledních 6 měsíců'
+  const popisObdobi = obdobi === '6' ? 'Posledních 6 měsíců'
     : obdobi === '12' ? 'Poslední rok'
     : _W_MESICE[Number(rozsah.od.slice(5)) - 1] + ' ' + rozsah.od.slice(0, 4)
       + ' – ' + _W_MESICE[Number(rozsah.do.slice(5)) - 1] + ' ' + rozsah.do.slice(0, 4);
 
-  const firmy   = vseFirmy   ? z.podleFirem : z.podleFirem.slice(0, 4);
-  const brigady = vseBrigady ? z.hotove     : z.hotove.slice(0, 6);
+  // Celkem na Makej (celá historie): od kdy a kolik brigád
+  const prvniKlic = vyd.hotove.reduce((a, h) => {
+    const k = String(h.eventDate || '').slice(0, 7);
+    return (k && (!a || k < a)) ? k : a;
+  }, (W_PROFILE.created_at || '').slice(0, 7) || null);
+  const memberOd = prvniKlic
+    ? 'od ' + _W_MESICE_GEN[Number(prvniKlic.slice(5)) - 1] + ' ' + prvniKlic.slice(0, 4)
+    : '';
 
-  const sekce = { color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: 10 };
-  const karta = { background: '#fff', borderRadius: 20, boxShadow: cardShadow, padding: '16px 18px' };
+  // Změř viditelnou šířku grafu → šířka sloupce tak, aby jich bylo vidět 6
+  useEffectW(() => {
+    const el = grafRef.current;
+    if (!el) return;
+    const set = () => setGrafW(el.clientWidth);
+    set();
+    window.addEventListener('resize', set);
+    return () => window.removeEventListener('resize', set);
+  }, []);
+
+  const karta = { background: '#fff', borderRadius: 24, boxShadow: cardShadow, padding: '18px 20px' };
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 140, background: T.bg, display: 'flex', flexDirection: 'column', animation: 'wPop .28s cubic-bezier(.2,.8,.2,1)' }}>
       {/* Header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 'calc(12px + env(safe-area-inset-top)) 16px 12px', background: '#fff', borderBottom: '1px solid ' + T.border }}>
         <WZpet onClick={onClose} />
-        <div>
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 18, fontWeight: 800 }}>Výdělky</div>
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5 }}>
-            {mesicObj ? _W_MESICE[mesicObj.mesic] + ' ' + mesicObj.rok
-                      : 'Z ' + vyd.pocet + ' ' + _wPlural(vyd.pocet, 'odpracované brigády', 'odpracovaných brigád', 'odpracovaných brigád')}
-          </div>
-        </div>
+        <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.3 }}>Výdělek</div>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, color: '#5B6488', fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600 }}>
+          <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="2" fill="none" stroke="#5B6488" strokeWidth="1.4" /><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="#5B6488" strokeWidth="1.4" /></svg>
+          Vidíš jen ty
+        </span>
       </div>
 
       {/* Body */}
@@ -1147,57 +1268,20 @@ function WEarningsPage({ vyd, onClose }) {
             </div>
           ) : (<>
 
-            {/* Celkem — plná barva bez přechodu a bez textury.
-                Zrušené „Zobrazit vše": měsíc se odznačí druhým klepnutím na
-                jeho sloupec a období se přepíná pod grafem. */}
-            <div style={{ background: '#157643', borderRadius: 20, padding: '18px 20px', marginBottom: 18 }}>
-              <div style={{ color: '#c9f2dd', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.4, marginBottom: 8 }}>
-                {mesicObj ? _W_MESICE[mesicObj.mesic].toUpperCase() + ' ' + mesicObj.rok : 'CELKEM VYDĚLÁNO'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 38, letterSpacing: -0.5, lineHeight: 1 }}>{_wKc(z.celkem)}</span>
-                <span style={{ color: '#c9f2dd', fontFamily: T.fontUI, fontWeight: 700, fontSize: 16 }}>Kč</span>
-              </div>
-              <div style={{ color: '#c9f2dd', fontFamily: T.fontUI, fontSize: 12, marginTop: 7 }}>
-                {z.pocet} {_wPlural(z.pocet, 'brigáda', 'brigády', 'brigád')} · {z.hodin} h
-              </div>
-            </div>
+            {/* ── Karta 1: přepínač období · vybraný měsíc · % změna · graf · průměry ── */}
+            <div style={{ ...karta, marginBottom: 14 }}>
 
-            {/* Průměry */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
-              {[
-                { v: _wKc(z.naHodinu), j: 'Kč', l: 'Průměr na hodinu' },
-                { v: _wKc(z.naBrigadu), j: 'Kč', l: 'Průměr na brigádu' },
-                { v: z.hodin, j: 'h', l: 'Odpracováno' },
-              ].map(s => (
-                <div key={s.l} style={{ background: '#fff', borderRadius: 16, boxShadow: cardShadow, padding: '14px 8px', textAlign: 'center' }}>
-                  <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 18, fontWeight: 800 }}>
-                    {s.v}<span style={{ fontSize: 11, color: T.muted, marginLeft: 2 }}>{s.j}</span>
-                  </div>
-                  <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 600, marginTop: 3, lineHeight: 1.25 }}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Přepínač období + graf. Klik na sloupec zúží stránku na ten měsíc. */}
-            <div style={sekce}>{popisObdobi}</div>
-            <div style={{ ...karta, marginBottom: 18 }}>
-
-              <div style={{ display: 'flex', gap: 5, marginBottom: 16, background: T.surfaceAlt, borderRadius: 12, padding: 4 }}>
-                {[
-                  { k: '3', p: '3 měsíce' },
-                  { k: '6', p: '6 měsíců' },
-                  { k: '12', p: 'Rok' },
-                  { k: 'vlastni', p: 'Vlastní' },
-                ].map(o => {
+              {/* Přepínač období */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: T.surfaceAlt, borderRadius: 14, padding: 4 }}>
+                {[{ k: '6', p: '6 měsíců' }, { k: '12', p: 'Rok' }, { k: 'vlastni', p: 'Vlastní' }].map(o => {
                   const akt = obdobi === o.k;
                   return (
-                    <button key={o.k} onClick={() => setObdobi(o.k)} style={{
-                      flex: 1, padding: '7px 4px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    <button key={o.k} onClick={() => { setObdobi(o.k); setVybranyMesic(null); }} style={{
+                      flex: 1, padding: '9px 4px', borderRadius: 11, border: 'none', cursor: 'pointer',
                       background: akt ? '#fff' : 'transparent',
-                      boxShadow: akt ? '0 2px 6px rgba(20,22,40,0.1)' : 'none',
-                      color: akt ? T.ink : T.muted,
-                      fontFamily: T.fontHead, fontSize: 12, fontWeight: 800,
+                      boxShadow: akt ? '0 2px 6px rgba(20,22,40,0.08)' : 'none',
+                      color: akt ? T.ink : '#5B6488',
+                      fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800,
                       whiteSpace: 'nowrap', transition: 'background .15s, color .15s',
                     }}>{o.p}</button>
                   );
@@ -1205,7 +1289,6 @@ function WEarningsPage({ vyd, onClose }) {
               </div>
 
               {obdobi === 'vlastni' && (
-                /* Na mobilu otevře select systémový výběr — přesně „vybereš měsíce" */
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                   {[
                     { hod: vlastniOd, set: setVlastniOd, popis: 'Od' },
@@ -1214,16 +1297,14 @@ function WEarningsPage({ vyd, onClose }) {
                     <React.Fragment key={v.popis}>
                       {i > 0 && <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12 }}>–</span>}
                       <label style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: 'block', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 700, marginBottom: 3 }}>{v.popis}</span>
-                        <select value={v.hod} onChange={e => v.set(e.target.value)} style={{
+                        <span style={{ display: 'block', color: '#5B6488', fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 700, marginBottom: 3 }}>{v.popis}</span>
+                        <select value={v.hod} onChange={e => { v.set(e.target.value); setVybranyMesic(null); }} style={{
                           width: '100%', padding: '9px 10px', borderRadius: 11,
                           background: '#fff', border: '1px solid ' + T.border, color: T.ink,
                           fontFamily: T.fontUI, fontSize: 13, fontWeight: 600, outline: 'none', cursor: 'pointer',
                         }}>
                           {nabidkaMesicu.map(k => (
-                            <option key={k} value={k}>
-                              {_W_MESICE[Number(k.slice(5)) - 1]} {k.slice(0, 4)}
-                            </option>
+                            <option key={k} value={k}>{_W_MESICE[Number(k.slice(5)) - 1]} {k.slice(0, 4)}</option>
                           ))}
                         </select>
                       </label>
@@ -1232,96 +1313,173 @@ function WEarningsPage({ vyd, onClose }) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: mesiceGrafu.length > 8 ? 4 : 8, height: 130 }}>
-                {mesiceGrafu.map(m => {
-                  const vyska  = m.castka === 0 ? 3 : Math.max(8, Math.round((m.castka / maxMesic) * 100));
-                  const vybrany = m.klic === vybranyMesic;
-                  // Bez výběru je zvýrazněný nejlepší měsíc, s výběrem ten vybraný
-                  const zvyrazni = vybrany || (!vybranyMesic && m.castka > 0 && m.castka === maxMesic);
+              {/* Popis období */}
+              <div style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: 12 }}>{popisObdobi}</div>
+
+              {/* Vybraný měsíc + částka + % změna */}
+              <div style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>
+                {mesicObj ? _W_MESICE[mesicObj.mesic] + ' ' + mesicObj.rok : ''}
+              </div>
+              {/* Částka vlevo (napočítá se), % pilulka vždy vpravo — pevné místo,
+                  ať neposkakuje podle šířky čísla. Ovál po intervalu jemně poskočí. */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '5px 0 20px', minHeight: 40 }}>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
+                  <WCountUp value={z.celkem} style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 38, fontWeight: 800, letterSpacing: -1.2, lineHeight: 1 }} />
+                  <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 18, fontWeight: 700 }}>Kč</span>
+                </span>
+                {zmena !== null && zmena !== 0 && (() => {
+                  const up = zmena > 0;
+                  const barva = up ? '#12967f' : '#C77A0F';
                   return (
-                    <button key={m.klic}
-                      onClick={() => setVybranyMesic(vybrany ? null : m.klic)}
-                      title={_W_MESICE[m.mesic] + ' ' + m.rok + ' · ' + _wKc(m.castka) + ' Kč'}
-                      style={{
-                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                        height: '100%', justifyContent: 'flex-end', padding: 0,
-                        background: 'none', border: 'none', cursor: 'pointer',
-                      }}>
-                      <span style={{ color: zvyrazni ? '#18854d' : T.muted, fontFamily: T.fontHead, fontSize: mesiceGrafu.length > 8 ? 8.5 : 10.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                        {m.castka > 0 ? _wKc(m.castka) : '—'}
-                      </span>
-                      <div style={{
-                        width: '100%', height: vyska + '%', borderRadius: 8,
-                        background: zvyrazni ? T.green : (m.castka > 0 ? 'rgba(31,157,92,0.24)' : T.border),
-                        outline: vybrany ? '2px solid ' + T.green : 'none', outlineOffset: 2,
-                        transition: 'height .4s cubic-bezier(.2,.8,.2,1), background .2s',
-                      }} />
-                      <span style={{ color: vybrany ? '#18854d' : T.mutedSoft, fontFamily: T.fontUI, fontSize: mesiceGrafu.length > 8 ? 9 : 10.5, fontWeight: vybrany ? 800 : 700 }}>{_W_MESICE_ZKR[m.mesic]}</span>
-                    </button>
+                    <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, background: up ? '#E6F6EE' : '#FEF0E0', color: barva, fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, padding: '5px 10px', borderRadius: 999, animation: 'wBadgeHop 7s ease-in-out infinite' }}>
+                      <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                        {up
+                          ? <path d="M5 9V1M5 1L1.5 4.5M5 1l3.5 3.5" stroke={barva} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                          : <path d="M5 1v8M5 9L1.5 5.5M5 9l3.5-3.5" stroke={barva} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+                      </svg>
+                      {Math.abs(zmena)} %
+                    </span>
                   );
-                })}
+                })()}
+              </div>
+
+              {/* Graf: šrafované sloupce, vybraný modrý. Přes 6 měsíců (Rok/Vlastní)
+                  je vidět 6 na obrazovku a zbytek se dojede vodorovným posunem. */}
+              {(() => {
+                const scroll = mesiceGrafu.length > 6;
+                const gap = 9;
+                const barW = scroll ? Math.max(40, (grafW - gap * 5) / 6) : 0;
+                const hint = scroll && grafHint;
+                return (
+                  <div style={{ position: 'relative' }}>
+                    <div ref={grafRef} onScroll={dismissGrafHint} onTouchMove={dismissGrafHint} style={{
+                      overflowX: scroll ? 'auto' : 'hidden', overflowY: 'hidden',
+                      overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap, height: 128, width: scroll ? 'max-content' : '100%' }}>
+                        {mesiceGrafu.map(m => {
+                          const vyska   = m.castka === 0 ? 6 : Math.max(12, Math.round((m.castka / maxMesic) * 100));
+                          const vybrany = m.klic === aktivniKlic;
+                          return (
+                            <button key={m.klic} onClick={() => setVybranyMesic(m.klic)}
+                              title={_W_MESICE[m.mesic] + ' ' + m.rok + ' · ' + _wKc(m.castka) + ' Kč'}
+                              style={{
+                                flex: scroll ? '0 0 ' + barW + 'px' : 1, width: scroll ? barW : 'auto',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
+                                height: '100%', justifyContent: 'flex-end', padding: 0,
+                                background: 'none', border: 'none', cursor: 'pointer',
+                              }}>
+                              <div style={{
+                                width: '100%', height: vyska + '%', borderRadius: 12,
+                                background: vybrany ? T.primary : (m.castka === 0 ? T.surfaceAlt : _W_HATCH),
+                                boxShadow: vybrany ? '0 8px 18px -6px rgba(0,32,246,0.5)' : 'none',
+                                transition: 'height .4s cubic-bezier(.2,.8,.2,1), background .2s',
+                              }} />
+                              <span style={{ color: vybrany ? T.primary : '#5B6488', fontFamily: T.fontUI, fontSize: 12, fontWeight: vybrany ? 800 : 700 }}>{_W_MESICE_ZKR[m.mesic]}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Navádějící šipka vpravo — zmizí po prvním posunu a už se neukáže */}
+                    {hint && (
+                      <>
+                        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 24, width: 56, background: 'linear-gradient(to right, rgba(255,255,255,0), #fff 74%)', pointerEvents: 'none', borderRadius: '0 12px 12px 0' }} />
+                        <div aria-hidden="true" style={{ position: 'absolute', right: 2, top: '42%', transform: 'translateY(-50%)', width: 30, height: 30, borderRadius: 999, background: '#fff', boxShadow: '0 4px 12px rgba(20,22,40,0.16)', display: 'grid', placeItems: 'center', pointerEvents: 'none', animation: 'wNudgeX 1.6s ease-in-out infinite' }}>
+                          <svg width="9" height="14" viewBox="0 0 9 14"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke={T.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Průměry vybraného měsíce */}
+              <div style={{ height: 1, background: T.border, margin: '20px -20px 0' }} />
+              <div style={{ display: 'flex', paddingTop: 16 }}>
+                {[
+                  { val: z.naHodinu, j: 'Kč', l: 'Na hodinu' },
+                  { val: z.naBrigadu, j: 'Kč', l: 'Na brigádu' },
+                  { val: z.hodin, j: 'h', l: 'Odpracováno' },
+                ].map((s, i) => (
+                  <React.Fragment key={s.l}>
+                    {i > 0 && <div style={{ width: 1, background: T.border, margin: '2px 0' }} />}
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, letterSpacing: -0.5 }}>
+                        <WCountUp value={s.val} suffix={s.j} suffixStyle={{ fontSize: 12, color: T.muted, marginLeft: 2 }} />
+                      </div>
+                      <div style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 11, fontWeight: 600, marginTop: 3 }}>{s.l}</div>
+                    </div>
+                  </React.Fragment>
+                ))}
               </div>
             </div>
 
-            {/* Ve vybraném měsíci nemusí být nic — pak nemá cenu ukazovat prázdné sekce */}
+            {/* ── Karta 2: Kde jsem makal (vybraný měsíc) —
+                   ≤3 firmy složený pruh, 4+ koláč (donut) + legenda ── */}
             {z.pocet === 0 ? (
-              <div style={{ ...karta, textAlign: 'center', padding: '26px 22px' }}>
-                {/* Mluv o datech, ne o člověku — mohl pracovat, jen ne přes appku.
-                    Zároveň to obchází mužský rod („jsi nepracoval"). */}
+              <div style={{ ...karta, textAlign: 'center', marginBottom: 14 }}>
                 <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>
-                  V {_W_MESICE_2[mesicObj.mesic]} {mesicObj.rok} není žádný záznam o brigádě
+                  V {mesicObj ? _W_MESICE_2[mesicObj.mesic] + ' ' + mesicObj.rok : 'tomto měsíci'} zatím žádný výdělek
                 </div>
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 5 }}>
-                  Vyber jiný měsíc, nebo klepni na sloupec znovu a uvidíš celé období.
-                </div>
+                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, marginTop: 5 }}>Vyber v grafu jiný měsíc.</div>
               </div>
-            ) : (<>
-
-            {/* Podle firem */}
-            <div style={sekce}>Kde sis vydělal</div>
-            <div style={{ ...karta, marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 13 }}>
-              {firmy.map(f => (
-                <div key={f.company}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-                    <span style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.company}</span>
-                    <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11.5, flexShrink: 0 }}>{f.pocet}×</span>
-                    <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{_wKc(f.castka)} Kč</span>
-                  </div>
-                  <div style={{ height: 6, borderRadius: 999, background: T.surfaceAlt, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: Math.max(3, Math.round((f.castka / z.celkem) * 100)) + '%', borderRadius: 999, background: T.green, transition: 'width .4s' }} />
-                  </div>
+            ) : (
+              <div style={{ ...karta, marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, letterSpacing: -0.3 }}>Kde jsem makal</span>
+                  <span style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 12.5 }}>{mesicObj ? _W_MESICE_2[mesicObj.mesic] + ' ' + mesicObj.rok : ''}</span>
                 </div>
-              ))}
-              {z.podleFirem.length > 4 && (
-                <button onClick={() => setVseFirmy(v => !v)} style={{ background: 'none', border: 'none', color: T.primary, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
-                  {vseFirmy ? 'Zobrazit méně' : `Zobrazit všech ${z.podleFirem.length}`}
-                </button>
-              )}
-            </div>
 
-            {/* Jednotlivé brigády */}
-            <div style={sekce}>Jednotlivé brigády</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {brigady.map(h => (
-                <div key={h.id} style={{ ...karta, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.jobTitle}</div>
-                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {[h.company, h.dateText, h.hodin + ' h'].filter(Boolean).join(' · ')}
+                {z.podleFirem.length >= 4 ? (
+                  /* Koláč (donut) — nakreslí se od 12 h celé kolo, segmenty se oddělí */
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                    <div style={{ position: 'relative', width: 150, height: 150 }}>
+                      <WDonut key={aktivniKlic} size={150} stroke={6.5}
+                        segments={z.podleFirem.map((f, i) => ({ key: f.company, value: f.castka, color: _W_ZIVE[i % _W_ZIVE.length] }))} />
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 24, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1 }}>{z.podleFirem.length}</span>
+                        <span style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 11, fontWeight: 600, marginTop: 2 }}>{_wPlural(z.podleFirem.length, 'firma', 'firmy', 'firem')}</span>
+                      </div>
                     </div>
                   </div>
-                  <span style={{ color: T.green, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, flexShrink: 0 }}>+{_wKc(h.castka)} Kč</span>
-                </div>
-              ))}
-              {z.hotove.length > 6 && (
-                <button onClick={() => setVseBrigady(v => !v)} style={{ background: 'none', border: 'none', color: T.primary, fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, cursor: 'pointer', padding: '4px 0' }}>
-                  {vseBrigady ? 'Zobrazit méně' : `Zobrazit všech ${z.hotove.length}`}
-                </button>
-              )}
-            </div>
-            </>)}
+                ) : (
+                  /* ≤3 firmy: složený pruh — natáhne se zleva doprava */
+                  <div key={aktivniKlic} style={{ display: 'flex', height: 9, borderRadius: 999, overflow: 'hidden', gap: 2, marginBottom: 16, transformOrigin: 'left', animation: 'wWipeX .6s cubic-bezier(.4,0,.2,1) both' }}>
+                    {z.podleFirem.map((f, i) => (
+                      <div key={f.company} style={{ width: Math.max(2, Math.round((f.castka / z.celkem) * 100)) + '%', background: _W_ZIVE[i % _W_ZIVE.length], borderRadius: 3 }} />
+                    ))}
+                  </div>
+                )}
 
-            <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, lineHeight: 1.5, marginTop: 16, textAlign: 'center' }}>
+                {/* Legenda — všechny firmy, ať sedí s grafem */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {z.podleFirem.map((f, i) => (
+                    <div key={f.company} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 10, height: 10, flex: 'none', borderRadius: 999, background: _W_ZIVE[i % _W_ZIVE.length] }} />
+                      <span style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.company}</span>
+                      <span style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 12.5, flexShrink: 0 }}>{f.pocet} {_wPlural(f.pocet, 'směna', 'směny', 'směn')}</span>
+                      <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, flexShrink: 0, minWidth: 76, textAlign: 'right' }}>{_wKc(f.castka)} Kč</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Karta 3: Celkem na Makej (celá historie) ── */}
+            <div style={{ ...karta, padding: '15px 18px', display: 'flex', alignItems: 'center', gap: 13, marginBottom: 14 }}>
+              <span style={{ width: 44, height: 44, flex: 'none', borderRadius: 14, background: T.tint, display: 'grid', placeItems: 'center' }}>
+                <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><rect x="2.5" y="5" width="17" height="12" rx="3" fill="none" stroke={T.primary} strokeWidth="1.7" /><path d="M2.5 9.2h17" stroke={T.primary} strokeWidth="1.7" /></svg>
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>Celkem na Makej</div>
+                <div style={{ color: '#5B6488', fontFamily: T.fontUI, fontSize: 12.5, marginTop: 2 }}>{[memberOd, vyd.pocet + ' ' + _wPlural(vyd.pocet, 'brigáda', 'brigády', 'brigád')].filter(Boolean).join(' · ')}</div>
+              </div>
+              <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, flexShrink: 0 }}>{_wKc(vyd.celkem)} Kč</span>
+            </div>
+
+            <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, lineHeight: 1.5, marginTop: 4, textAlign: 'center' }}>
               Počítáno z odpracovaných směn podle sazby v inzerátu. Jde o hrubý výdělek před zdaněním.
             </div>
           </>)}

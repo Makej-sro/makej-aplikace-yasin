@@ -722,6 +722,10 @@ async function fetchWorkerData(workerId) {
       ? null                                                    // ještě není z čeho počítat
       : Math.round((W_TRUST.dokoncene / zavazku) * 100);
 
+    // Prázdný účet → ukázková data, ať je vidět, jak profil vypadá naostro.
+    // Na účtu s vlastními daty se nic nepřidá. Před spuštěním: worker-demo.jsx.
+    if (typeof wSeedDemoProfil === 'function') wSeedDemoProfil();
+
     return true;
   } catch (err) {
     console.error('[worker-supabase] fetchWorkerData error:', err);

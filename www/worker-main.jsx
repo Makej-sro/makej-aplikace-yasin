@@ -860,20 +860,22 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-      animation: 'wPop .28s cubic-bezier(.2,.8,.2,1)',
+      background: 'rgba(11,18,51,0.42)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+      animation: 'wScrimIn .22s ease',
     }}>
+      {/* Vyjede zezhora jako systémový panel — profil firmy přes celou šířku,
+          zaoblený jen dole, žádné plovoucí ohraničení. */}
       <div onClick={e => e.stopPropagation()} style={{
-        width: '100%', maxWidth: 440, maxHeight: '88vh',
-        background: T.card, borderRadius: 24, border: '1px solid ' + T.border,
+        position: 'absolute', top: 0, left: 0, right: 0, maxHeight: '100%',
+        background: T.bg, borderRadius: '0 0 28px 28px',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: '0 24px 60px rgba(20,22,40,0.28)',
+        boxShadow: '0 26px 60px rgba(11,18,51,0.4)',
+        animation: 'wToastIn .4s cubic-bezier(.2,.85,.25,1)',
       }}>
         {/* Hero */}
-        <div style={{ position: 'relative', flexShrink: 0, padding: '22px', background: T.heroGrad, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', flexShrink: 0, padding: 'calc(22px + env(safe-area-inset-top)) 22px 22px', background: T.heroGrad, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.14) 1.2px, transparent 1.2px)', backgroundSize: '18px 18px', opacity: 0.5, pointerEvents: 'none' }} />
-          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 999, background: 'rgba(0,0,0,0.3)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 16, zIndex: 1 }}>✕</button>
+          <button onClick={onClose} style={{ position: 'absolute', top: 'calc(14px + env(safe-area-inset-top))', right: 14, width: 32, height: 32, borderRadius: 999, background: 'rgba(0,0,0,0.3)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 16, zIndex: 1 }}>✕</button>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 60, height: 60, borderRadius: 17, background: '#fff', color: T.primary, display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontWeight: 800, fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
               {p && p.logo_url ? <img src={p.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
@@ -881,7 +883,7 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4 }}>{name}</span>
-                {verified && <Icon name="verified-check-bold" size={15} color="#A3AEFF" />}
+                {verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={16} /> : <Icon name="verified-check-bold" size={15} color="#A3AEFF" />)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontFamily: T.fontUI, fontSize: 13 }}>{industry || 'Zaměstnavatel'}</span>
@@ -1320,7 +1322,8 @@ function WorkerApp() {
   // Kalendář žije teď jako ikona nahoře vedle Nastavení (viz níž) — spodní
   // nav zůstává jen na tři hlavní, často používané záložky.
   const NAV = [
-    { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-outline.svg' },
+    // Zvonek žije na Práci → když přijde upozornění a nejsi tam, hlásí to tečka.
+    { id: 'swipe',    label: 'Práce',    img: 'icons/jobs-outline.svg', dot: unreadNotifs > 0 && tab !== 'swipe' },
     { id: 'people',   label: 'Lidé',     img: 'icons/people-outline.svg' },
     { id: 'messages', label: 'Zprávy',   img: 'icons/messages-outline.svg', badge: unreadMessages },
     { id: 'profile',  label: 'Profil',   img: 'icons/profile-outline.svg' },
@@ -1334,8 +1337,8 @@ function WorkerApp() {
     body = (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 4, position: 'relative' }}>
         {/* horní lišta — duch oválku vlevo + profilu vpravo */}
-        <div className="wsk" style={{ position: 'fixed', top: 8, left: 16, width: 72, height: 38, borderRadius: 999, zIndex: 20 }} />
-        <div className="wsk" style={{ position: 'fixed', top: 8, right: 16, width: 44, height: 44, borderRadius: 999, zIndex: 20 }} />
+        <div className="wsk" style={{ position: 'fixed', top: 'calc(8px + env(safe-area-inset-top))', left: 16, width: 72, height: 38, borderRadius: 999, zIndex: 20 }} />
+        <div className="wsk" style={{ position: 'fixed', top: 'calc(8px + env(safe-area-inset-top))', right: 16, width: 44, height: 44, borderRadius: 999, zIndex: 20 }} />
 
         {/* odsazení pod lištu (jako ve WSwipe) */}
         <div style={{ padding: '8px 20px 8px', flexShrink: 0 }}><div style={{ height: 36 }} /></div>
@@ -1399,10 +1402,11 @@ function WorkerApp() {
       </div>
 
       {/* Horní lišta — vlevo oválek s nástroji (Kalendář + Zvoneček).
-          Na všech záložkách kromě Profilu (ten má vlastní hlavičku) a otevřeného chatu. */}
-      {loaded && !chatOpen && !detailOpen && tab !== 'profile' && (
+          Jen na Práci (feed). Na ostatních tabech nahoře nic — notifikace za
+          běhu přijdou bannerem a Zprávy hlásí počet odznakem v navbaru. */}
+      {loaded && !chatOpen && !detailOpen && tab === 'swipe' && (
         <div style={{
-          position: 'fixed', top: 8, left: 16, zIndex: 8500,
+          position: 'fixed', top: 'calc(8px + env(safe-area-inset-top))', left: 16, zIndex: 8500,
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: '#fff', borderRadius: 999, padding: 3,
           border: '1px solid rgba(16,24,64,0.07)',
@@ -1608,6 +1612,10 @@ function WorkerApp() {
                       fontSize: 9, fontWeight: 800, fontFamily: T.fontHead,
                       display: 'grid', placeItems: 'center',
                     }}>{n.badge}</span>
+                  )}
+                  {/* Tečka bez čísla — jen signál „něco nového" (notifikace na Práci) */}
+                  {!(n.badge > 0) && n.dot && (
+                    <span style={{ position: 'absolute', top: -3, right: -4, width: 9, height: 9, borderRadius: 999, background: T.destructive, border: '2px solid #fff' }} />
                   )}
                 </div>
                 <span style={{

@@ -10,13 +10,18 @@ const _pShort = name => { const p = (name || '').trim().split(/\s+/); return p.l
 // Kategorie do čipů. `kw` = klíčová slova bez diakritiky (hledá se v nabídce+štítcích).
 const _P_KATEGORIE = [
   { key: 'vse',       label: 'Vše',        kw: null },
-  { key: 'remesla',   label: 'Řemesla',    kw: ['remesl', 'oprav', 'hodinar', 'hodink', 'elektro', 'instalat', 'truhl', 'kutil', 'kolo', 'zasuvk'] },
-  { key: 'doucovani', label: 'Doučování',  kw: ['douc', 'matemat', 'fyzik', 'vyuk', 'jazyk', 'anglict', 'uceni'] },
-  { key: 'it',        label: 'IT',         kw: ['web', 'appk', 'program', 'kod', 'pocitac', 'e-shop', 'eshop'] },
-  { key: 'foto',      label: 'Foto/Video', kw: ['fot', 'video', 'strih', 'kamer'] },
-  { key: 'gastro',    label: 'Gastro',     kw: ['var', 'catering', 'gastro', 'kuchy', 'barist', 'kav', 'pec', 'dort'] },
-  { key: 'stehovani', label: 'Stěhování',  kw: ['stehov', 'dodavk', 'odvoz', 'preprav', 'sila'] },
-  { key: 'hudba',     label: 'Hudba',      kw: ['kytar', 'hud', 'hraj', 'zpev', 'nastroj'] },
+  { key: 'remesla',   label: 'Řemesla',    kw: ['remesl', 'opravi', 'oprava', 'opravy', 'spravi', 'hodinar', 'hodink', 'elektro', 'instalat', 'truhl', 'kutil', 'zasuvk', 'nabytek', 'montaz'] },
+  { key: 'uklid',     label: 'Úklid',      kw: ['uklid', 'zehlen', 'okna', 'domacnost', 'vysav'] },
+  { key: 'zahrada',   label: 'Zahrada',    kw: ['zahrad', 'sekan', 'travnik', 'plot', 'strom', 'hraban', 'zaliv'] },
+  { key: 'doucovani', label: 'Doučování',  kw: ['douc', 'matemat', 'fyzik', 'vyuk', 'jazyk', 'anglict', 'uceni', 'prijimac', 'maturit'] },
+  { key: 'it',        label: 'IT',         kw: ['web', 'appk', 'program', 'kod', 'pocitac', 'e-shop', 'eshop', 'notebook', 'odvirov'] },
+  { key: 'foto',      label: 'Foto/Video', kw: ['foti', 'focen', 'fotograf', 'video', 'kamer', 'reels', 'portret'] },
+  { key: 'gastro',    label: 'Gastro',     kw: ['var', 'catering', 'gastro', 'kuchy', 'barist', 'kav', 'pec', 'dort', 'cukrov'] },
+  { key: 'hlidani',   label: 'Hlídání',    kw: ['hlidan', 'deti', 'chuva', 'miminko', 'dite'] },
+  { key: 'zvirata',   label: 'Zvířata',    kw: ['psa', 'psy', 'venc', 'kock', 'zvir', 'mazlic', 'pejsk'] },
+  { key: 'krasa',     label: 'Krása',      kw: ['kader', 'nehty', 'kosmetik', 'liceni', 'rasy', 'oboci', 'manikur', 'pedikur'] },
+  { key: 'stehovani', label: 'Stěhování',  kw: ['stehov', 'dodavk', 'odvoz', 'preprav', 'sila', 'vynos'] },
+  { key: 'hudba',     label: 'Hudba',      kw: ['kytar', 'hud', 'hraj', 'zpev', 'nastroj', 'klavir', 'piano'] },
 ];
 
 // Klíčová slova pro typewriter efekt v placeholderu vyhledávání.
@@ -34,55 +39,136 @@ function _pPriceStr(type, amount) {
 }
 
 // ── Demo data — appka teprve startuje, reálné karty zatím nejsou. ──
+// avatar = profilová fotka, photos = galerie práce, skills = „co umím",
+// equipment = vlastní vybavení/nářadí. (Demo fotky: demo-lide/ — nahradit reálnými.)
 function _pDemoPeople() {
-  return [
+  const _demo = [
     { id: 'demo-p-1', name: 'Petr Hlaváč', verified: true, city: 'Brno', district: 'Brno — Veveří', rating: 4.9, ratingCount: 23,
+      avatar: 'demo-lide/p1.jpg', photos: ['demo-lide/w1.jpg', 'demo-lide/w2.jpg', 'demo-lide/w3.jpg'],
       card_offer: 'Jednou týdně opravuju hodinky, rád pomůžu. Vyměním baterii, řemínek i sklíčko, u mechanik zvládnu vyčištění a seřízení. Přines to kdykoli večer, většinou to mám hotové do druhého dne.',
       bio: 'Hodinky mě baví od malička — začínal jsem u dědy v dílně a teď to dělám i profesionálně v servisu. Nejsem žádná velká značka, ale poctivě a rád. Když si nebudeš vědět rady, poradím i po telefonu.',
-      experience: '4 roky v hodinářském servisu', price: 'Dohodou', availability: ['Večery', 'Víkendy'],
+      experience: '4 roky v hodinářském servisu', equipment: 'Vlastní nářadí i běžné náhradní díly',
+      skills: ['Výměna baterie', 'Řemínky', 'Sklíčka', 'Čištění mechanik', 'Seřízení'],
+      price: 'Dohodou', availability: ['Večery', 'Víkendy'],
       card_tags: ['Řemesla', 'Hodinky', 'Drobné opravy'], replyTime: 'do 2 hodin', helpCount: 31, mode: 'U mě i osobně',
       reviews: [{ text: 'Vyměnil mi řemínek za dvacet minut a nechtěl za to nic. Moc příjemné jednání.', author: 'Klára V.', month: 'červenec' }] },
     { id: 'demo-p-2', name: 'Tereza Nová', verified: true, city: 'Brno', district: 'Brno — střed', rating: 4.8, ratingCount: 41,
+      avatar: 'demo-lide/p2.jpg', photos: ['demo-lide/w4.jpg', 'demo-lide/w5.jpg'],
       card_offer: 'Doučuju matiku a fyziku, základka i střední. Připravím i na přijímačky a maturitu, vysvětlím to lidsky. Chodím k tobě nebo online.',
       bio: 'Studuju učitelství matematiky a doučování je pro mě radost, ne jen přivýdělek. Umím látku vysvětlit několika způsoby, dokud to nesedne. S dětmi mám trpělivost a nebojím se ani slabších studentů.',
-      experience: 'Doučuju 3 roky, studuju učitelství', price: 'Od 250 Kč', availability: ['Večery', 'Víkendy'],
+      experience: 'Doučuju 3 roky, studuju učitelství', equipment: 'Materiály a příklady nachystám',
+      skills: ['Matematika', 'Fyzika', 'Přijímačky', 'Příprava na maturitu'],
+      price: 'Od 250 Kč', availability: ['Večery', 'Víkendy'],
       card_tags: ['Doučování', 'Matematika', 'Fyzika'], replyTime: 'do 1 hodiny', helpCount: 58, mode: 'U tebe i online',
       reviews: [{ text: 'Syn konečně pochopil zlomky. Trpělivá a připravená.', author: 'Jana P.', month: 'červen' }] },
     { id: 'demo-p-3', name: 'Martin Kraus', verified: true, city: 'Praha', district: 'Praha 7', rating: 5.0, ratingCount: 12,
+      avatar: 'demo-lide/p3.jpg', photos: ['demo-lide/w6.jpg', 'demo-lide/w7.jpg', 'demo-lide/w8.jpg', 'demo-lide/w9.jpg'],
       card_offer: 'Fotím portréty a akce, mám vlastní techniku i světla. Portréty, produktovku i menší eventy. Fotky dodám upravené do týdne.',
       bio: 'Focení dělám pátým rokem, mám vlastní ateliér i mobilní vybavení na výjezdy. Rád domluvím koncept dopředu, ať odcházíš s fotkami, které se ti opravdu líbí. Ukázky pošlu na požádání.',
-      experience: 'Fotím 5 let, vlastní ateliér', price: 'Od 500 Kč', availability: ['Flexibilně'],
+      experience: 'Fotím 5 let, vlastní ateliér', equipment: 'Vlastní technika, světla i ateliér',
+      skills: ['Portréty', 'Produktovka', 'Eventy', 'Retuš'],
+      price: 'Od 500 Kč', availability: ['Flexibilně'],
       card_tags: ['Foto/Video', 'Portréty', 'Eventy'], replyTime: 'do 3 hodin', helpCount: 9, mode: 'U mě',
       reviews: [{ text: 'Skvělé portréty do portfolia, rychlé dodání.', author: 'Filip N.', month: 'srpen' }] },
     { id: 'demo-p-4', name: 'Adéla Pokorná', verified: false, city: 'Ostrava', district: 'Ostrava — Poruba', rating: 4.7, ratingCount: 16,
+      avatar: 'demo-lide/p4.jpg', photos: ['demo-lide/w10.jpg', 'demo-lide/w11.jpg'],
       card_offer: 'Pomůžu se stěhováním, mám dodávku a sílu. Naložím, odvezu i vynosím do patra. Klidně i o víkendu.',
       bio: 'Stěhování dělám při škole, mám dodávku po tátovi a partu spolehlivých kluků, když je potřeba víc rukou. Na čas dorazím, s nábytkem umím a nic ti nepoškrábu.',
-      experience: 'Stěhuju 2 roky, vlastní dodávka', price: 'Od 200 Kč', availability: ['Víkendy', 'Flexibilně'],
+      experience: 'Stěhuju 2 roky, vlastní dodávka', equipment: 'Vlastní dodávka, popruhy i deky',
+      skills: ['Naložení', 'Odvoz', 'Vynošení do patra', 'Demontáž nábytku'],
+      price: 'Od 200 Kč', availability: ['Víkendy', 'Flexibilně'],
       card_tags: ['Stěhování', 'Dodávka'], replyTime: 'do 5 hodin', helpCount: 22, mode: 'U tebe',
       reviews: [{ text: 'Přijela na čas, byt jsme stěhovali rychle. Doporučuju.', author: 'Ondřej M.', month: 'květen' }] },
     { id: 'demo-p-5', name: 'Jakub Souček', verified: true, city: 'Brno', district: 'Brno — Královo Pole', rating: 4.6, ratingCount: 19,
+      avatar: 'demo-lide/p5.jpg', photos: ['demo-lide/w12.jpg', 'demo-lide/w1.jpg'],
       card_offer: 'Postavím jednoduchý web nebo spravím počítač. Prezentaci, e-shop na míru i odvirování a zrychlení notebooku.',
       bio: 'Programuju při studiu na VUT a weby dělám od střední. Nejsem agentura, takže cena je férová a domluva rychlá. Web ti nejen udělám, ale i tě naučím ho spravovat, ať nejsi na mně závislý.',
-      experience: 'Weby dělám 4 roky, student VUT', price: 'Dohodou', availability: ['Večery', 'Víkendy'],
+      experience: 'Weby dělám 4 roky, student VUT', equipment: 'Přijedu s vlastním notebookem',
+      skills: ['Weby', 'E-shopy', 'Odvirování', 'Zrychlení PC'],
+      price: 'Dohodou', availability: ['Večery', 'Víkendy'],
       card_tags: ['IT', 'Weby'], replyTime: 'do 4 hodin', helpCount: 14, mode: 'U tebe i online',
       reviews: [{ text: 'Web mi udělal za víkend a naučil mě ho spravovat.', author: 'Lucie H.', month: 'červenec' }] },
     { id: 'demo-p-6', name: 'Klára Veselá', verified: true, city: 'Praha', district: 'Praha 3', rating: 4.9, ratingCount: 34,
+      avatar: 'demo-lide/p6.jpg', photos: ['demo-lide/w2.jpg', 'demo-lide/w3.jpg', 'demo-lide/w4.jpg'],
       card_offer: 'Upeču dort na oslavu, zvládnu i bezlepkový. Dorty, cupcakes i cukroví podle přání. Objednávej pár dní dopředu.',
       bio: 'Peču z lásky už roky a nejvíc mě baví, když má být dort podle konkrétní představy. Zvládnu i bezlepkové a veganské varianty. Domluvíme se na chuti i vzhledu předem, ať tě nic nepřekvapí.',
-      experience: 'Peču na objednávku 4 roky', price: 'Od 350 Kč', availability: ['Flexibilně'],
+      experience: 'Peču na objednávku 4 roky', equipment: 'Vlastní formy, zdobení i suroviny',
+      skills: ['Dorty', 'Cupcakes', 'Cukroví', 'Bezlepkové', 'Veganské'],
+      price: 'Od 350 Kč', availability: ['Flexibilně'],
       card_tags: ['Gastro', 'Pečení', 'Dorty'], replyTime: 'do 2 hodin', helpCount: 27, mode: 'U mě',
       reviews: [{ text: 'Nejlepší dort na oslavu, všem chutnal. Domluva bez problému.', author: 'Petra K.', month: 'srpen' }] },
     { id: 'demo-p-7', name: 'Filip Marek', verified: false, city: 'Zlín', district: 'Zlín — střed', rating: 0, ratingCount: 0,
+      avatar: 'demo-lide/p7.jpg', photos: ['demo-lide/w5.jpg', 'demo-lide/w6.jpg'],
       card_offer: 'Opravím ti zásuvku nebo světlo, mám papíry na elektro. Drobné elektroinstalace a výměny po bytě.',
       bio: 'Jsem vyučený elektrikář a brigádně pomáhám i s drobnostmi po bytě, na které elektrikáři nechtějí jezdit. Dělám to bezpečně a podle předpisů — u elektřiny se nešidí.',
-      experience: 'Vyučený elektrikář', price: 'Dohodou', availability: ['Přes den', 'Víkendy'],
+      experience: 'Vyučený elektrikář', equipment: 'Vlastní nářadí i měřicí přístroje',
+      skills: ['Zásuvky', 'Světla', 'Drobné instalace', 'Výměny'],
+      price: 'Dohodou', availability: ['Přes den', 'Víkendy'],
       card_tags: ['Řemesla', 'Elektro'], replyTime: 'do 6 hodin', helpCount: 0, mode: 'U tebe', reviews: [] },
     { id: 'demo-p-8', name: 'Nikol Urbanová', verified: false, city: 'Olomouc', district: 'Olomouc — Nová Ulice', rating: 0, ratingCount: 0,
+      avatar: 'demo-lide/p8.jpg', photos: ['demo-lide/w7.jpg', 'demo-lide/w8.jpg'],
       card_offer: 'Učím kytaru začátečníky, docházím i domů. Akordy, doprovod k písničkám, tempo dle tebe.',
       bio: 'Hraju na kytaru přes deset let a učení mě baví. Začátečníky vezmu úplně od nuly — první písničku zvládneš rychleji, než čekáš. Tempo i styl přizpůsobím tomu, co chceš hrát.',
-      experience: 'Hraju 10 let', price: 'Od 300 Kč', availability: ['Večery'],
+      experience: 'Hraju 10 let', equipment: 'Kytaru na hodinu půjčím',
+      skills: ['Akordy', 'Doprovod', 'Noty od nuly', 'Rytmus'],
+      price: 'Od 300 Kč', availability: ['Večery'],
       card_tags: ['Hudba', 'Kytara', 'Výuka'], replyTime: 'do 1 dne', helpCount: 0, mode: 'U tebe i online', reviews: [] },
+    { id: 'demo-p-9', name: 'Lucie Horáková', verified: true, city: 'Praha', district: 'Praha 4', rating: 4.9, ratingCount: 28,
+      avatar: 'demo-lide/p9.jpg', photos: ['demo-lide/w2.jpg', 'demo-lide/w3.jpg'],
+      card_offer: 'Uklidím ti byt, umyju okna nebo vyžehlím. Pravidelný i jednorázový úklid domácnosti, spolehlivě a v tichosti. Přijedu s vlastní chemií.',
+      bio: 'Úklidu se věnuju pár let a mám ráda, když je po mně vidět. Jsem důsledná, na čas a nešťourám se v tvých věcech. Domluvíme se na rozsahu i frekvenci, ať to sedne přesně tobě.',
+      experience: 'Uklízím 4 roky', equipment: 'Vlastní úklidová chemie i pomůcky',
+      skills: ['Úklid domácnosti', 'Mytí oken', 'Žehlení', 'Generální úklid'],
+      price: 'Od 220 Kč', availability: ['Přes den', 'Flexibilně'],
+      card_tags: ['Úklid', 'Domácnost'], replyTime: 'do 2 hodin', helpCount: 34, mode: 'U tebe',
+      reviews: [{ text: 'Byt zářil, okna bez šmouh. Domluva i příchod bez problému.', author: 'Martina S.', month: 'srpen' }] },
+    { id: 'demo-p-10', name: 'Jarda Beneš', verified: false, city: 'Brno', district: 'Brno — Bystrc', rating: 4.7, ratingCount: 12,
+      avatar: 'demo-lide/p10.jpg', photos: ['demo-lide/w5.jpg', 'demo-lide/w1.jpg'],
+      card_offer: 'Posekám trávník, ostříhám plot nebo shrabu listí. Menší zahradní práce, mám vlastní sekačku i křovinořez. Klidně i pravidelně.',
+      bio: 'Zahradě se věnuju od malička u chalupy a teď pomáhám i lidem v okolí. Práci si po sobě uklidím a poradím, co s čím. Nebojím se ani zarostlé zahrady.',
+      experience: 'Zahradní práce 3 sezóny', equipment: 'Vlastní sekačka i křovinořez',
+      skills: ['Sekání trávy', 'Střihání plotů', 'Hrabání listí', 'Úklid zahrady'],
+      price: 'Od 200 Kč', availability: ['Víkendy', 'Flexibilně'],
+      card_tags: ['Zahrada', 'Sekání'], replyTime: 'do 4 hodin', helpCount: 15, mode: 'U tebe',
+      reviews: [{ text: 'Zarostlou zahradu dal do pořádku za odpoledne. Spokojenost.', author: 'Karel D.', month: 'červenec' }] },
+    { id: 'demo-p-11', name: 'Bára Němcová', verified: true, city: 'Praha', district: 'Praha 8', rating: 5.0, ratingCount: 21,
+      avatar: 'demo-lide/p11.jpg', photos: ['demo-lide/w4.jpg', 'demo-lide/w7.jpg'],
+      card_offer: 'Pohlídám ti děti — odpoledne, večer i o víkendu. Vyzvednu ze školky, pomůžu s úkoly a zabavím. Zkušenosti i s malými dětmi.',
+      bio: 'Studuju pedagogiku a hlídání mě baví. Mám mladší sourozence, takže s dětmi umím a jsem trpělivá. Rodičům pošlu během hlídání zprávu, ať mají klid.',
+      experience: 'Hlídám děti 3 roky, studuju pedagogiku', equipment: 'Přinesu hry i nápady na zabavení',
+      skills: ['Hlídání dětí', 'Vyzvednutí ze školky', 'Pomoc s úkoly', 'Doprovod na kroužky'],
+      price: 'Od 180 Kč', availability: ['Večery', 'Víkendy'],
+      card_tags: ['Hlídání', 'Děti'], replyTime: 'do 1 hodiny', helpCount: 26, mode: 'U tebe',
+      reviews: [{ text: 'Děti si ji hned oblíbily, spolehlivá a milá. Doporučuju.', author: 'Tereza H.', month: 'srpen' }] },
+    { id: 'demo-p-12', name: 'Tomáš Král', verified: false, city: 'Ostrava', district: 'Ostrava — Mariánské Hory', rating: 4.8, ratingCount: 17,
+      avatar: 'demo-lide/p12.jpg', photos: ['demo-lide/w8.jpg', 'demo-lide/w9.jpg'],
+      card_offer: 'Vyvenčím ti psa nebo ho pohlídám, když jsi v práci. Procházky, krmení i pohlídání přes den. Mám psa, takže vím, jak na to.',
+      bio: 'Psi jsou moje srdcovka — mám doma border kolii a venčení mě nabíjí. S pejsky umím i s těmi neposednými a pošlu ti fotku z procházky, ať máš klid.',
+      experience: 'Venčím a hlídám psy 2 roky', equipment: 'Náhradní vodítko i pamlsky s sebou',
+      skills: ['Venčení psů', 'Hlídání přes den', 'Krmení', 'Procházky'],
+      price: 'Od 150 Kč', availability: ['Přes den', 'Flexibilně'],
+      card_tags: ['Zvířata', 'Venčení psů'], replyTime: 'do 3 hodin', helpCount: 19, mode: 'U tebe',
+      reviews: [{ text: 'Naše kolie ho zbožňuje, po procházce spokojený pes. Super.', author: 'Lenka V.', month: 'červen' }] },
+    { id: 'demo-p-13', name: 'Denisa Fialová', verified: true, city: 'Brno', district: 'Brno — Řečkovice', rating: 4.9, ratingCount: 39,
+      avatar: 'demo-lide/p13.jpg', photos: ['demo-lide/w10.jpg', 'demo-lide/w11.jpg'],
+      card_offer: 'Udělám ti nehty, řasy nebo obočí u mě doma. Manikúra, gel-lak, lash lifting i úprava obočí. Domluv se pár dní dopředu.',
+      bio: 'Kráse se věnuju profesionálně i z lásky. Mám vlastní malý koutek u sebe doma, kde je klid a pohoda. Poradím i s tím, co ti bude slušet a vydrží.',
+      experience: 'Nehtová a řasová stylistka 4 roky', equipment: 'Vlastní vybavení i materiál',
+      skills: ['Manikúra', 'Gel-lak', 'Lash lifting', 'Úprava obočí'],
+      price: 'Od 350 Kč', availability: ['Přes den', 'Večery'],
+      card_tags: ['Krása', 'Nehty', 'Řasy'], replyTime: 'do 2 hodin', helpCount: 31, mode: 'U mě',
+      reviews: [{ text: 'Nehty vydržely tři týdny bez ztráty lesku. Šikovná a milá.', author: 'Aneta K.', month: 'srpen' }] },
   ];
+  // Doplní chybějící trust pole (počet zakázek, reakční doba, kde působí), ať je
+  // důvěryhodnostní pruh plný i u starších demo lidí. Vlastní hodnoty mají přednost.
+  return _demo.map((p, i) => Object.assign({
+    helpCount: p.ratingCount || 0,
+    cancelled: 0,
+    mode: 'U tebe i online',
+    radius: [10, 15, 20, 12][i % 4],
+  }, p, {
+    replyTime: ['42 min', '1 h', '2 h', '35 min'][i % 4],
+  }));
 }
 
 // ── Malé obrysové ikonky (styl návrhu) ────────────────────────────
@@ -130,7 +216,7 @@ function WPeopleSearch({ value, onChange }) {
   const ph = empty ? ('Hledej ' + typed + (blink ? '|' : ' ')) : '';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid ' + T.border, borderRadius: 16, padding: '13px 15px' }}>
-      {_PIco.search(T.muted)}
+      <Icon name="magnifer-linear" size={18} color={T.muted} />
       <input value={value} onChange={onChange} placeholder={ph} aria-label="Hledat pomoc"
         style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontFamily: T.fontUI, fontSize: 14, color: T.ink }} />
       {value && <button onClick={() => onChange({ target: { value: '' } })} title="Vymazat" style={{ border: 'none', background: 'none', color: T.muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>✕</button>}
@@ -138,17 +224,42 @@ function WPeopleSearch({ value, onChange }) {
   );
 }
 
+// ── Skeleton kartička (modrý tint) — drží rozměry skutečné karty ──
+function WPersonSkeleton() {
+  const bar = (w, h, r, d) => <span className={'wsk wsk--blue' + (d ? ' wsk--d' + d : '')} style={{ display: 'block', width: w, height: h, borderRadius: r }} />;
+  return (
+    <div aria-hidden="true" style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        {bar(46, 46, 999)}
+        {bar(38, 15, 999, 1)}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {bar('68%', 13, 7, 1)}
+        {bar('42%', 10, 6, 2)}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {bar('100%', 10, 6, 2)}
+        {bar('76%', 10, 6, 3)}
+      </div>
+      <div>{bar(58, 21, 999, 3)}</div>
+    </div>
+  );
+}
+
 // ── Kartička v mřížce (2 sloupce) ─────────────────────────────────
-function WPersonGridCard({ person, onTap }) {
+function WPersonGridCard({ person, onTap, idx = 0 }) {
   const tags = (Array.isArray(person.card_tags) ? person.card_tags : []).slice(0, 1);
   return (
-    <button onClick={onTap} style={{
+    <button onClick={onTap} className="wpin" style={{
       textAlign: 'left', cursor: 'pointer', width: '100%',
       background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: 14,
       display: 'flex', flexDirection: 'column', gap: 9, WebkitTapHighlightColor: 'transparent',
+      animationDelay: Math.min(idx * 26, 360) + 'ms',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ width: 44, height: 44, flex: 'none', borderRadius: 999, background: T.heroGrad, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontWeight: 800, fontSize: 15 }}>{_pInitials(person.name)}</div>
+        <div style={{ width: 46, height: 46, flex: 'none', borderRadius: 999, overflow: 'hidden', background: T.heroGrad, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontWeight: 800, fontSize: 15 }}>
+          {person.avatar ? <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} /> : _pInitials(person.name)}
+        </div>
         {person.rating > 0 && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, color: T.ink }}>
             <WStar size={13} color={T.super} />{Number(person.rating).toFixed(1).replace('.', ',')}
@@ -158,7 +269,7 @@ function WPersonGridCard({ person, onTap }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
           <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: -0.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{_pShort(person.name)}</span>
-          {person.verified && <Icon name="verified-check-bold" size={13} color={T.primary} />}
+          {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
         </span>
         {person.city && <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted }}>{person.city}</span>}
       </div>
@@ -167,7 +278,7 @@ function WPersonGridCard({ person, onTap }) {
       )}
       {(person.price || tags.length > 0) && (
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-          {person.price && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, color: T.primary, background: T.tint, padding: '5px 9px', borderRadius: 999 }}>{_PIco.coin(T.primary)}{person.price}</span>}
+          {person.price && <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, color: T.primary, background: T.tint, padding: '5px 10px', borderRadius: 999 }}>{person.price}</span>}
           {tags.slice(0, 1).map((t, i) => <span key={i} style={{ fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: T.ink, background: T.surfaceAlt, padding: '5px 9px', borderRadius: 999 }}>{t}</span>)}
         </div>
       )}
@@ -177,97 +288,228 @@ function WPersonGridCard({ person, onTap }) {
 
 // ── Detail člověka (celá obrazovka) ───────────────────────────────
 function WPersonDetail({ person, onClose, onContact }) {
-  const tags = Array.isArray(person.card_tags) ? person.card_tags : [];
   const [saved, setSaved] = useStateW(() => _pIsSaved(person.id));
+  const [coverIdx, setCoverIdx] = useStateW(0);
+  const [showReviews, setShowReviews] = useStateW(false);   // panel recenzí zespoda
+  const coverRef = useRefW(null);
+
+  const tags   = Array.isArray(person.card_tags) ? person.card_tags : [];
+  const skills = (Array.isArray(person.skills) && person.skills.length) ? person.skills : tags;
   const reviews = Array.isArray(person.reviews) ? person.reviews : [];
-  const cardBox = { background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: '16px 17px', display: 'flex', flexDirection: 'column', gap: 9 };
+  const coverPhotos = Array.isArray(person.photos) ? person.photos : [];   // swajpovatelné pozadí
+  const initials = _pInitials(person.name);
+
+  const onCoverScroll = () => { const el = coverRef.current; if (el && el.clientWidth) setCoverIdx(Math.round(el.scrollLeft / el.clientWidth)); };
+
+  const cardBox = { background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: '16px 17px', display: 'flex', flexDirection: 'column', gap: 10 };
   const cardH = { fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink };
 
   const avail = Array.isArray(person.availability) ? person.availability.join(' · ') : '';
-  const trust = [
-    avail && { ico: _PIco.calendar, k: 'Dostupnost', v: avail },
-    person.mode && { ico: _PIco.pin, k: 'Kde', v: person.mode },
-    person.replyTime && { ico: _PIco.clock, k: 'Odpovídá obvykle', v: person.replyTime },
-    person.helpCount > 0 && { ico: _PIco.starOutline, k: 'Pomoc v komunitě', v: person.helpCount + '×' },
+  // Podrobnosti (spec-sheet). Hodnocení/zakázky/reakce jsou v trust pruhu nahoře,
+  // „Kde/dojezd" je u ceny v sekci Nabízí — sem nepatří, ať se nedubluje.
+  const facts = [
+    avail && { k: 'Dostupnost', v: avail },
+    person.equipment && { k: 'Vybavení', v: person.equipment },
   ].filter(Boolean);
+
+  // Rychlá důvěra pod jménem (číslo + důkaz + popis).
+  const jobsDone = person.jobsDone || person.helpCount || person.ratingCount || 0;
+
+  // Adresu (město) ukazuje jen identita pod jménem. Způsob (u tebe / online),
+  // dojezd i logistiku řeší chat — na kartě to nemá co dělat.
+
+  const kruh = { width: 38, height: 38, flex: 'none', border: 'none', borderRadius: 999, background: 'rgba(0,0,0,0.36)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'grid', placeItems: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' };
+
+  // Nadpis sekce s barevným kolečkovým odznakem — stejný styl jako u inzerátu brigády.
+  const sekHead = (bg, svg, title) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      <span style={{ width: 26, height: 26, flex: 'none', borderRadius: 999, background: bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{svg}</span>
+      <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>{title}</span>
+    </span>
+  );
+  // Reálné Solar ikony z appky (nabundlované ve vendor/icons-solar.js) — stejné
+  // barvy i tvary jako u sekcí v detailu brigády, ať je to jednotné.
+  // „Nabízí" = zelený check-trend jako „Co ti nabídneme" u brigády.
+  const _icOffer = (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 17 L10 11 L14 14 L20 7" stroke="#2FA84F" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 7 L20 7 L20 12" stroke="#2FA84F" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+  const _icSkill = (   // „Co umím" = palec nahoru (co člověk umí / v čem je dobrý)
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="#2196F3" aria-hidden="true">
+      {/* posun o 1 dolů → tvar palce (tažený nahoru) opticky sedne na střed kolečka */}
+      <path transform="translate(0 1)" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z" />
+    </svg>
+  );
+  const _icUser  = <Icon name="user-bold" size={15} color="#EA7317" />;
+  const _icList  = <Icon name="checklist-minimalistic-bold" size={15} color="#7C3AED" />;
+  // Recenze = stejná hvězda jako v kartách brigád (sdílená komponenta WStar).
+  const _icStar  = (typeof WStar === 'function'
+    ? <WStar size={15} color="#F5B301" />
+    : <Icon name="star-bold" size={15} color="#F5B301" />);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: T.bg, display: 'flex', flexDirection: 'column', animation: 'wPop .28s cubic-bezier(.2,.8,.2,1)' }}>
-      {/* Hero */}
-      <div style={{ flex: 'none', background: T.heroGrad, padding: '52px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onClose} title="Zpět na tržiště" style={{ width: 38, height: 38, flex: 'none', border: 'none', borderRadius: 999, background: 'rgba(255,255,255,0.16)', display: 'grid', placeItems: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{_PIco.back('#fff')}</button>
-          <button onClick={() => { try { navigator.share && navigator.share({ title: person.name, text: person.card_offer || '' }); } catch (e) {} }} title="Sdílet" style={{ width: 38, height: 38, flex: 'none', border: 'none', borderRadius: 999, background: 'rgba(255,255,255,0.16)', display: 'grid', placeItems: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{_PIco.share('#fff')}</button>
+      {/* Celý profil scrolluje — cover i profilovka odjedou nahoru (nic přilepeného) */}
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {/* ── Cover (pozadí) — swajpovatelné fotky práce, tečky ── */}
+        <div style={{ position: 'relative', height: 212, background: T.heroGrad }}>
+          {coverPhotos.length > 0 && (
+            <div ref={coverRef} onScroll={onCoverScroll} style={{ position: 'absolute', inset: 0, display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory', overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+              {coverPhotos.map((src, i) => (
+                <div key={i} style={{ flex: '0 0 100%', width: '100%', height: '100%', scrollSnapAlign: 'center' }}>
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 88, background: 'linear-gradient(180deg, rgba(11,18,51,.32), rgba(11,18,51,0))', pointerEvents: 'none' }} />
+          {coverPhotos.length > 1 && (
+            <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 6, pointerEvents: 'none' }}>
+              {coverPhotos.map((_, i) => <span key={i} style={{ width: i === coverIdx ? 18 : 6, height: 6, borderRadius: 999, background: i === coverIdx ? '#fff' : 'rgba(255,255,255,0.55)', transition: 'width .25s' }} />)}
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-          <span style={{ width: 72, height: 72, flex: 'none', borderRadius: 999, background: 'rgba(255,255,255,0.18)', border: '2px solid rgba(255,255,255,0.35)', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontSize: 24, fontWeight: 800 }}>{_pInitials(person.name)}</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff', fontFamily: T.fontHead, fontSize: 23, fontWeight: 800, letterSpacing: -0.4 }}>
-              {person.name}
-              {person.verified && <Icon name="verified-check-bold" size={17} color="#fff" />}
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'rgba(255,255,255,0.85)', fontFamily: T.fontUI, fontSize: 13, fontWeight: 600 }}>
-              {person.district || person.city}
-              {person.rating > 0
-                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#fff', fontWeight: 700 }}><WStar size={13} color={T.super} />{Number(person.rating).toFixed(1).replace('.', ',')}{person.ratingCount ? ' · ' + person.ratingCount + ' hodnocení' : ''}</span>
-                : <span style={{ color: 'rgba(255,255,255,0.85)' }}>Zatím bez hodnocení</span>}
+
+        {/* ── Kulatá profilovka — přesahuje přes cover (Facebook styl) ── */}
+        <div style={{ padding: '0 18px 2px' }}>
+          <div style={{ marginTop: -56, position: 'relative', zIndex: 2 }}>
+            <span style={{ display: 'inline-block', width: 108, height: 108, borderRadius: 999, overflow: 'hidden', background: T.heroGrad, border: '4px solid ' + T.bg, boxShadow: '0 12px 26px -8px rgba(0,0,0,0.5)' }}>
+              {person.avatar
+                ? <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} />
+                : <span style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 36 }}>{initials}</span>}
             </span>
           </div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 23, fontWeight: 800, color: T.ink, letterSpacing: -0.5 }}>{person.name}</span>
+              {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={19} /> : <Icon name="verified-check-bold" size={18} color={T.primary} />)}
+            </div>
+            {(person.city || person.district) && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5, fontFamily: T.fontUI, fontSize: 13.5, color: '#5B6488', fontWeight: 600 }}>
+                <Icon name="map-point-bold" size={14} color={T.mutedSoft} />{person.city || person.district}
+              </div>
+            )}
+            {/* Rychlá důvěra — 3 sloupce: číslo nahoře, drobný důkaz uprostřed,
+                popiska dole. Bez škatulek. U hodnocení jen řada hvězd (částečná
+                výplň poslední — 4,5 = 4 plné + půlka). */}
+            <div style={{ display: 'flex', marginTop: 13 }}>
+              {/* Hodnocení — celý sloupec je proklik na recenze (číslo, hvězdy i text) */}
+              {(() => {
+                const obsah = (
+                  <>
+                    <span style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4 }}>{person.rating > 0 ? Number(person.rating).toFixed(1).replace('.', ',') : '—'}</span>
+                    <span style={{ height: 14, display: 'inline-flex', alignItems: 'center' }}>
+                      {person.rating > 0 && typeof WStars === 'function'
+                        ? <WStars value={person.rating} size={12} />
+                        : <span style={{ fontFamily: T.fontUI, fontSize: 11, color: T.mutedSoft }}>zatím nic</span>}
+                    </span>
+                    <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: person.ratingCount > 0 ? 700 : 600, color: person.ratingCount > 0 ? T.primary : '#5B6488' }}>{person.ratingCount > 0 ? person.ratingCount + ' recenzí' : 'Bez recenzí'}</span>
+                  </>
+                );
+                const sloupec = { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' };
+                return person.ratingCount > 0
+                  ? <button onClick={() => setShowReviews(true)} style={{ ...sloupec, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>{obsah}</button>
+                  : <div style={sloupec}>{obsah}</div>;
+              })()}
+              {/* Zakázky */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4 }}>{jobsDone}</span>
+                {/* Míra úspěšnosti — barevná pilulka (dokončené vs. zrušené) */}
+                <span style={{ height: 14, display: 'inline-flex', alignItems: 'center' }}>
+                  {jobsDone > 0 && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: '#E4F6EA', border: '1px solid #BFE6CC' }}>
+                      <span style={{ width: 5, height: 5, borderRadius: 999, background: '#1E9E52', flexShrink: 0 }} />
+                      <span style={{ fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 800, color: '#1E7A46', whiteSpace: 'nowrap' }}>{(person.cancelled || 0) > 0 ? Math.round(jobsDone / (jobsDone + person.cancelled) * 100) : 100}% úspěšně</span>
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#5B6488' }}>hotových zakázek</span>
+              </div>
+              {/* Reakce */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>{person.replyTime || '—'}</span>
+                <span style={{ height: 14, display: 'inline-flex', alignItems: 'center', gap: 2.5 }}>
+                  {[0, 1, 2].map(i => <span key={i} style={{ width: 4, height: 7, borderRadius: 2, background: i < 2 ? '#1E9E52' : '#D4DAE8' }} />)}
+                </span>
+                <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#5B6488' }}>průměrná doba odpovědi</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Obsah */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 16px' }}>
+        {/* ── Sekce (normální text, scrolluje) ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px calc(94px + env(safe-area-inset-bottom))' }}>
+        {/* Nabízí + odměna */}
         {person.card_offer && (
           <div style={cardBox}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={cardH}>Nabízí</span>
-              {person.price && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, background: T.tint, padding: '6px 11px', borderRadius: 999 }}>{_PIco.coin(T.primary)}{person.price}</span>}
+              {sekHead('#DFF3E3', _icOffer, 'Nabízí')}
+              {person.price && <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, background: T.tint, padding: '6px 12px', borderRadius: 999 }}>{person.price}</span>}
             </div>
             <span style={{ fontFamily: T.fontUI, fontSize: 14, color: T.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{person.card_offer}</span>
-            {tags.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 2 }}>
-                {tags.map((t, i) => <span key={i} style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 700, color: T.primary, background: T.tint, padding: '7px 12px', borderRadius: 999 }}>{t}</span>)}
-              </div>
-            )}
           </div>
         )}
 
+        {/* Co umím */}
+        {skills.length > 0 && (
+          <div style={cardBox}>
+            {sekHead('#E1F0FE', _icSkill, 'Co umím')}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {skills.map((s, i) => (
+                <span key={i} style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: T.ink, background: T.surfaceAlt, padding: '8px 13px', borderRadius: 999 }}>{s}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* O mně + zkušenost */}
         {(person.bio || person.experience) && (
           <div style={cardBox}>
-            <span style={cardH}>O mně</span>
+            {sekHead('#FFEDD5', _icUser, 'O mně')}
             {person.bio && <span style={{ fontFamily: T.fontUI, fontSize: 14, color: T.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{person.bio}</span>}
-            {person.experience && <span style={{ fontFamily: T.fontUI, fontSize: 13, color: T.muted, marginTop: 2 }}><b style={{ color: T.ink, fontWeight: 700 }}>Zkušenost:</b> {person.experience}</span>}
+            {person.experience && <span style={{ fontFamily: T.fontUI, fontSize: 13, color: '#5B6488', marginTop: 2 }}><b style={{ color: T.ink, fontWeight: 800 }}>Zkušenost:</b> {person.experience}</span>}
           </div>
         )}
 
-        {trust.length > 0 && (
-          <div style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: '4px 17px' }}>
-            {trust.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderTop: i ? '1px solid ' + T.border : 'none' }}>
-                <span style={{ width: 34, height: 34, flex: 'none', borderRadius: 12, background: T.tint, display: 'grid', placeItems: 'center' }}>{r.ico(T.primary)}</span>
-                <span style={{ flex: 1, minWidth: 0, fontFamily: T.fontUI, fontSize: 13.5, color: T.muted }}>{r.k}</span>
-                <span style={{ fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 700, color: T.ink }}>{r.v}</span>
-              </div>
-            ))}
+        {/* Podrobnosti — čistý „spec-sheet": popiska vlevo, hodnota vpravo, žádné
+            ikonky ve čtverečcích. Elegantní a připravené na budoucí roletky. */}
+        {facts.length > 0 && (
+          <div style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: '16px 18px 8px' }}>
+            {sekHead('#EDE9FE', _icList, 'Podrobnosti')}
+            <div style={{ marginTop: 8 }}>
+              {facts.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 18, padding: '12px 0', borderTop: i ? '1px solid ' + T.border : 'none' }}>
+                  <span style={{ flex: 'none', fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: T.mutedSoft }}>{r.k}</span>
+                  <span style={{ flex: 1, minWidth: 0, textAlign: 'right', fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: T.ink, lineHeight: 1.4 }}>{r.v}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
+        {/* Recenze */}
         {reviews.length > 0 && (
           <div style={{ ...cardBox, gap: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={cardH}>Co říkají ostatní</span>
+              {sekHead('#FEF3C7', _icStar, 'Co říkají ostatní')}
               {person.ratingCount > 0 && <span style={{ fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 700, color: T.primary }}>Všech {person.ratingCount}</span>}
             </div>
-            {reviews.slice(0, 1).map((rv, i) => (
+            {reviews.slice(0, 2).map((rv, i) => (
               <div key={i} style={{ background: T.bg, borderRadius: 16, padding: '13px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <span style={{ fontFamily: T.fontUI, fontSize: 13, color: T.ink, lineHeight: 1.5 }}>{rv.text}</span>
+                <span style={{ fontFamily: T.fontUI, fontSize: 13, color: T.ink, lineHeight: 1.5 }}>„{rv.text}"</span>
                 <span style={{ fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600, color: T.mutedSoft }}>{rv.author}{rv.month ? ' · ' + rv.month : ''}</span>
               </div>
             ))}
           </div>
         )}
+        </div>
       </div>
+
+      {/* Zpět + sdílet — fixní přes cover, obsah pod nimi projede */}
+      <button onClick={onClose} title="Zpět na tržiště" style={{ position: 'absolute', top: 'calc(12px + env(safe-area-inset-top))', left: 16, ...kruh }}>{_PIco.back('#fff')}</button>
+      <button onClick={() => { try { navigator.share && navigator.share({ title: person.name, text: person.card_offer || '' }); } catch (e) {} }} title="Sdílet" style={{ position: 'absolute', top: 'calc(12px + env(safe-area-inset-top))', right: 16, ...kruh }}>{_PIco.share('#fff')}</button>
 
       {/* Ulepená lišta */}
       <div style={{ flex: 'none', background: '#fff', borderTop: '1px solid ' + T.border, padding: '14px 16px calc(16px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -275,8 +517,90 @@ function WPersonDetail({ person, onClose, onContact }) {
           <svg width="16" height="19" viewBox="0 0 16 19" fill={saved ? T.primary : 'none'} aria-hidden="true"><path d="M2.4 3.2A1.8 1.8 0 0 1 4.2 1.4h7.6a1.8 1.8 0 0 1 1.8 1.8v13.4L8 13.2l-5.6 3.4V3.2Z" stroke={saved ? T.primary : T.ink} strokeWidth="1.5" strokeLinejoin="round" /></svg>
         </button>
         <button onClick={() => onContact(person)} style={{ flex: 1, height: 54, border: 'none', borderRadius: 16, background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, fontFamily: T.fontHead, fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-          {_PIco.chat('#fff')}Napsat
+          <Icon name="chat-round-bold" size={19} color="#fff" />Mám zájem
         </button>
+      </div>
+
+      {showReviews && <WReviewsSheet person={person} canReply={!!(typeof W_PROFILE !== 'undefined' && W_PROFILE && (person.id === W_PROFILE.id || person._mine))} onClose={() => setShowReviews(false)} />}
+    </div>
+  );
+}
+
+// Panel recenzí — vyjede zespoda. Čte se tu, a majitel karty může odpovědět
+// (zatím lokálně/demo; naostro se napojí na review_replies / addReviewReplyW).
+function WReviewsSheet({ person, canReply, onClose }) {
+  const base = Array.isArray(person.reviews) ? person.reviews : [];
+  const [list, setList]     = useStateW(() => base.map((r, i) => Object.assign({ id: r.id || 'rv-' + i }, r)));
+  const [replyId, setReplyId] = useStateW(null);
+  const [text, setText]     = useStateW('');
+  const rating = Number(person.rating || 0);
+  const firstName = (person.name || '').split(/\s+/)[0] || 'majitel';
+
+  function send(id) {
+    const t = text.trim();
+    if (!t) return;
+    setList(prev => prev.map(r => r.id === id ? Object.assign({}, r, { reply: t }) : r));
+    setReplyId(null); setText('');
+    // TODO naostro: addReviewReplyW(id, t)
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9300, background: 'rgba(11,18,51,0.42)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .22s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: '26px 26px 0 0', maxHeight: '86%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -18px 50px rgba(11,18,51,0.28)', animation: 'wSheetUp .34s cubic-bezier(.2,.8,.2,1)' }}>
+        {/* Hlavička */}
+        <div style={{ flexShrink: 0, padding: '10px 18px 12px', borderBottom: '1px solid ' + T.border }}>
+          <div style={{ width: 40, height: 4, borderRadius: 999, background: '#D4DAE8', margin: '0 auto 12px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: T.ink, letterSpacing: -0.3 }}>Recenze</span>
+            {rating > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#5B6488', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700 }}>
+                <WStar size={13} color="#F5B301" />{rating.toFixed(1).replace('.', ',')} · {person.ratingCount}
+              </span>
+            )}
+            <button onClick={onClose} title="Zavřít" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 999, border: 'none', background: T.surfaceAlt, color: T.muted, fontSize: 16, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>✕</button>
+          </div>
+        </div>
+        {/* Seznam */}
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 16px calc(18px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {list.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '46px 20px', color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.5 }}>Zatím žádné recenze.</div>
+          ) : list.map(r => {
+            const av = (r.author || '?').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+            return (
+              <div key={r.id} style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 18, padding: '14px 15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 999, background: T.avatarGrad, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{av}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800 }}>{r.author || 'Zákazník'}</div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {typeof WStars === 'function' && <WStars value={r.rating || rating || 5} size={11} />}
+                      {r.month && <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600 }}>{r.month}</span>}
+                    </div>
+                  </div>
+                </div>
+                {r.text && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.55, marginTop: 9 }}>{r.text}</div>}
+
+                {/* Odpověď od majitele — vidí každý. Odpovídat smí JEN majitel karty
+                    (canReply), stejně jako restaurace odpovídá na svoje recenze. */}
+                {r.reply ? (
+                  <div style={{ marginTop: 10, marginLeft: 14, padding: '10px 13px', background: T.surfaceAlt, borderRadius: '5px 14px 14px 14px' }}>
+                    <div style={{ color: T.primary, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, marginBottom: 2 }}>Odpověď od {firstName}</div>
+                    <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>{r.reply}</div>
+                  </div>
+                ) : canReply ? (
+                  replyId === r.id ? (
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                      <input autoFocus value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send(r.id); }} placeholder="Napiš odpověď…" style={{ flex: 1, minWidth: 0, border: '1px solid ' + T.border, borderRadius: 12, padding: '9px 12px', fontFamily: T.fontUI, fontSize: 13.5, outline: 'none', background: '#fff', color: T.ink }} />
+                      <button onClick={() => send(r.id)} style={{ border: 'none', borderRadius: 12, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, padding: '0 16px', cursor: 'pointer', flexShrink: 0 }}>Odeslat</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setReplyId(r.id); setText(''); }} style={{ marginTop: 8, background: 'none', border: 'none', color: T.primary, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', padding: '2px 0', WebkitTapHighlightColor: 'transparent' }}>Odpovědět</button>
+                  )
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -292,7 +616,7 @@ function WPeopleInfo({ title, text, onClose }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'wPop .3s cubic-bezier(.2,.8,.2,1)' }}>
       <div onClick={e => e.stopPropagation()} style={{ textAlign: 'center', padding: '30px 34px', maxWidth: 340 }}>
-        <div style={{ width: 66, height: 66, borderRadius: 999, background: T.primary, display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>{_PIco.chat('#fff')}</div>
+        <div style={{ width: 66, height: 66, borderRadius: 999, background: T.primary, display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}><Icon name="chat-round-bold" size={28} color="#fff" /></div>
         <div style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>{title}</div>
         <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 13.5, marginTop: 10, lineHeight: 1.6 }}>{text}</div>
         <button onClick={onClose} style={{ marginTop: 22, padding: '12px 34px', borderRadius: 999, background: '#fff', border: 'none', color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, cursor: 'pointer' }}>Rozumím</button>
@@ -479,7 +803,7 @@ function WMyCard({ onClose }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
                   <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{_pShort(name)}</span>
-                  {verified && <Icon name="verified-check-bold" size={13} color={T.primary} />}
+                  {verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
                 </span>
                 {rating > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.ink }}><WStar size={13} color={T.super} />{rating.toFixed(1).replace('.', ',')}</span>}
               </div>
@@ -487,7 +811,7 @@ function WMyCard({ onClose }) {
               <div style={{ fontFamily: T.fontUI, fontSize: 13, color: T.ink, marginTop: 6, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{offer || 'Sem přijde tvoje nabídka…'}</div>
               {(priceStr || tags.length > 0) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  {priceStr && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, color: T.primary, background: T.tint, padding: '5px 9px', borderRadius: 999 }}>{_PIco.coin(T.primary)}{priceStr}</span>}
+                  {priceStr && <span style={{ fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, color: T.primary, background: T.tint, padding: '5px 10px', borderRadius: 999 }}>{priceStr}</span>}
                   {tags.slice(0, 1).map((t, i) => <span key={i} style={{ fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: T.primary, background: T.tint, padding: '5px 9px', borderRadius: 999 }}>{t}</span>)}
                 </div>
               )}
@@ -515,6 +839,12 @@ function WPeople({ tick }) {
   const [detailPerson, setDetailPerson] = useStateW(null);
   const [info, setInfo] = useStateW(null);               // { title, text }
   const [showCard, setShowCard] = useStateW(false);      // editor „Moje karta"
+  const scrollRef = useRefW(null);
+  const lastY = useRefW(0);
+  const headRef = useRefW(null);
+  const [headHidden, setHeadHidden] = useStateW(false);  // auto-schování vršku při scrollu dolů
+  const accum = useRefW(0);       // naakumulovaná dráha v aktuálním směru (hystereze proti kmitání)
+  const [headH, setHeadH] = useStateW(null);             // přesná výška overlaye (kvůli odsazení mřížky)
 
   useEffectW(() => {
     let live = true;
@@ -545,32 +875,72 @@ function WPeople({ tick }) {
   }
   function openCard() { setShowCard(true); }
 
+  // Přesná výška overlaye (vyhledávač+filtry) → o tolik odsadíme mřížku pod ním.
+  useEffectW(() => { if (headRef.current) setHeadH(headRef.current.scrollHeight); }, [loading, cat, people.length]);
+
+  // Auto-hide vršku (vyhledávač+filtry) — jako v prémiových appkách. Scroll dolů ho
+  // po chvíli plynule schová (víc místa na obsah), scroll nahoru ho zase vytáhne
+  // (nemusíš až úplně nahoru). Hystereze přes akumulovanou dráhu, ať to nekmitá;
+  // plynulost řeší CSS transition na transformu (GPU). Stav přepínám jen na prahu,
+  // takže re-render je minimální a nic se netrhá.
+  const HIDE_AT = 52, SHOW_AT = 34;   // px v jednom směru, než se překlopí
+  function onGridScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const y = el.scrollTop, delta = y - lastY.current, hh = headH || 0;
+    lastY.current = y;
+    // Dokud nescrolluješ ZA výšku hlavičky, drž ji vidět. Jinak by se schovala hned
+    // na začátku a pod ní by zůstal prázdný pruh (mřížka má nahoře rezervu = headH).
+    // Schová se tedy až když ti první inzeráty odjedou nahoru díky scrollu.
+    if (y <= hh) { accum.current = 0; if (headHidden) setHeadHidden(false); return; }
+    if (delta > 0 && accum.current < 0) accum.current = 0;   // obrat směru → počítej od nuly
+    if (delta < 0 && accum.current > 0) accum.current = 0;
+    accum.current += delta;
+    if (accum.current > HIDE_AT && !headHidden) setHeadHidden(true);        // souvisle dolů → schovat
+    else if (accum.current < -SHOW_AT && headHidden) setHeadHidden(false);  // souvisle nahoru → ukázat
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
 
-      {/* Hlavička tržiště */}
-      <div style={{ flexShrink: 0, padding: '52px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 900, color: T.ink, letterSpacing: -0.8 }}>Lidé</span>
-          <button onClick={openCard} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 700, border: 'none', padding: '11px 16px', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{_PIco.plus('#fff')}Nabídni se</button>
+      {/* Scroll oblast: celý vršek (název + Nabídni se + vyhledávač + filtry) je
+          jeden overlay, který se při scrollu dolů celý odveze nahoru (zmizí) a při
+          scrollu nahoru zase přijede — čistě transformem, mřížka se nepřeskládává. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <div ref={headRef} style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2,
+          background: T.bg, padding: '14px 16px 12px',
+          transform: headHidden ? 'translateY(-' + (headH || 0) + 'px)' : 'translateY(0)',
+          opacity: headHidden ? 0 : 1,
+          // Odjezd i příjezd stejně smooth: příjezd měkce dosedne (ease-out), odjezd
+          // plynule zrychlí ven a přitom se prolne (opacity) — ať to hezky „zmizí".
+          transition: headHidden
+            ? 'transform .40s cubic-bezier(.4,0,.6,1), opacity .30s ease'
+            : 'transform .48s cubic-bezier(.16,1,.3,1), opacity .34s ease',
+          willChange: 'transform, opacity',
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 900, color: T.ink, letterSpacing: -0.8 }}>Lidé</span>
+              <button onClick={openCard} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 700, border: 'none', padding: '11px 16px', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{_PIco.plus('#fff')}Nabídni se</button>
+            </div>
+            <WPeopleSearch value={search} onChange={e => setSearch(e.target.value)} />
+
+            <div className="wfilter-strip" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', margin: '12px -16px 0', padding: '0 16px' }}>
+              {_P_KATEGORIE.map(c => {
+                const on = cat === c.key;
+                return <button key={c.key} onClick={() => setCat(c.key)} style={{ flex: 'none', border: 'none', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: on ? '#fff' : T.primary, background: on ? T.primary : T.tint, padding: '9px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>{c.label}</button>;
+              })}
+            </div>
+
+            <div style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 600, color: T.muted, marginTop: 12 }}>{loading ? 'Hledáme lidi v okolí…' : filtered.length + ' ' + _wPlural(filtered.length, 'člověk v okolí', 'lidé v okolí', 'lidí v okolí')}</div>
         </div>
 
-        <WPeopleSearch value={search} onChange={e => setSearch(e.target.value)} />
-
-        <div className="wfilter-strip" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', margin: '0 -16px', padding: '0 16px' }}>
-          {_P_KATEGORIE.map(c => {
-            const on = cat === c.key;
-            return <button key={c.key} onClick={() => setCat(c.key)} style={{ flex: 'none', border: 'none', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: on ? '#fff' : T.primary, background: on ? T.primary : T.tint, padding: '9px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>{c.label}</button>;
-          })}
-        </div>
-
-        <div style={{ fontFamily: T.fontUI, fontSize: 13, fontWeight: 600, color: T.muted }}>{filtered.length} {_wPlural(filtered.length, 'člověk v okolí', 'lidé v okolí', 'lidí v okolí')}</div>
-      </div>
-
-      {/* Mřížka lidí */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px calc(20px + env(safe-area-inset-bottom))' }}>
+        {/* Mřížka lidí — pod overlayem; odsazená o jeho výšku (headH). */}
+        <div ref={scrollRef} onScroll={onGridScroll} style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '0 16px calc(20px + env(safe-area-inset-bottom))', paddingTop: headH == null ? 140 : headH }} aria-busy={loading ? 'true' : 'false'}>
         {loading ? (
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, textAlign: 'center', padding: '40px 0' }}>Načítám…</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {Array.from({ length: 6 }).map((_, i) => <WPersonSkeleton key={i} />)}
+          </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '46px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 60, height: 60, borderRadius: 999, background: T.tint, display: 'grid', placeItems: 'center' }}><Icon name="users-group-rounded-bold" size={26} color={T.primary} /></div>
@@ -579,9 +949,10 @@ function WPeople({ tick }) {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {filtered.map(p => <WPersonGridCard key={p.id} person={p} onTap={() => setDetailPerson(p)} />)}
+            {filtered.map((p, i) => <WPersonGridCard key={p.id} person={p} idx={i} onTap={() => setDetailPerson(p)} />)}
           </div>
         )}
+        </div>
       </div>
 
       {detailPerson && <WPersonDetail person={detailPerson} onClose={() => setDetailPerson(null)} onContact={contact} />}

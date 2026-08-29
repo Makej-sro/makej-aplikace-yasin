@@ -142,6 +142,32 @@ function _wFmtDelka(s) {
   return m + ':' + (ss < 10 ? '0' + ss : ss);
 }
 
+// ── Rozdělovníky dní + seskupování zpráv do „balíků" (jako Messenger/IG) ──
+function _wDenKlic(ts) {
+  const d = ts ? new Date(ts) : new Date();
+  return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+}
+function _wDenPopis(ts) {
+  const d = ts ? new Date(ts) : new Date();
+  const dnes = new Date(), vcera = new Date(); vcera.setDate(dnes.getDate() - 1);
+  const k = x => x.getFullYear() + '-' + x.getMonth() + '-' + x.getDate();
+  if (k(d) === k(dnes)) return 'Dnes';
+  if (k(d) === k(vcera)) return 'Včera';
+  return d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' });
+}
+// Patří dvě sousední zprávy do stejného balíku? (stejný odesílatel, stejný den,
+// do 5 min, ani jedna není karta směny/pohovoru — ty stojí vždy samostatně.)
+function _wStejnyBalik(a, b) {
+  if (!a || !b || a.from !== b.from) return false;
+  const spec = m => m.kind === 'shift' || m.kind === 'interview';
+  if (spec(a) || spec(b)) return false;
+  if (_wDenKlic(a.ts) !== _wDenKlic(b.ts)) return false;
+  if (a.ts && b.ts && Math.abs(new Date(b.ts) - new Date(a.ts)) > 5 * 60 * 1000) return false;
+  return true;
+}
+// Odesláno na server (má reálné id z DB), nebo ještě lokální optimistická bublina?
+function _wJeOdeslana(id) { return id && String(id).indexOf('tmp') !== 0; }
+
 // Vybere formát, který zvládne nahrávat prohlížeč v telefonu.
 // Safari na iPhonu umí jen mp4/aac, Chrome/Android webm/opus.
 function _wVyberMime() {
@@ -763,7 +789,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
     };
     return (
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '70px 20px 40px' }}>
+        <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '20px 20px 40px' }}>
           <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6, marginBottom: 18 }}>Zprávy</div>
 
           <div style={{ background: '#fff', borderRadius: 22, padding: '22px 20px', boxShadow: '0 4px 20px rgba(0,32,246,0.06)' }}>
@@ -811,31 +837,36 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
         display: 'flex', flexDirection: 'column',
         background: 'transparent',
       }}>
-        <div style={{ padding: '70px 18px 12px' }}>
+        <div style={{ padding: '20px 18px 12px' }}>
           {/* Brigády = chaty s firmami k inzerátům, Lidé = peer-to-peer chaty ze záložky Lidé
               — musí jít od sebe jasně rozeznat, jinak se to při víc matchích slije v bordel.
               Přepínač je záměrně vpravo nahoře vedle nadpisu, ne jako plná lišta pod ním. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-            <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>Zprávy</div>
-            <div style={{ display: 'inline-flex', padding: 3, borderRadius: 999, background: T.surfaceAlt, gap: 2, flexShrink: 0 }}>
-              {[
-                { id: 'job', label: 'Brigády', icon: 'case-round-bold', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
-                { id: 'people', label: 'Lidé', icon: 'users-group-rounded-bold', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
-              ].map(v => (
-                <button key={v.id} onClick={() => setKindFilter(v.id)} title={v.label} style={{
-                  position: 'relative', width: 38, height: 34, borderRadius: 999, border: 'none', cursor: 'pointer',
-                  background: kindFilter === v.id ? '#fff' : 'transparent',
-                  boxShadow: kindFilter === v.id ? '0 4px 12px rgba(20,22,40,0.1)' : 'none',
-                  display: 'grid', placeItems: 'center',
-                  WebkitTapHighlightColor: 'transparent',
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, letterSpacing: -0.6, marginBottom: 14 }}>Zprávy</div>
+          {/* Elegantní přepínač: Brigády (chaty s firmami) ↔ Lidé (peer-to-peer,
+              kde inzeruju sám sebe). Popisek + ikonka + počet nepřečtených. */}
+          <div style={{ display: 'flex', padding: 4, borderRadius: 16, background: T.surfaceAlt, marginBottom: 12 }}>
+            {[
+              { id: 'job', label: 'Brigády', icon: 'case-round-bold', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
+              { id: 'people', label: 'Lidé', icon: 'users-group-rounded-bold', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
+            ].map(v => {
+              const on = kindFilter === v.id;
+              return (
+                <button key={v.id} onClick={() => setKindFilter(v.id)} style={{
+                  flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '9px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: on ? '#fff' : 'transparent',
+                  boxShadow: on ? '0 3px 10px rgba(20,22,40,0.10)' : 'none',
+                  color: on ? T.ink : T.muted, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
+                  transition: 'background .18s, color .18s', WebkitTapHighlightColor: 'transparent',
                 }}>
-                  <Icon name={v.icon} size={16} color={kindFilter === v.id ? T.primary : T.muted} />
+                  <Icon name={v.icon} size={16} color={on ? T.primary : T.muted} />
+                  {v.label}
                   {v.badge > 0 && (
-                    <span style={{ position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 999, background: T.destructive, border: '1.5px solid #fff' }} />
+                    <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: T.destructive, color: '#fff', fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{v.badge}</span>
                   )}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.05)' }}>
             <Icon name="magnifer-linear" size={16} color={T.mutedSoft} />
@@ -889,7 +920,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                         <span style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 15, fontWeight: unread ? 800 : 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
-                        {t.verified && <Icon name="verified-check-bold" size={13} color={T.green} />}
+                        {t.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
                       </span>
                       <span style={{ color: unread ? T.primary : T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: unread ? 700 : 500, flexShrink: 0 }}>{t.time}</span>
                     </div>
@@ -917,112 +948,127 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
       {thread && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Thread header */}
-          <div style={{ padding: '14px 60px 14px 8px', borderBottom: '1px solid ' + T.border, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, background: '#fff' }}>
+          <div style={{ padding: '11px 14px 11px 6px', borderBottom: '1px solid ' + T.border, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, background: '#fff' }}>
             <WZpet onClick={() => setActive(null)} title="Zpět na konverzace" />
+            {/* Celá hlavička je proklik na profil (firmy / člověka). Žádné hvězdičky
+                ani stav navíc — vše o firmě je v jejím profilu. */}
             <button
               onClick={() => window.wOpenEmployer && window.wOpenEmployer(thread.employerId, { name: thread.name, color: thread.color, rating: thread.rating, verified: thread.verified })}
               title={thread.kind === 'people' ? 'Zobrazit profil' : 'Zobrazit profil firmy'}
               style={{ display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flex: 1, minWidth: 0, textAlign: 'left' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: T.avatarGrad, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{thread.avatar}</div>
+              <div style={{ position: 'relative', width: 42, height: 42, borderRadius: 999, background: thread.color || T.avatarGrad, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 15, flexShrink: 0, overflow: 'hidden' }}>
+                <span>{thread.avatar}</span>
+                {thread.logoUrl && <img src={thread.logoUrl} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {thread.online && <span style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800 }}>{thread.name}</span>
-                  {thread.verified && <Icon name="verified-check-bold" size={14} color={T.green} />}
-                  <Icon name="alt-arrow-right-bold" size={13} color={T.mutedSoft} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                  <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.name}</span>
+                  {thread.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={15} /> : <Icon name="verified-check-bold" size={14} color={T.primary} />)}
                 </div>
-                {/* Kontext spojení — s hodně matchi musí být hned jasné, odkud
-                    tenhle chat je a o co jde, ne jen jméno. */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 2, padding: '2px 8px 2px 6px', borderRadius: 999, background: thread.kind === 'people' ? T.tint : 'rgba(31,157,92,0.12)' }}>
-                  <Icon name={thread.kind === 'people' ? 'users-group-rounded-bold' : 'case-round-bold'} size={11} color={thread.kind === 'people' ? T.primary : T.green} />
-                  <span style={{ color: thread.kind === 'people' ? T.primary : T.green, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>
-                    {thread.kind === 'people' ? 'Lidé · kontakt' : ('Brigáda' + (thread.role ? ' · ' + thread.role : ''))}
-                  </span>
+                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>
+                  {(thread.online ? 'Aktivní teď' : (thread.role || (thread.kind === 'people' ? 'Kontakt z Lidé' : 'Zaměstnavatel'))) + ' · Zobrazit profil'}
                 </div>
               </div>
+              <Icon name="alt-arrow-right-bold" size={16} color={T.mutedSoft} />
             </button>
-            {thread.rating > 0 && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.06)', flexShrink: 0 }}>
-                <WStar size={14} color={T.super} />
-                <span style={{ color: T.ink, fontFamily: T.fontHead, fontWeight: 800, fontSize: 14 }}>{thread.rating.toFixed(1).replace('.', ',')}</span>
-              </div>
-            )}
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ textAlign: 'center', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, margin: '2px 0 6px' }}>Dnes</div>
+          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 18px', display: 'flex', flexDirection: 'column', gap: 0 }}>
             {thread.msgs.map((m, i) => {
+              const prev = thread.msgs[i - 1];
+              const next = thread.msgs[i + 1];
+              const mine = m.from === 'me';
+              const novyDen     = !prev || _wDenKlic(prev.ts) !== _wDenKlic(m.ts);
+              const zacatek     = !_wStejnyBalik(prev, m);   // první v balíku
+              const konec       = !_wStejnyBalik(m, next);   // poslední v balíku (ocásek + čas)
+              const jeFinal     = i === thread.msgs.length - 1;
+              const mtop        = novyDen ? 0 : (zacatek ? 10 : 2);
+
+              // Rozdělovník dne (Dnes / Včera / datum) nad první zprávou daného dne
+              const den = novyDen ? (
+                <div style={{ alignSelf: 'center', margin: '16px 0 10px', padding: '4px 12px', borderRadius: 999, background: T.surfaceAlt, color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700 }}>{_wDenPopis(m.ts)}</div>
+              ) : null;
+
+              // Popisek pod poslední zprávou v balíku (u mých i stav doručení)
+              const patka = konec ? (
+                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 500, marginTop: 4, textAlign: mine ? 'right' : 'left' }}>
+                  {m.nahravam ? 'Odesílám…'
+                    : mine && jeFinal ? (_wJeOdeslana(m.id) ? '✓ Doručeno · ' + m.t : 'Odesílám…')
+                    : m.t}
+                </div>
+              ) : null;
+
+              // ── Karty směny / pohovoru (stojí samostatně) ──
               if (m.kind === 'shift') {
-                const laterMsgs = thread.msgs.slice(i + 1);
-                const responseMsg = laterMsgs.find(lm =>
-                  lm.from === 'me' && (
-                    lm.text === '✓ Přijímám nabídku směny!' ||
-                    lm.text === 'Bohužel tuto směnu nemohu přijmout.'
-                  )
-                );
-                const alreadyResponded = thread.confirmed
-                  ? 'accepted'                                   // směna potvrzena (stav matche) — spolehlivé i po refetchi
-                  : (responseMsg ? (responseMsg.text.includes('Přijímám') ? 'accepted' : 'rejected') : null);
+                const responseMsg = thread.msgs.slice(i + 1).find(lm => lm.from === 'me' && (lm.text === '✓ Přijímám nabídku směny!' || lm.text === 'Bohužel tuto směnu nemohu přijmout.'));
+                const alreadyResponded = thread.confirmed ? 'accepted' : (responseMsg ? (responseMsg.text.includes('Přijímám') ? 'accepted' : 'rejected') : null);
                 return (
-                  <WShiftCard
-                    key={m.id || i}
-                    msg={m}
-                    isMe={m.from === 'me'}
-                    alreadyResponded={alreadyResponded}
-                    onAccept={() => setConfirmShift({ shift: m.shift, company: thread.name })}
-                    onReject={() => handleRespondToShift('rejected')}
-                  />
+                  <React.Fragment key={m.id || i}>
+                    {den}
+                    <div style={{ marginTop: mtop }}>
+                      <WShiftCard msg={m} isMe={mine} alreadyResponded={alreadyResponded}
+                        onAccept={() => setConfirmShift({ shift: m.shift, company: thread.name })}
+                        onReject={() => handleRespondToShift('rejected')} />
+                    </div>
+                  </React.Fragment>
                 );
               }
               if (m.kind === 'interview') {
-                const laterMsgs = thread.msgs.slice(i + 1);
-                const responseMsg = laterMsgs.find(lm =>
-                  lm.from === 'me' && (
-                    lm.text === '✓ Přijímám pozvánku na pohovor!' ||
-                    lm.text === 'Bohužel se pohovoru nemohu zúčastnit.'
-                  )
-                );
+                const responseMsg = thread.msgs.slice(i + 1).find(lm => lm.from === 'me' && (lm.text === '✓ Přijímám pozvánku na pohovor!' || lm.text === 'Bohužel se pohovoru nemohu zúčastnit.'));
                 const alreadyResponded = responseMsg ? (responseMsg.text.includes('Přijímám') ? 'accepted' : 'rejected') : null;
                 return (
-                  <WInterviewCard
-                    key={m.id || i}
-                    msg={m}
-                    isMe={m.from === 'me'}
-                    alreadyResponded={alreadyResponded}
-                    onAccept={() => handleRespondToInterview('accepted')}
-                    onReject={() => handleRespondToInterview('rejected')}
-                  />
-                );
-              }
-              const mine = m.from === 'me';
-              if (m.kind === 'file') {
-                // Příloha nemá bublinu — obrázek je sám o sobě dost výrazný
-                return (
-                  <div key={m.id || i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
-                    {m.file.typ === 'image'
-                      ? <WPrilohaFotka priloha={m.file} nahravam={m.nahravam} onOtevri={setLupa} />
-                      : m.file.typ === 'audio'
-                      ? <WPrilohaHlasovka priloha={m.file} mine={mine} nahravam={m.nahravam} />
-                      : <WPrilohaSoubor priloha={m.file} />}
-                    <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, marginTop: 4, textAlign: mine ? 'right' : 'left' }}>
-                      {m.nahravam ? 'Odesílám…' : m.t}
+                  <React.Fragment key={m.id || i}>
+                    {den}
+                    <div style={{ marginTop: mtop }}>
+                      <WInterviewCard msg={m} isMe={mine} alreadyResponded={alreadyResponded}
+                        onAccept={() => handleRespondToInterview('accepted')}
+                        onReject={() => handleRespondToInterview('rejected')} />
                     </div>
-                  </div>
+                  </React.Fragment>
                 );
               }
+
+              // ── Příloha (fotka / hlasovka / soubor) — bez bubliny ──
+              if (m.kind === 'file') {
+                return (
+                  <React.Fragment key={m.id || i}>
+                    {den}
+                    <div style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%', marginTop: mtop }}>
+                      {m.file.typ === 'image'
+                        ? <WPrilohaFotka priloha={m.file} nahravam={m.nahravam} onOtevri={setLupa} />
+                        : m.file.typ === 'audio'
+                        ? <WPrilohaHlasovka priloha={m.file} mine={mine} nahravam={m.nahravam} />
+                        : <WPrilohaSoubor priloha={m.file} />}
+                      {patka}
+                    </div>
+                  </React.Fragment>
+                );
+              }
+
+              // ── Běžná textová bublina (seskupuje se do balíku) ──
               return (
-                <div key={m.id || i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '68%' }}>
-                  <div style={{
-                    padding: '12px 16px', borderRadius: 18,
-                    background: mine ? T.primary : '#fff',
-                    color: mine ? '#fff' : T.ink, fontFamily: T.fontUI, fontSize: 14, lineHeight: 1.45,
-                    border: mine ? 'none' : '1px solid ' + T.border,
-                    boxShadow: mine ? '0 6px 16px rgba(0,32,246,0.22)' : '0 2px 8px rgba(20,22,40,0.05)',
-                    borderBottomRightRadius: mine ? 5 : 18,
-                    borderBottomLeftRadius: mine ? 18 : 5,
-                  }}>{m.text}</div>
-                  <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, marginTop: 4, textAlign: mine ? 'right' : 'left' }}>{m.t}</div>
-                </div>
+                <React.Fragment key={m.id || i}>
+                  {den}
+                  <div style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '74%', marginTop: mtop }}>
+                    <div style={{
+                      padding: '9px 14px',
+                      background: mine ? T.primary : '#fff',
+                      color: mine ? '#fff' : T.ink, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.4,
+                      border: mine ? 'none' : '1px solid ' + T.border,
+                      boxShadow: mine ? '0 3px 12px rgba(0,32,246,0.18)' : '0 1px 4px rgba(20,22,40,0.05)',
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      // Zaoblení „balíku": vnější rohy plné (20), vnitřní (mezi zprávami
+                      // téhož odesílatele) zkrácené (7), ocásek u poslední (6).
+                      borderTopLeftRadius:     !mine && !zacatek ? 7 : 20,
+                      borderTopRightRadius:      mine && !zacatek ? 7 : 20,
+                      borderBottomLeftRadius:  !mine ? (konec ? 6 : 7) : 20,
+                      borderBottomRightRadius:  mine ? (konec ? 6 : 7) : 20,
+                    }}>{m.text}</div>
+                    {patka}
+                  </div>
+                </React.Fragment>
               );
             })}
           </div>
@@ -1212,7 +1258,7 @@ function WShiftConfirmDialog({ shift, company, onConfirm, onClose }) {
         borderRadius: 24, border: '1px solid ' + T.border, padding: 26, textAlign: 'center',
         boxShadow: '0 24px 60px rgba(20,22,40,0.28)',
       }}>
-        <div style={{ width: 60, height: 60, borderRadius: 17, background: 'T.tint', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+        <div style={{ width: 60, height: 60, borderRadius: 17, background: T.tint, display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
           <Icon name="calendar-bold" size={26} color={T.primary} />
         </div>
         <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, letterSpacing: -0.4 }}>Přijmout směnu?</div>
@@ -1270,7 +1316,7 @@ function WShiftCard({ msg, isMe, alreadyResponded, onAccept, onReject }) {
       }}>
         <div style={{ padding: '16px 18px 14px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: T.primary, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', fontFamily: T.fontUI, marginBottom: 12 }}>
-            <span style={{ width: 24, height: 24, borderRadius: 7, background: 'T.tint', display: 'grid', placeItems: 'center' }}>
+            <span style={{ width: 24, height: 24, borderRadius: 7, background: T.tint, display: 'grid', placeItems: 'center' }}>
               <Icon name="calendar-bold" size={13} color={T.primary} />
             </span>
             Nabídka směny
@@ -1337,7 +1383,7 @@ function WInterviewCard({ msg, isMe, alreadyResponded, onAccept, onReject }) {
       }}>
         <div style={{ padding: '16px 18px 14px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: T.primary, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', fontFamily: T.fontUI, marginBottom: 12 }}>
-            <span style={{ width: 24, height: 24, borderRadius: 7, background: 'T.tint', display: 'grid', placeItems: 'center' }}>
+            <span style={{ width: 24, height: 24, borderRadius: 7, background: T.tint, display: 'grid', placeItems: 'center' }}>
               <Icon name="users-group-rounded-bold" size={13} color={T.primary} />
             </span>
             Pozvánka na pohovor

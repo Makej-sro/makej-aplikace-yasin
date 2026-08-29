@@ -661,7 +661,7 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
   return (
     <>
       {/* Trychtýř — spouštěč panelu (vpravo nahoře) */}
-      <div style={{ position: 'fixed', top: 8, right: 16, zIndex: 8500 }}>
+      <div style={{ position: 'fixed', top: 'calc(8px + env(safe-area-inset-top))', right: 16, zIndex: 8500 }}>
         <button onClick={() => setOpen(true)} title="Filtr"
           style={{ position: 'relative', width: 40, height: 40, flex: 'none', borderRadius: 13, cursor: 'pointer',
             border: active ? 'none' : '1px solid ' + T.border, background: active ? T.primary : '#fff',
@@ -1703,7 +1703,7 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
                       <path d="M12 5 V19 M5 12 H19" stroke="#F5A700" strokeWidth="3.2" strokeLinecap="round" />
                     </svg>
                   </span>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co oceníme <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#9AA1BD' }}>· výhodou</span></span>
+                  <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: '#0B1233' }}>Co oceníme</span>
                 </span>
                 {bullets(job.bonuses, 'star-bold', T.super)}
               </div>
