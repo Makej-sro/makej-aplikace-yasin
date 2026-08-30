@@ -41,6 +41,13 @@ function _pPriceStr(type, amount) {
 // ── Demo data — appka teprve startuje, reálné karty zatím nejsou. ──
 // avatar = profilová fotka, photos = galerie práce, skills = „co umím",
 // equipment = vlastní vybavení/nářadí. (Demo fotky: demo-lide/ — nahradit reálnými.)
+// Průměrná doba odpovědi: do 2 h (120 min) se píše v minutách, nad 2 h v hodinách.
+function _pFmtReply(mins) {
+  const m = Math.round(Number(mins) || 0);
+  if (m <= 0) return '';
+  return m <= 120 ? m + ' min' : Math.round(m / 60) + ' h';
+}
+
 function _pDemoPeople() {
   const _demo = [
     { id: 'demo-p-1', name: 'Petr Hlaváč', verified: true, city: 'Brno', district: 'Brno — Veveří', rating: 4.9, ratingCount: 23,
@@ -166,8 +173,9 @@ function _pDemoPeople() {
     cancelled: 0,
     mode: 'U tebe i online',
     radius: [10, 15, 20, 12][i % 4],
+    priceUnit: i % 2 ? 'za zakázku' : 'za hodinu',
   }, p, {
-    replyTime: ['42 min', '1 h', '2 h', '35 min'][i % 4],
+    replyTime: [42, 90, 120, 180][i % 4],   // v minutách; formátuje _pFmtReply
   }));
 }
 
@@ -228,61 +236,67 @@ function WPeopleSearch({ value, onChange }) {
 function WPersonSkeleton() {
   const bar = (w, h, r, d) => <span className={'wsk wsk--blue' + (d ? ' wsk--d' + d : '')} style={{ display: 'block', width: w, height: h, borderRadius: r }} />;
   return (
-    <div aria-hidden="true" style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        {bar(46, 46, 999)}
-        {bar(38, 15, 999, 1)}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {bar('68%', 13, 7, 1)}
-        {bar('42%', 10, 6, 2)}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {bar('100%', 10, 6, 2)}
-        {bar('76%', 10, 6, 3)}
-      </div>
-      <div>{bar(58, 21, 999, 3)}</div>
+    <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <span className="wsk wsk--blue" style={{ display: 'block', width: '100%', aspectRatio: '4 / 3', borderRadius: 16 }} />
+      {bar('70%', 14, 8, 1)}
+      {bar('50%', 12, 7, 2)}
+      {bar('60%', 11, 7, 2)}
+      {bar('40%', 12, 7, 3)}
     </div>
   );
 }
 
-// ── Kartička v mřížce (2 sloupce) ─────────────────────────────────
+// ── Kartička v mřížce (2 sloupce, styl Seznam Firmy zkompaktněný) ─────
 function WPersonGridCard({ person, onTap, idx = 0 }) {
-  const tags = (Array.isArray(person.card_tags) ? person.card_tags : []).slice(0, 1);
+  const [saved, setSaved] = useStateW(() => _pIsSaved(person.id));
+  const cover  = (Array.isArray(person.photos) && person.photos[0]) || '';
+  const cena   = person.price || 'Dohodou';
+  const maCislo = /\d/.test(cena);
+  const rating = Number(person.rating) || 0;
+  const cat    = (Array.isArray(person.card_tags) && person.card_tags[0]) || (Array.isArray(person.skills) && person.skills[0]) || '';
+  const ratColor = rating >= 4.9 ? '#1E9E52' : '#8A90A6';   // zelený jen top, jinak neutrální (jako Seznam)
   return (
-    <button onClick={onTap} className="wpin" style={{
-      textAlign: 'left', cursor: 'pointer', width: '100%',
-      background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, padding: 14,
-      display: 'flex', flexDirection: 'column', gap: 9, WebkitTapHighlightColor: 'transparent',
+    <div onClick={onTap} className="wpin" role="button" tabIndex={0} style={{
+      cursor: 'pointer', width: '100%', minWidth: 0, WebkitTapHighlightColor: 'transparent',
+      display: 'flex', flexDirection: 'column', gap: 8,
       animationDelay: Math.min(idx * 26, 360) + 'ms',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ width: 46, height: 46, flex: 'none', borderRadius: 999, overflow: 'hidden', background: T.heroGrad, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontWeight: 800, fontSize: 15 }}>
-          {person.avatar ? <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} /> : _pInitials(person.name)}
-        </div>
-        {person.rating > 0 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, color: T.ink }}>
-            <WStar size={13} color={T.super} />{Number(person.rating).toFixed(1).replace('.', ',')}
+      {/* Cover foto — srdíčko vpravo nahoře, obličej v bílém rámečku vlevo dole */}
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', borderRadius: 16, overflow: 'hidden', background: T.heroGrad }}>
+        {cover
+          ? <img src={cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          : <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 30 }}>{_pInitials(person.name)}</span>}
+        <button onClick={e => { e.stopPropagation(); const nv = !saved; setSaved(nv); _pSetSaved(person.id, nv); }} title={saved ? 'Uloženo' : 'Uložit'} style={{
+          position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 999, border: 'none',
+          background: 'rgba(11,18,51,0.32)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          display: 'grid', placeItems: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: 0,
+        }}>
+          <svg width="16" height="15" viewBox="0 0 24 24" fill={saved ? '#fff' : 'none'} stroke="#fff" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
+        </button>
+        {person.avatar && (
+          <span style={{ position: 'absolute', left: 9, bottom: 9, width: 40, height: 40, borderRadius: 12, overflow: 'hidden', background: '#fff', border: '2.5px solid #fff', boxShadow: '0 2px 8px rgba(11,18,51,0.22)' }}>
+            <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} />
           </span>
         )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-          <span style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: -0.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{_pShort(person.name)}</span>
-          {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
+      {/* Info */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+          <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{_pShort(person.name)}</span>
+          {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : null)}
         </span>
-        {person.city && <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted }}>{person.city}</span>}
+        {rating > 0 && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ flex: 'none', background: ratColor, color: '#fff', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>{rating.toFixed(1).replace('.', ',')}</span>
+            {person.ratingCount > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{person.ratingCount} recenzí</span>}
+          </span>
+        )}
+        {cat && <span style={{ fontFamily: T.fontUI, fontSize: 12.5, color: T.ink, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>}
+        <span style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {cena}{maCislo && person.priceUnit ? <span style={{ fontFamily: T.fontUI, fontWeight: 600, color: T.muted }}>{' · ' + person.priceUnit}</span> : null}
+        </span>
       </div>
-      {person.card_offer && (
-        <span style={{ fontFamily: T.fontUI, fontSize: 12.5, color: T.ink, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{person.card_offer}</span>
-      )}
-      {(person.price || tags.length > 0) && (
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-          {person.price && <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, color: T.primary, background: T.tint, padding: '5px 10px', borderRadius: 999 }}>{person.price}</span>}
-          {tags.slice(0, 1).map((t, i) => <span key={i} style={{ fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: T.ink, background: T.surfaceAlt, padding: '5px 9px', borderRadius: 999 }}>{t}</span>)}
-        </div>
-      )}
-    </button>
+    </div>
   );
 }
 
@@ -343,6 +357,14 @@ function WPersonDetail({ person, onClose, onContact }) {
     </svg>
   );
   const _icUser  = <Icon name="user-bold" size={15} color="#EA7317" />;
+  const _icRate = (   // Cena — peněženka (outline) dle předlohy
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="#B8860B" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 8.5A2.5 2.5 0 0 1 5 6h13a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 20H5a2.5 2.5 0 0 1-2.5-2.5v-9Z" />
+      <path d="M4.4 6 13.7 2.85a1.4 1.4 0 0 1 1.8.9L16.3 6" />
+      <path d="M21.5 11h-3.2a2.5 2.5 0 0 0 0 5h3.2a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1Z" />
+      <circle cx="18.4" cy="13.5" r="1" fill="#B8860B" stroke="none" />
+    </svg>
+  );
   const _icList  = <Icon name="checklist-minimalistic-bold" size={15} color="#7C3AED" />;
   // Recenze = stejná hvězda jako v kartách brigád (sdílená komponenta WStar).
   const _icStar  = (typeof WStar === 'function'
@@ -429,9 +451,12 @@ function WPersonDetail({ person, onClose, onContact }) {
               </div>
               {/* Reakce */}
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
-                <span style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>{person.replyTime || '—'}</span>
-                <span style={{ height: 14, display: 'inline-flex', alignItems: 'center', gap: 2.5 }}>
-                  {[0, 1, 2].map(i => <span key={i} style={{ width: 4, height: 7, borderRadius: 2, background: i < 2 ? '#1E9E52' : '#D4DAE8' }} />)}
+                <span style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>{person.replyTime ? _pFmtReply(person.replyTime) : '—'}</span>
+                {/* Malá barevná čárka podle rychlosti: do 60 zelená, do 120 žlutá, nad 2 h oranžová */}
+                <span style={{ height: 14, display: 'inline-flex', alignItems: 'center' }}>
+                  {Number(person.replyTime) > 0 && (
+                    <span style={{ width: 26, height: 7, borderRadius: 999, background: Number(person.replyTime) <= 60 ? '#1E9E52' : Number(person.replyTime) <= 120 ? '#F0A600' : '#E8552E' }} />
+                  )}
                 </span>
                 <span style={{ fontFamily: T.fontUI, fontSize: 12, fontWeight: 600, color: '#5B6488' }}>průměrná doba odpovědi</span>
               </div>
@@ -441,16 +466,30 @@ function WPersonDetail({ person, onClose, onContact }) {
 
         {/* ── Sekce (normální text, scrolluje) ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px calc(94px + env(safe-area-inset-bottom))' }}>
-        {/* Nabízí + odměna */}
+        {/* Nabízí — jen headline, cena je vlastní sekce níž */}
         {person.card_offer && (
           <div style={cardBox}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              {sekHead('#DFF3E3', _icOffer, 'Nabízí')}
-              {person.price && <span style={{ flex: 'none', fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.primary, background: T.tint, padding: '6px 12px', borderRadius: 999 }}>{person.price}</span>}
-            </div>
+            {sekHead('#DFF3E3', _icOffer, 'Nabízí')}
             <span style={{ fontFamily: T.fontUI, fontSize: 14, color: T.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{person.card_offer}</span>
           </div>
         )}
+
+        {/* Cena — samostatná sekce. NENÍ povinná: kdo nechce pevnou částku, dá
+            „Dohodou" / „Podle rozsahu" (bez čísla → bez základu). Prázdné = Dohodou. */}
+        {(() => {
+          const cena = person.price || 'Dohodou';
+          const maCislo = /\d/.test(cena);
+          return (
+            <div style={cardBox}>
+              {sekHead('#FFF4D6', _icRate, 'Cena')}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, color: T.ink, letterSpacing: -0.4 }}>{cena}</span>
+                {maCislo && person.priceUnit && <span style={{ fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 600, color: T.muted }}>{person.priceUnit}</span>}
+              </div>
+              <span style={{ fontFamily: T.fontUI, fontSize: 12.5, color: T.mutedSoft, lineHeight: 1.5 }}>Cena není závazná, všechny detaily doladíte v chatu.</span>
+            </div>
+          );
+        })()}
 
         {/* Co umím */}
         {skills.length > 0 && (
@@ -489,21 +528,8 @@ function WPersonDetail({ person, onClose, onContact }) {
           </div>
         )}
 
-        {/* Recenze */}
-        {reviews.length > 0 && (
-          <div style={{ ...cardBox, gap: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              {sekHead('#FEF3C7', _icStar, 'Co říkají ostatní')}
-              {person.ratingCount > 0 && <span style={{ fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 700, color: T.primary }}>Všech {person.ratingCount}</span>}
-            </div>
-            {reviews.slice(0, 2).map((rv, i) => (
-              <div key={i} style={{ background: T.bg, borderRadius: 16, padding: '13px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <span style={{ fontFamily: T.fontUI, fontSize: 13, color: T.ink, lineHeight: 1.5 }}>„{rv.text}"</span>
-                <span style={{ fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 600, color: T.mutedSoft }}>{rv.author}{rv.month ? ' · ' + rv.month : ''}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Recenze se čtou přes proklik hodnocení nahoře (panel zezhora) —
+            spodní sekci „Co říkají ostatní" jsme zrušili, aby se to nedublovalo. */}
         </div>
       </div>
 
@@ -938,7 +964,7 @@ function WPeople({ tick }) {
         {/* Mřížka lidí — pod overlayem; odsazená o jeho výšku (headH). */}
         <div ref={scrollRef} onScroll={onGridScroll} style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '0 16px calc(20px + env(safe-area-inset-bottom))', paddingTop: headH == null ? 140 : headH }} aria-busy={loading ? 'true' : 'false'}>
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
             {Array.from({ length: 6 }).map((_, i) => <WPersonSkeleton key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
@@ -948,7 +974,7 @@ function WPeople({ tick }) {
             <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>Zkus jiné hledání nebo kategorii — nebo <button onClick={openCard} style={{ border: 'none', background: 'none', color: T.primary, fontWeight: 800, cursor: 'pointer', padding: 0, fontFamily: T.fontHead, fontSize: 13 }}>buď první</button>.</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
             {filtered.map((p, i) => <WPersonGridCard key={p.id} person={p} idx={i} onTap={() => setDetailPerson(p)} />)}
           </div>
         )}

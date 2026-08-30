@@ -501,6 +501,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   const [sending,  setSending]  = useStateW(false);
   const [q,        setQ]        = useStateW('');
   const [kindFilter, setKindFilter] = useStateW('job');   // 'job' (Brigády) | 'people' (Lidé) — oddělené chaty
+  const [kindOpen, setKindOpen] = useStateW(false);       // rozbalený dropdown přepínače
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
   const [lupa,     setLupa]     = useStateW(null);          // fotka přes celou obrazovku
   const [chybaPrilohy, setChybaPrilohy] = useStateW('');
@@ -837,36 +838,44 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
         display: 'flex', flexDirection: 'column',
         background: 'transparent',
       }}>
-        <div style={{ padding: '20px 18px 12px' }}>
-          {/* Brigády = chaty s firmami k inzerátům, Lidé = peer-to-peer chaty ze záložky Lidé
-              — musí jít od sebe jasně rozeznat, jinak se to při víc matchích slije v bordel.
-              Přepínač je záměrně vpravo nahoře vedle nadpisu, ne jako plná lišta pod ním. */}
-          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 27, fontWeight: 800, letterSpacing: -0.6, marginBottom: 14 }}>Zprávy</div>
-          {/* Elegantní přepínač: Brigády (chaty s firmami) ↔ Lidé (peer-to-peer,
-              kde inzeruju sám sebe). Popisek + ikonka + počet nepřečtených. */}
-          <div style={{ display: 'flex', padding: 4, borderRadius: 16, background: T.surfaceAlt, marginBottom: 12 }}>
-            {[
-              { id: 'job', label: 'Brigády', icon: 'case-round-bold', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
-              { id: 'people', label: 'Lidé', icon: 'users-group-rounded-bold', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
-            ].map(v => {
-              const on = kindFilter === v.id;
-              return (
-                <button key={v.id} onClick={() => setKindFilter(v.id)} style={{
-                  flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                  padding: '9px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: on ? '#fff' : 'transparent',
-                  boxShadow: on ? '0 3px 10px rgba(20,22,40,0.10)' : 'none',
-                  color: on ? T.ink : T.muted, fontFamily: T.fontHead, fontSize: 14, fontWeight: 800,
-                  transition: 'background .18s, color .18s', WebkitTapHighlightColor: 'transparent',
-                }}>
-                  <Icon name={v.icon} size={16} color={on ? T.primary : T.muted} />
-                  {v.label}
-                  {v.badge > 0 && (
-                    <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: T.destructive, color: '#fff', fontFamily: T.fontHead, fontSize: 10.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{v.badge}</span>
-                  )}
-                </button>
-              );
-            })}
+        <div style={{ padding: '18px 18px 10px' }}>
+          {/* Dropdown přepínač Brigády ↔ Lidé (styl jako IG). Ikonky stejné jako
+              spodní nav bar. Vybraný = modrý, s počtem nepřečtených. */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <button onClick={() => setKindOpen(o => !o)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 9, padding: '8px 15px',
+              borderRadius: 15, border: '1px solid ' + T.border, background: '#fff', cursor: 'pointer',
+              fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: T.ink, letterSpacing: -0.4,
+              boxShadow: kindOpen ? '0 6px 18px rgba(20,22,40,0.12)' : '0 1px 3px rgba(20,22,40,0.05)',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+              {kindFilter === 'people' ? 'Lidé' : 'Brigády'}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: kindOpen ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform .22s' }}><path d="M6 15l6-6 6 6" /></svg>
+            </button>
+            {kindOpen && (<>
+              <div onClick={() => setKindOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, zIndex: 41, minWidth: 250, background: '#fff', borderRadius: 20, boxShadow: '0 18px 44px rgba(11,18,51,0.2)', border: '1px solid ' + T.border, padding: 7 }}>
+                {[
+                  { id: 'job', label: 'Brigády', img: 'jobs-outline.svg', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
+                  { id: 'people', label: 'Lidé', img: 'people-outline.svg', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
+                ].map(v => {
+                  const on = kindFilter === v.id;
+                  return (
+                    <button key={v.id} onClick={() => { setKindFilter(v.id); setKindOpen(false); }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 14px', borderRadius: 14,
+                      border: 'none', cursor: 'pointer', background: on ? 'rgba(0,32,246,0.07)' : 'transparent',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}>
+                      <WIkonaPng src={v.img} size={21} color={on ? T.primary : T.ink} />
+                      <span style={{ flex: 1, textAlign: 'left', fontFamily: T.fontHead, fontSize: 16.5, fontWeight: 800, color: on ? T.primary : T.ink }}>{v.label}</span>
+                      {v.badge > 0 && (
+                        <span style={{ minWidth: 24, height: 24, padding: '0 8px', borderRadius: 999, background: on ? T.primary : T.surfaceAlt, color: on ? '#fff' : T.muted, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{v.badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.05)' }}>
             <Icon name="magnifer-linear" size={16} color={T.mutedSoft} />
@@ -876,6 +885,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
               style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: T.ink, fontFamily: T.fontUI, fontSize: 13.5 }}
             />
           </div>
+          {/* Malý label pod search vlevo (jako IG) */}
+          <div style={{ color: T.mutedSoft, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, letterSpacing: 0.3, textTransform: 'uppercase', margin: '14px 4px 0' }}>Zprávy</div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px' }}>
           {kindThreads.length === 0 && (
@@ -883,61 +894,47 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
               {kindFilter === 'people' ? 'Zatím žádný kontakt z Lidé. Projdi karty v záložce Lidé.' : 'Zatím žádná konverzace k brigádě.'}
             </div>
           )}
-          {filtered.map((t, idx) => {
+          {filtered.map((t) => {
             const unread = t.unread > 0;
             return (
-              <div key={t.id}>
-                {/* Řádek jako v iMessage: všechny stejné, nepřečtené pozná červená
-                    tečka vlevo — ne jiné pozadí, to seznam roztrhalo na kusy. Červená
-                    záměrně (ne modrá), ať nová zpráva vždy vizuálně "křičí". */}
-                {/* Značku přečtení posune efekt výš — tady stačí vlákno otevřít */}
-                <button onClick={() => setActive(t.id)} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '11px 8px 11px 4px', textAlign: 'left', borderRadius: 16,
-                  background: 'transparent', border: 'none', position: 'relative',
-                  cursor: 'pointer', color: 'inherit', fontFamily: 'inherit',
-                  WebkitTapHighlightColor: 'transparent',
+              // Čistý vzdušný řádek (jako reference): žádná červená tečka ani linky.
+              // Nepřečtené pozná modrý náhled + modrý odznak s počtem vpravo.
+              <button key={t.id} onClick={() => setActive(t.id)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 13,
+                padding: '12px 6px', textAlign: 'left', borderRadius: 16,
+                background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', fontFamily: 'inherit',
+                WebkitTapHighlightColor: 'transparent',
+              }}>
+                <div style={{
+                  position: 'relative', overflow: 'hidden',
+                  width: 54, height: 54, borderRadius: 999, background: t.color || T.avatarGrad,
+                  display: 'grid', placeItems: 'center',
+                  color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 18, flexShrink: 0,
                 }}>
-                  <span style={{
-                    width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                    background: unread ? T.destructive : 'transparent',
-                  }} />
-                  <div style={{
-                    position: 'relative', overflow: 'hidden',
-                    width: 52, height: 52, borderRadius: 999, background: t.color || T.avatarGrad,
-                    display: 'grid', placeItems: 'center',
-                    color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 17, flexShrink: 0,
-                  }}>
-                    <span>{t.avatar}</span>
-                    {t.logoUrl && (
-                      <img src={t.logoUrl} alt=""
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span>{t.avatar}</span>
+                  {t.logoUrl && (
+                    <img src={t.logoUrl} alt=""
+                      onError={e => { e.currentTarget.style.display = 'none'; }}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                  {t.online && <span style={{ position: 'absolute', bottom: 1, right: 1, width: 14, height: 14, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, letterSpacing: -0.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
+                      {t.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
+                    </span>
+                    <span style={{ color: unread ? T.primary : T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, fontWeight: unread ? 700 : 500, flexShrink: 0 }}>{t.time}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0, color: unread ? T.primary : T.muted, fontSize: 13.5, fontFamily: T.fontUI, fontWeight: unread ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last}</div>
+                    {unread && (
+                      <span style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 11, fontWeight: 800, fontFamily: T.fontHead, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{t.unread}</span>
                     )}
-                    {t.online && <span style={{ position: 'absolute', bottom: 1, right: 1, width: 13, height: 13, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                        <span style={{ color: T.ink, fontFamily: T.fontUI, fontSize: 15, fontWeight: unread ? 800 : 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
-                        {t.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
-                      </span>
-                      <span style={{ color: unread ? T.primary : T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: unread ? 700 : 500, flexShrink: 0 }}>{t.time}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, color: unread ? T.inkSoft : T.muted, fontSize: 13, fontFamily: T.fontUI, fontWeight: unread ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last}</div>
-                      {unread && (
-                        <span style={{ minWidth: 22, height: 22, padding: '0 6px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 10.5, fontWeight: 800, fontFamily: T.fontHead, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{t.unread}</span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-                {/* Dělicí linka pod každým řádkem kromě posledního, zarovnaná
-                    pod text — jako v iMessage. Dřív u nepřečtených chyběla. */}
-                {idx < filtered.length - 1 && (
-                  <div style={{ height: 1, background: T.border, margin: '0 8px 0 76px' }} />
-                )}
-              </div>
+                </div>
+              </button>
             );
           })}
         </div>
@@ -991,12 +988,16 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                 <div style={{ alignSelf: 'center', margin: '16px 0 10px', padding: '4px 12px', borderRadius: 999, background: T.surfaceAlt, color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700 }}>{_wDenPopis(m.ts)}</div>
               ) : null;
 
-              // Popisek pod poslední zprávou v balíku (u mých i stav doručení)
+              // Patička pod posledním v balíku: čas + u odeslaných dvojitá fajfka ✓✓
+              const odesilam = m.nahravam || (mine && !_wJeOdeslana(m.id));
               const patka = konec ? (
-                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 500, marginTop: 4, textAlign: mine ? 'right' : 'left' }}>
-                  {m.nahravam ? 'Odesílám…'
-                    : mine && jeFinal ? (_wJeOdeslana(m.id) ? '✓ Doručeno · ' + m.t : 'Odesílám…')
-                    : m.t}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                  <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 500 }}>{odesilam ? 'Odesílám…' : m.t}</span>
+                  {mine && !odesilam && (
+                    <svg width="17" height="11" viewBox="0 0 24 16" fill="none" stroke={T.primary} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }} aria-label="Doručeno">
+                      <path d="M2 8.5 6.5 13 15 3" /><path d="M11 13 19.5 3" />
+                    </svg>
+                  )}
                 </div>
               ) : null;
 
@@ -1053,18 +1054,17 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                   {den}
                   <div style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '74%', marginTop: mtop }}>
                     <div style={{
-                      padding: '9px 14px',
+                      padding: '10px 15px',
                       background: mine ? T.primary : '#fff',
-                      color: mine ? '#fff' : T.ink, fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.4,
+                      color: mine ? '#fff' : T.ink, fontFamily: T.fontUI, fontSize: 15, lineHeight: 1.4,
                       border: mine ? 'none' : '1px solid ' + T.border,
-                      boxShadow: mine ? '0 3px 12px rgba(0,32,246,0.18)' : '0 1px 4px rgba(20,22,40,0.05)',
+                      boxShadow: mine ? '0 4px 14px rgba(0,32,246,0.16)' : '0 1px 4px rgba(20,22,40,0.05)',
                       whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      // Zaoblení „balíku": vnější rohy plné (20), vnitřní (mezi zprávami
-                      // téhož odesílatele) zkrácené (7), ocásek u poslední (6).
-                      borderTopLeftRadius:     !mine && !zacatek ? 7 : 20,
-                      borderTopRightRadius:      mine && !zacatek ? 7 : 20,
-                      borderBottomLeftRadius:  !mine ? (konec ? 6 : 7) : 20,
-                      borderBottomRightRadius:  mine ? (konec ? 6 : 7) : 20,
+                      // Vnější rohy plné (22), vnitřní ve stejném balíku a ocásek zkrácené (8).
+                      borderTopLeftRadius:     !mine && !zacatek ? 8 : 22,
+                      borderTopRightRadius:      mine && !zacatek ? 8 : 22,
+                      borderBottomLeftRadius:  !mine ? 8 : 22,
+                      borderBottomRightRadius:  mine ? 8 : 22,
                     }}>{m.text}</div>
                     {patka}
                   </div>
