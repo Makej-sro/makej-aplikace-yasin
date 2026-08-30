@@ -5,6 +5,49 @@
 const { useState, useEffect, useRef, useMemo } = React;
 
 // ─────────────────────────────────────────────────────────────
+// Status bar (hodiny + ikonky nahoře) — jen v nativní appce (Capacitor).
+// iOS umí jen dvě barvy: bílou nebo černou. Přepínáme podle obrazovky:
+//   'photo' = za status barem je fotka (Lidé tržiště, hero inzerátu) → BÍLÉ ikonky.
+//   'light' = světlá béžová obrazovka (Práce, Zprávy, Profil)        → ČERNÉ ikonky.
+// Capacitor mapování je opačné: Style 'DARK' = bílý text, 'LIGHT' = tmavý text.
+// ─────────────────────────────────────────────────────────────
+function wStatusBar(mode) {
+  try {
+    const C = typeof window !== 'undefined' && window.Capacitor;
+    const S = C && C.Plugins && C.Plugins.StatusBar;
+    if (S && S.setStyle) S.setStyle({ style: mode === 'photo' ? 'DARK' : 'LIGHT' });
+  } catch (e) { /* web / neni nativni obal — nevadi */ }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Profilový obrázek z iniciál — vygeneruje SVG „logo" (data URI),
+// aby firma bez nahraného loga vypadala jako opravdová profilovka:
+// iniciály na barevném gradientu, barva je pro každou firmu jiná
+// (deterministicky podle názvu). Použití: wLogoImg('KP', 'Kafe Punkt').
+// ─────────────────────────────────────────────────────────────
+const _W_LOGO_PALETA = ['#2A6DF4', '#7A5CFF', '#E8552E', '#1E9E52', '#F0A600', '#D6336C', '#0EA5A5', '#5B54E6', '#E06C00', '#3B7A57'];
+function _wStrHash(s) { let h = 0; s = String(s || ''); for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return h; }
+function _wShade(hex, amt) {   // amt: -100 (ztmavit) … +100 (zesvětlit)
+  let c = String(hex || '#2a2ab5').replace('#', ''); if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  const n = parseInt(c, 16); const f = amt / 100;
+  const adj = v => Math.max(0, Math.min(255, Math.round(v + (amt < 0 ? v : (255 - v)) * f)));
+  const r = adj((n >> 16) & 255), g = adj((n >> 8) & 255), b = adj(n & 255);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function wLogoImg(text, seed) {
+  const initials = String(text || '?').slice(0, 2).toUpperCase();
+  const base = _W_LOGO_PALETA[_wStrHash(seed || text) % _W_LOGO_PALETA.length];
+  const dark = _wShade(base, -26);
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'>"
+    + "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>"
+    + "<stop offset='0' stop-color='" + base + "'/><stop offset='1' stop-color='" + dark + "'/></linearGradient></defs>"
+    + "<rect width='120' height='120' fill='url(#g)'/>"
+    + "<text x='60' y='63' font-family='Poppins, Arial, sans-serif' font-size='50' font-weight='700' letter-spacing='0.5' fill='#ffffff' text-anchor='middle' dominant-baseline='central'>" + initials + "</text>"
+    + "</svg>";
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Mock data
 // ─────────────────────────────────────────────────────────────
 const JOBS = [

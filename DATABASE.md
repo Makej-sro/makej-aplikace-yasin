@@ -49,6 +49,25 @@ alter table public.jobs
 Appka je připravená — jakmile `jobs.photos` poteče ven ve výběru inzerátů,
 galerie se rozjede sama. **Chce se říct Samovi** (sdílené, firemní strana).
 
+### Online presence + read receipts (Zprávy) — připraveno, ještě NEspuštěno
+Zelená tečka „online" a stavy zpráv „Doručeno/Přečteno" v appce jsou zatím jen
+demo (napevno v `www/worker-demo.jsx`). Reálně to potřebuje 2 additivní sloupce
+a 2 SECURITY DEFINER funkce. Celé SQL je v `supabase/migration_read_presence.sql`.
+
+- `profiles.last_seen timestamptz` — heartbeat z appky (`touch_last_seen()` ~30 s);
+  UI: `now - last_seen < 60 s` → „Aktivní teď", jinak „Aktivní před X".
+- `messages.read_at timestamptz` — orazítkuje příjemce přes `mark_thread_read(match_id)`
+  při otevření vlákna; UI: `read_at != null` → „Přečteno", jinak „Doručeno".
+
+```sql
+alter table profiles add column if not exists last_seen timestamptz;
+alter table messages add column if not exists read_at  timestamptz;
+-- + funkce touch_last_seen(), mark_thread_read(uuid) — viz migrační soubor
+```
+**Chce se říct Samovi**: aby brigádník viděl „Přečteno", musí firemní dashboard
+volat svou obdobu `mark_thread_read` při otevření vlákna; a `last_seen` firmy se
+plní jen když i dashboard posílá heartbeat. Appka se napojí, jakmile SQL poteče.
+
 ---
 
 ## Historie provedených změn

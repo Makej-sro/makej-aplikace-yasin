@@ -206,7 +206,7 @@ const _wPrepinacKnob = on => ({
   background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s',
 });
 
-function WDatumPicker({ value, onChange }) {
+function WDatumPicker({ value, onChange, row }) {
   const [open, setOpen] = useStateW(false);
   const [dmy, setDmy]   = useStateW(() => _wRozlozDatum(value));
   const ref = useRefW(null);
@@ -234,16 +234,27 @@ function WDatumPicker({ value, onChange }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(o => !o)} style={{
-        ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
-      }}>
-        <Icon name="calendar-bold" size={17} color={value ? T.primary : T.mutedSoft} />
-        <span style={{ flex: 1 }}>{value ? _wFmtDatum(value) : 'Vyber datum narození'}</span>
-      </button>
+      {row ? (
+        <button onClick={() => setOpen(o => !o)} style={{
+          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          fontFamily: T.fontHead, fontWeight: 800, fontSize: 16, color: value ? T.ink : T.mutedSoft, WebkitTapHighlightColor: 'transparent',
+        }}>
+          <span>{value ? _wFmtDatum(value) : 'Vybrat'}</span>
+          <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke={T.mutedSoft} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5 6.5 6.5 1.5 11.5" /></svg>
+        </button>
+      ) : (
+        <button onClick={() => setOpen(o => !o)} style={{
+          ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
+        }}>
+          <Icon name="calendar-bold" size={17} color={value ? T.primary : T.mutedSoft} />
+          <span style={{ flex: 1 }}>{value ? _wFmtDatum(value) : 'Vyber datum narození'}</span>
+        </button>
+      )}
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 61, marginTop: 10, padding: '10px 0 12px',
+          position: 'absolute', top: '100%', zIndex: 61, marginTop: 10, padding: '10px 0 12px',
+          ...(row ? { right: 0, left: 'auto', width: 'min(300px, 80vw)' } : { left: 0, right: 0 }),
           background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
           boxShadow: '0 18px 40px -14px rgba(20,22,40,0.28)',
           animation: 'wPop .18s cubic-bezier(.2,.8,.2,1)', overflow: 'hidden',
@@ -359,6 +370,66 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
   const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
+  const [avatarPreview, setAvatarPreview] = useStateW('');   // náhled právě vybrané fotky (data URL)
+  const [fotoMenu, setFotoMenu] = useStateW(false);          // spodní list Vyfotit / Galerie
+  const [rozsireneOpen, setRozsireneOpen] = useStateW(false);// rozbalený rozšířený profil
+  const [overitOpen, setOveritOpen] = useStateW(null);       // 'email' | 'phone' | null — spodní list s kódem
+  const [kod, setKod] = useStateW('');                       // zadávaný ověřovací kód
+  const [overStav, setOverStav] = useStateW('');             // '' | 'posilam' | 'cekam' | 'overuji' | 'ok' | 'chyba'
+  const [overChyba, setOverChyba] = useStateW('');
+  const [overene, setOverene] = useStateW({ email: '', tel: '' });   // co bylo ověřeno kódem v této session
+  function otevritOvereni(ktere) {
+    setOveritOpen(ktere); setKod(''); setOverChyba(''); setOverStav('');
+    if (ktere === 'email') poslatKodEmail();
+  }
+  async function poslatKodEmail() {
+    if (typeof sb === 'undefined' || !form.email.trim()) return;
+    setOverStav('posilam'); setOverChyba('');
+    try {
+      const { error } = await sb.auth.signInWithOtp({ email: form.email.trim(), options: { shouldCreateUser: false } });
+      if (error) throw error;
+      setOverStav('cekam');
+    } catch (e) { setOverStav('chyba'); setOverChyba('Kód se nepodařilo poslat. Zkontroluj e-mail a zkus to za chvíli.'); }
+  }
+  async function overitKodEmail() {
+    if (typeof sb === 'undefined' || kod.trim().length < 4) return;
+    setOverStav('overuji'); setOverChyba('');
+    try {
+      const { error } = await sb.auth.verifyOtp({ email: form.email.trim(), token: kod.trim(), type: 'email' });
+      if (error) throw error;
+      setOverene(o => ({ ...o, email: form.email.trim().toLowerCase() }));
+      setOverStav('ok');
+      setTimeout(() => { setOveritOpen(null); setKod(''); setOverStav(''); }, 1000);
+    } catch (e) { setOverStav('chyba'); setOverChyba('Kód nesedí nebo vypršel. Zkus to znovu.'); }
+  }
+  const galerieRef = useRefW(null);
+  const kameraRef  = useRefW(null);
+  function nactiFotku(e) {
+    const f = e.target.files && e.target.files[0];
+    setFotoMenu(false);
+    if (f) {
+      const r = new FileReader();
+      r.onload = () => {
+        // Zmenšit na max 512 px (JPEG) — fotka z mobilu má klidně 5 MB, jako
+        // data URL by to appku zbytečně sekalo. Malý čtvereček avataru bohatě stačí.
+        const img = new Image();
+        img.onload = () => {
+          const max = 512;
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          let url; try { url = c.toDataURL('image/jpeg', 0.85); } catch (er) { url = r.result; }
+          setAvatarPreview(url); setForm(fm => ({ ...fm, avatar: url }));
+        };
+        img.onerror = () => { setAvatarPreview(r.result); setForm(fm => ({ ...fm, avatar: r.result })); };
+        img.src = r.result;
+      };
+      r.readAsDataURL(f);
+    }
+    e.target.value = '';   // ať jde vybrat tutéž fotku znovu
+  }
   const [userId,  setUserId]  = useStateW(null);
   const [showAllReviews, setShowAllReviews] = useStateW(false);
   const [reviewsPageOpen, setReviewsPageOpen] = useStateW(false);
@@ -484,6 +555,8 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
       skills: form.skills, education: _wSlozVzdelani(form.stupen, form.obor),
       cv_url: form.cv_url.trim(),
     });
+    // Fotku zatím jen do zobrazení (session) — reálné nahrání do úložiště je backend krok.
+    if (avatarPreview) W_PROFILE.avatar_url = avatarPreview;
     setSaving(false);
     setEditing(false);
   }
@@ -526,8 +599,16 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const todoLeft = todoItems.filter(t => !t.done).length;
   const heroMeta = W_PROFILE.city ? W_PROFILE.city : 'Doplň si profil';
 
+  // „Ověřeno" u kontaktů: platí, dokud se hodnota shoduje s uloženou (= potvrzenou).
+  // Po změně čísla/e-mailu odznak zmizí (reálně se pak pošle ověřovací kód).
+  const curTel = form.telCislo.trim() ? (form.telPredvolba + ' ' + form.telCislo.trim()) : '';
+  const telOvereno = !!curTel && curTel === overene.tel;   // reálně až přes SMS kód (zatím placeholder)
+  const emailNorm = form.email.trim().toLowerCase();
+  // E-mail účtu je potvrzený už z registrace → rovnou „Ověřeno". Jiný e-mail se ověří kódem.
+  const emailOvereno = !!emailNorm && (emailNorm === (uctuEmail || '').trim().toLowerCase() || emailNorm === overene.email);
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
+    <div style={{ flex: 1, overflowY: 'auto', marginTop: editing ? 0 : 'calc(-1 * env(safe-area-inset-top))' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', width: '100%', padding: '24px 20px calc(28px + env(safe-area-inset-bottom))' }}>
 
         {editing ? (
@@ -553,60 +634,92 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
             </div>
           </div>
 
-          {/* Živý náhled jména — mění se, jak vyplňuješ kolonky níž */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div style={{
-              width: 62, height: 62, borderRadius: 999, flexShrink: 0, background: T.avatarGrad,
-              display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 20,
-              boxShadow: '0 14px 26px -14px rgba(0,32,246,0.5)',
-            }}>{initials}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>
-                {_wSlozJmeno(form) || 'Tvoje jméno'}
-              </div>
-              <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12, marginTop: 3 }}>Uprav jméno v kolonkách níž</div>
-            </div>
+          {/* Skryté vstupy: fotoaparát (capture) + galerie */}
+          <input ref={kameraRef} type="file" accept="image/*" capture="user" onChange={nactiFotku} style={{ display: 'none' }} />
+          <input ref={galerieRef} type="file" accept="image/*" onChange={nactiFotku} style={{ display: 'none' }} />
+
+          {/* Profilová fotka — klepnutím vyfotit nebo vybrat z galerie */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+            <button onClick={() => setFotoMenu(true)} title="Změnit fotku" style={{
+              position: 'relative', width: 104, height: 104, borderRadius: 30, border: 'none', padding: 0, cursor: 'pointer',
+              background: T.avatarGrad, WebkitTapHighlightColor: 'transparent', boxShadow: '0 16px 30px -16px rgba(0,32,246,0.55)',
+            }}>
+              <span style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden', display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 36 }}>
+                {(avatarPreview || avatarUrl)
+                  ? <img src={avatarPreview || avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : initials}
+              </span>
+              <span style={{ position: 'absolute', right: -4, bottom: -4, width: 36, height: 36, borderRadius: 999, background: T.primary, border: '3px solid #fff', display: 'grid', placeItems: 'center', boxShadow: '0 4px 10px rgba(0,32,246,0.4)' }}>
+                {_wIcoKamera('#fff', 18)}
+              </span>
+            </button>
+            <button onClick={() => setFotoMenu(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.primary, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, WebkitTapHighlightColor: 'transparent' }}>Změnit fotku</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {/* ── ZÁKLAD — bez těchto pár věcí nemůžeš vzít brigádu ── */}
             <div>
               <div style={labelStyle}>Osobní údaje</div>
-              {/* Pořadí kolonek odshora dolů = jak se jméno čte:
-                  titul před · jméno · příjmení · titul za.
-                  Tituly našeptávají a berou jen hodnoty ze seznamu. */}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <WTitulPicker value={form.titul} onChange={v => setForm(f => ({ ...f, titul: v }))}
-                  placeholder="Titul před" obal={{ width: 132, flexShrink: 0 }} shakeSignal={titulShake} />
-                <input value={form.jmeno} onChange={e => setForm(f => ({ ...f, jmeno: e.target.value }))} placeholder="Jméno" style={{ ...fieldStyle, flex: 1, minWidth: 0 }} />
+              <div style={{ ...KARTA, padding: 0 }}>
+                <div style={radek}>
+                  <span style={radekLabel}>Jméno</span>
+                  <input value={form.jmeno} onChange={e => setForm(f => ({ ...f, jmeno: e.target.value }))} placeholder="Zadej jméno" style={radekInput} />
+                </div>
+                <div style={{ ...radek, borderTop: '1px solid ' + T.border }}>
+                  <span style={radekLabel}>Příjmení</span>
+                  <input value={form.prijmeni} onChange={e => setForm(f => ({ ...f, prijmeni: e.target.value }))} placeholder="Zadej příjmení" style={radekInput} />
+                </div>
+                <div style={{ ...radek, borderTop: '1px solid ' + T.border, justifyContent: 'space-between' }}>
+                  <span style={radekLabel}>Datum narození</span>
+                  <WDatumPicker row value={form.datum} onChange={v => setForm(f => ({ ...f, datum: v }))} />
+                </div>
               </div>
-              <input value={form.prijmeni} onChange={e => setForm(f => ({ ...f, prijmeni: e.target.value }))} placeholder="Příjmení" style={{ ...fieldStyle, marginTop: 8 }} />
-              <WTitulPicker value={form.titulZa} onChange={v => setForm(f => ({ ...f, titulZa: v }))}
-                placeholder="Titul za" obal={{ marginTop: 8 }} shakeSignal={titulShake} />
-              {/* Datum narození — vlastní „revolver" (stejný jako v kalendáři),
-                  tři kolečka den · měsíc · rok, roluješ do středu. */}
-              <div style={{ marginTop: 14 }}>
-                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, marginBottom: 5, marginLeft: 2 }}>Datum narození</div>
-                <WDatumPicker value={form.datum} onChange={v => setForm(f => ({ ...f, datum: v }))} />
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, marginBottom: 5, marginLeft: 2 }}>Kde působíš</div>
-                <select value={form.kraj} onChange={e => setForm(f => ({ ...f, kraj: e.target.value }))}
-                  style={{ ...fieldStyle, width: '100%', cursor: 'pointer', color: form.kraj ? T.ink : T.mutedSoft }}>
-                  <option value="" style={{ color: '#111' }}>Vyber kraj</option>
-                  {KRAJE_W.map(k => <option key={k.id} value={k.id} style={{ color: '#111' }}>{k.name}</option>)}
-                </select>
-                <input value={form.mesto} onChange={e => setForm(f => ({ ...f, mesto: e.target.value }))} placeholder="Město (nepovinné)" style={{ ...fieldStyle, marginTop: 8 }} />
-              </div>
+              <div style={poznamka}>Firmy vidí jméno a první písmeno příjmení. Datum narození potřebujeme kvůli věkovému limitu u některých směn.</div>
             </div>
             <div>
               <div style={labelStyle}>Kontaktní údaje</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select value={form.telPredvolba} onChange={e => setForm(f => ({ ...f, telPredvolba: e.target.value }))}
-                  style={{ ...fieldStyle, width: 104, flexShrink: 0, cursor: 'pointer' }}>
-                  {_W_PREDVOLBY.map(p => <option key={p.kod} value={p.kod}>{p.vlajka + ' ' + p.kod}</option>)}
-                </select>
-                <input type="tel" inputMode="tel" value={form.telCislo} onChange={e => setForm(f => ({ ...f, telCislo: e.target.value }))} placeholder="Telefonní číslo" style={{ ...fieldStyle, flex: 1, minWidth: 0 }} />
+              <div style={{ ...KARTA, padding: 0 }}>
+                <div style={radek}>
+                  <select value={form.telPredvolba} onChange={e => setForm(f => ({ ...f, telPredvolba: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: T.fontHead, fontWeight: 800, fontSize: 15, color: T.ink, cursor: 'pointer', flexShrink: 0 }}>
+                    {_W_PREDVOLBY.map(p => <option key={p.kod} value={p.kod}>{p.vlajka + ' ' + p.kod}</option>)}
+                  </select>
+                  <input type="tel" inputMode="tel" value={form.telCislo} onChange={e => setForm(f => ({ ...f, telCislo: e.target.value }))} placeholder="Telefon" style={radekInput} />
+                  {form.telCislo.trim() && (telOvereno ? <WOverenoPill /> : <WOveritBtn onClick={() => otevritOvereni('phone')} />)}
+                </div>
+                <div style={{ ...radek, borderTop: '1px solid ' + T.border }}>
+                  <input type="email" inputMode="email" autoCapitalize="none" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="E-mail" style={{ ...radekInput, textAlign: 'left' }} />
+                  {form.email.trim() && (emailOvereno ? <WOverenoPill /> : <WOveritBtn onClick={() => otevritOvereni('email')} />)}
+                </div>
               </div>
-              <input type="email" inputMode="email" autoCapitalize="none" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder={uctuEmail || 'E-mail'} style={{ ...fieldStyle, marginTop: 8 }} />
+              <div style={poznamka}>Kontakt uvidí jen firma, které potvrdíš zájem o směnu. Po změně čísla nebo e-mailu pošleme ověřovací kód.</div>
+            </div>
+            {/* ── ROZŠÍŘENÉ — nepovinné, ať si tě firmy spíš vyberou ── */}
+            <button onClick={() => setRozsireneOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, ...KARTA, padding: '15px 18px', cursor: 'pointer', border: 'none', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800 }}>Rozšířený profil</span>
+                <span style={{ display: 'block', color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, marginTop: 2 }}>Nepovinné — ať si tě firmy spíš vyberou</span>
+              </span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: rozsireneOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+
+            {rozsireneOpen && (<>
+            <div>
+              <div style={labelStyle}>Tituly ke jménu</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <WTitulPicker value={form.titul} onChange={v => setForm(f => ({ ...f, titul: v }))}
+                  placeholder="Titul před" obal={{ flex: 1, minWidth: 0 }} shakeSignal={titulShake} />
+                <WTitulPicker value={form.titulZa} onChange={v => setForm(f => ({ ...f, titulZa: v }))}
+                  placeholder="Titul za" obal={{ flex: 1, minWidth: 0 }} shakeSignal={titulShake} />
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Kde působíš</div>
+              <select value={form.kraj} onChange={e => setForm(f => ({ ...f, kraj: e.target.value }))}
+                style={{ ...fieldStyle, width: '100%', cursor: 'pointer', color: form.kraj ? T.ink : T.mutedSoft }}>
+                <option value="" style={{ color: '#111' }}>Vyber kraj</option>
+                {KRAJE_W.map(k => <option key={k.id} value={k.id} style={{ color: '#111' }}>{k.name}</option>)}
+              </select>
+              <input value={form.mesto} onChange={e => setForm(f => ({ ...f, mesto: e.target.value }))} placeholder="Město (nepovinné)" style={{ ...fieldStyle, marginTop: 8 }} />
             </div>
             <div>
               <div style={labelStyle}>Doprava</div>
@@ -656,8 +769,56 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
               <input value={form.cv_url} onChange={e => setForm(f => ({ ...f, cv_url: e.target.value }))} placeholder="Odkaz na životopis (PDF / Disk / LinkedIn)…" style={fieldStyle} />
               <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>Vlož veřejný odkaz na svůj životopis. Je to dobrovolné — zaměstnavatel ho uvidí u tvého profilu.</div>
             </div>
+            </>)}
             {/* Ukládá se zeleným „Hotovo" nahoře — spodní tlačítko by bylo dvakrát */}
           </div>
+
+          {/* Spodní list: Vyfotit / Vybrat z galerie */}
+          {fotoMenu && (
+            <div onClick={() => setFotoMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 9400, background: 'rgba(11,18,51,0.42)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '24px 24px 0 0', padding: '10px 14px calc(16px + env(safe-area-inset-bottom))', animation: 'wSheetUp .28s cubic-bezier(.2,.8,.2,1)' }}>
+                <div style={{ width: 40, height: 5, borderRadius: 999, background: T.border, margin: '4px auto 12px' }} />
+                <button onClick={() => { setFotoMenu(false); if (kameraRef.current) kameraRef.current.click(); }} style={fotoBtn}>{_wIcoKamera(T.primary, 21)}<span>Vyfotit</span></button>
+                <button onClick={() => { setFotoMenu(false); if (galerieRef.current) galerieRef.current.click(); }} style={{ ...fotoBtn, borderTop: '1px solid ' + T.border }}>{_wIcoGalerie(T.primary, 21)}<span>Vybrat z galerie</span></button>
+                {(avatarPreview || avatarUrl) && (
+                  <button onClick={() => { setAvatarPreview(''); setForm(f => ({ ...f, avatar: '' })); setFotoMenu(false); }} style={{ ...fotoBtn, borderTop: '1px solid ' + T.border, color: '#E8552E' }}><Icon name="trash-bin-trash-bold" size={21} color="#E8552E" /><span>Odebrat fotku</span></button>
+                )}
+                <button onClick={() => setFotoMenu(false)} style={{ ...fotoBtn, marginTop: 8, justifyContent: 'center', color: T.muted, background: T.surfaceAlt, borderRadius: 14 }}>Zrušit</button>
+              </div>
+            </div>
+          )}
+
+          {/* Spodní list: ověřovací kód (e-mail funkční přes Supabase, telefon placeholder) */}
+          {overitOpen && (
+            <div onClick={() => setOveritOpen(null)} style={{ position: 'fixed', inset: 0, zIndex: 9400, background: 'rgba(11,18,51,0.42)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '24px 24px 0 0', padding: '10px 22px calc(20px + env(safe-area-inset-bottom))', animation: 'wSheetUp .28s cubic-bezier(.2,.8,.2,1)' }}>
+                <div style={{ width: 40, height: 5, borderRadius: 999, background: T.border, margin: '4px auto 16px' }} />
+                {overitOpen === 'phone' ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, marginBottom: 8 }}>Ověření telefonu</div>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>Ověření SMS kódem právě připravujeme. Zatím se číslo uloží i bez kódu.</div>
+                    <button onClick={() => setOveritOpen(null)} style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: T.primary, border: 'none', color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Rozumím</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, marginBottom: 6 }}>Zadej kód z e-mailu</div>
+                    <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.5, marginBottom: 16 }}>Poslali jsme ověřovací kód na <b style={{ color: T.ink }}>{form.email}</b>.</div>
+                    <input value={kod} onChange={e => setKod(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoFocus placeholder="000000"
+                      style={{ width: '100%', textAlign: 'center', letterSpacing: 8, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, color: T.ink, padding: '12px 0', borderRadius: 14, border: '1.5px solid ' + (overStav === 'chyba' ? '#E8552E' : T.border), outline: 'none', background: T.surfaceAlt }} />
+                    {overChyba && <div style={{ color: '#E8552E', fontFamily: T.fontUI, fontSize: 12.5, marginTop: 8 }}>{overChyba}</div>}
+                    {overStav === 'ok' ? (
+                      <div style={{ color: T.green, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, textAlign: 'center', marginTop: 16 }}>Hotovo, e-mail ověřen ✓</div>
+                    ) : (
+                      <button onClick={overitKodEmail} disabled={overStav === 'overuji' || kod.length < 4} style={{ width: '100%', marginTop: 16, padding: '13px 0', borderRadius: 14, background: T.primary, border: 'none', color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer', opacity: (overStav === 'overuji' || kod.length < 4) ? 0.55 : 1 }}>{overStav === 'overuji' ? 'Ověřuji…' : 'Ověřit kód'}</button>
+                    )}
+                    <div style={{ textAlign: 'center', marginTop: 14, color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 13 }}>
+                      {overStav === 'posilam' ? 'Posílám kód…' : <>Nepřišel kód? <button onClick={poslatKodEmail} style={{ background: 'none', border: 'none', color: T.primary, fontFamily: T.fontHead, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Poslat znovu</button></>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           </>
         ) : (
           <>
@@ -1629,6 +1790,31 @@ function WReviewsPage({ reviews, onClose }) {
 const labelStyle = { color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 };
 const fieldStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, background: '#fff', border: '1px solid ' + T.border, color: T.ink, fontFamily: T.fontUI, fontSize: 14, outline: 'none' };
 const pillStyle = { padding: '9px 16px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 6px rgba(20,22,40,0.05)', color: T.ink, fontFamily: T.fontHead, fontSize: 14, fontWeight: 700 };
+
+// ── Řádky v kartě (iOS-settings styl): štítek vlevo, hodnota/vstup vpravo ──
+const radek = { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 18px' };
+const radekLabel = { color: T.muted, fontFamily: T.fontHead, fontSize: 15, fontWeight: 700, flexShrink: 0 };
+const radekInput = { border: 'none', outline: 'none', background: 'transparent', textAlign: 'right', fontFamily: T.fontHead, fontWeight: 800, fontSize: 16, color: T.ink, minWidth: 0, flex: 1 };
+const poznamka = { color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.45, margin: '8px 4px 0' };
+const fotoBtn = { width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '15px 12px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.fontHead, fontSize: 16, fontWeight: 700, color: T.ink, WebkitTapHighlightColor: 'transparent' };
+
+// Kamera a galerie nejsou v nabundlované Solar sadě → kreslíme je inline.
+const _wIcoKamera = (c, s = 20) => (<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 8.5h2.6l1.4-1.9h6.9l1.4 1.9h2.7a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z" /><circle cx="12" cy="13.2" r="3.1" /></svg>);
+const _wIcoGalerie = (c, s = 20) => (<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.6" /><circle cx="9" cy="10" r="1.7" /><path d="M4.5 17.5l4.5-4.3 3.2 3 3-2.4 4.3 3.7" /></svg>);
+
+function WOverenoPill() {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, padding: '5px 10px', borderRadius: 999, background: 'rgba(31,157,92,0.12)', color: T.green, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800 }}>
+      <Icon name="verified-check-bold" size={13} color={T.green} />Ověřeno
+    </span>
+  );
+}
+
+function WOveritBtn({ onClick }) {
+  return (
+    <button onClick={onClick} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, background: T.tint, border: '1px solid rgba(0,32,246,0.2)', color: T.primary, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Ověřit</button>
+  );
+}
 
 // Nevyplněná část profilu — pobídka, proč to vyplnit. Upravovat jde jen přes
 // tlačítko Upravit nahoře, takže karta sama editaci nespouští (není klikací).

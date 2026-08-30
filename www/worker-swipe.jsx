@@ -1558,10 +1558,7 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
             )}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.4) 0%, rgba(11,18,51,0) 45%)' }} />
 
-            {/* Počítadlo + tečky (jen když je víc fotek) */}
-            {photos.length > 1 && (
-              <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', padding: '4px 10px', borderRadius: 999, background: 'rgba(11,18,51,0.55)', color: '#fff', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, pointerEvents: 'none' }}>{photoIdx + 1}/{photos.length}</div>
-            )}
+            {/* Tečky (jen když je víc fotek) */}
             {photos.length > 1 && (
               <div style={{ position: 'absolute', bottom: 30, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 6, pointerEvents: 'none' }}>
                 {photos.map((_, i) => (
@@ -1570,9 +1567,9 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
               </div>
             )}
 
-            <div style={{ position: 'absolute', top: 14, left: 16, right: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => animClose(true)} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#0B1233" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <div style={{ position: 'absolute', top: 'calc(14px + env(safe-area-inset-top))', left: 16, right: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => animClose(true)} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.36)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
             </div>
           </div>

@@ -1011,6 +1011,20 @@ function WorkerApp() {
   const [chatOpen, setChatOpen] = useStateW(false);   // otevřený chat → schovat spodní nav
   const [detailOpen, setDetailOpen] = useStateW(false);   // otevřený detail inzerátu → schovat horní lištu
   const [bellRing, setBellRing] = useStateW(false);   // krátké rozkývání při novém upozornění
+  const [navCompact, setNavCompact] = useStateW(false);   // zmenšený plovoucí nav (jen Lidé, jako IG Reels)
+  const navY = useRefW(0);
+  useEffectW(() => {
+    window.wNavScroll = (y) => {
+      const prev = navY.current; navY.current = y;
+      if (y <= 6) { setNavCompact(false); return; }
+      if (y > prev + 8) setNavCompact(true);
+      else if (y < prev - 8) setNavCompact(false);
+    };
+    return () => { try { delete window.wNavScroll; } catch (e) {} };
+  }, []);
+  useEffectW(() => { navY.current = 0; setNavCompact(false); }, [tab]);   // přepnutí tabu → plná velikost
+  // Status bar: permanentně černé hodiny/ikonky (na světlých obrazovkách vidět, bílá mizela).
+  useEffectW(() => { wStatusBar('light'); }, []);
   const posledniZvuk = useRefW(0);                    // kdy naposled cinklo — proti salvě
   const videnaNotif  = useRefW(new Set());            // id už zpracovaných oznámení
   const [chatTarget, setChatTarget] = useStateW(null);
@@ -1558,25 +1572,36 @@ function WorkerApp() {
       {/* Bottom navigation — tmavě-modrý pill, aktivní tab modrý s popiskem.
           V otevřeném chatu se schová: překrývala by psací pole. */}
       {loaded && !chatOpen && (
-        <nav style={{
+        <nav style={Object.assign({
           display: 'flex', alignItems: 'center', gap: 4,
-          margin: '2px 16px',
-          marginBottom: 'max(4px, calc(env(safe-area-inset-bottom) - 2px))',
           padding: 6,
-          // Clean navbar — bílá plocha, tenký okraj, žádný stín ani sklo/odlesk.
           background: '#fff',
           border: '1px solid ' + T.border,
           borderRadius: 22,
+          zIndex: 10,
+        }, tab === 'people' ? {
+          // Lidé: plovoucí pill NAD obsahem (obsah jede za něj až ke spodní hraně),
+          // zmenší se při scrollu jako IG Reels; klik na tab ho zvětší.
+          position: 'absolute', left: 16, right: 16,
+          bottom: 'max(4px, calc(env(safe-area-inset-bottom) - 2px))',
+          transform: navCompact ? 'scale(0.8)' : 'scale(1)',
+          transformOrigin: 'bottom center',
+          boxShadow: navCompact ? '0 8px 22px rgba(11,18,51,0.18)' : '0 6px 20px rgba(11,18,51,0.10)',
+          transition: 'transform .32s cubic-bezier(.2,.8,.2,1), box-shadow .32s ease',
+          willChange: 'transform',
+        } : {
+          // Ostatní taby: nav v toku dole (obsah nad ním), beze změny.
+          position: 'relative', flexShrink: 0,
+          margin: '2px 16px',
+          marginBottom: 'max(4px, calc(env(safe-area-inset-bottom) - 2px))',
           boxShadow: 'none',
-          flexShrink: 0,
-          position: 'relative', zIndex: 10,
-        }}>
+        })}>
           {NAV.map(n => {
             const active = tab === n.id;
             return (
               <button
                 key={n.id}
-                onClick={() => setTab(n.id)}
+                onClick={() => { setNavCompact(false); setTab(n.id); }}
                 title={n.label}
                 style={{
                   flexGrow: active ? 1.6 : 1, flexShrink: 1, flexBasis: 0, minWidth: 0,

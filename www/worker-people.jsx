@@ -22,6 +22,13 @@ const _P_KATEGORIE = [
   { key: 'krasa',     label: 'Krása',      kw: ['kader', 'nehty', 'kosmetik', 'liceni', 'rasy', 'oboci', 'manikur', 'pedikur'] },
   { key: 'stehovani', label: 'Stěhování',  kw: ['stehov', 'dodavk', 'odvoz', 'preprav', 'sila', 'vynos'] },
   { key: 'hudba',     label: 'Hudba',      kw: ['kytar', 'hud', 'hraj', 'zpev', 'nastroj', 'klavir', 'piano'] },
+  { key: 'doprava',   label: 'Doprava',        kw: ['ridic', 'odvez', 'prevoz', 'prevez', 'letist', 'rozvoz', 'svez'] },
+  { key: 'trenink',   label: 'Trénink',        kw: ['trener', 'joga', 'fitness', 'kondic', 'cvic', 'sport'] },
+  { key: 'pece',      label: 'Péče',           kw: ['senior', 'asisten', 'pecovat', 'doprovod', 'babick'] },
+  { key: 'masaze',    label: 'Masáže',         kw: ['masaz', 'wellness', 'relax', 'fyzio', 'lymf'] },
+  { key: 'admin',     label: 'Administrativa', kw: ['preklad', 'administr', 'papirov', 'ucetni', 'danov', 'formular'] },
+  // „Ostatní" = catch-all: padnou sem lidi, co nesedí do žádné konkrétní kategorie (viz filtr níž).
+  { key: 'ostatni',   label: 'Ostatní',        kw: [] },
 ];
 
 // Klíčová slova pro typewriter efekt v placeholderu vyhledávání.
@@ -253,8 +260,8 @@ function WPersonGridCard({ person, onTap, idx = 0 }) {
   const cena   = person.price || 'Dohodou';
   const maCislo = /\d/.test(cena);
   const rating = Number(person.rating) || 0;
-  const cat    = (Array.isArray(person.card_tags) && person.card_tags[0]) || (Array.isArray(person.skills) && person.skills[0]) || '';
-  const ratColor = rating >= 4.9 ? '#1E9E52' : '#8A90A6';   // zelený jen top, jinak neutrální (jako Seznam)
+  const offer  = person.card_offer || person.bio || '';
+  const tags   = (Array.isArray(person.card_tags) && person.card_tags.length) ? person.card_tags : (Array.isArray(person.skills) ? person.skills : []);
   return (
     <div onClick={onTap} className="wpin" role="button" tabIndex={0} style={{
       cursor: 'pointer', width: '100%', minWidth: 0, WebkitTapHighlightColor: 'transparent',
@@ -273,27 +280,50 @@ function WPersonGridCard({ person, onTap, idx = 0 }) {
         }}>
           <svg width="16" height="15" viewBox="0 0 24 24" fill={saved ? '#fff' : 'none'} stroke="#fff" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
         </button>
-        {person.avatar && (
-          <span style={{ position: 'absolute', left: 9, bottom: 9, width: 40, height: 40, borderRadius: 12, overflow: 'hidden', background: '#fff', border: '2.5px solid #fff', boxShadow: '0 2px 8px rgba(11,18,51,0.22)' }}>
-            <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} />
-          </span>
-        )}
-      </div>
-      {/* Info */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-          <span style={{ fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, color: T.ink, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{_pShort(person.name)}</span>
-          {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : null)}
-        </span>
+        {/* Hodnocení vlevo nahoře — zelené 4,8+, jinak tmavá pilulka; hvězda vždy zlatá */}
         {rating > 0 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{ flex: 'none', background: ratColor, color: '#fff', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>{rating.toFixed(1).replace('.', ',')}</span>
-            {person.ratingCount > 0 && <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{person.ratingCount} recenzí</span>}
+          <span style={Object.assign({ position: 'absolute', top: 8, left: 8, display: 'inline-flex', alignItems: 'center', gap: 3, borderRadius: 999, color: '#fff', fontFamily: T.fontHead, fontSize: 11.5, fontWeight: 800, padding: '3px 8px 3px 6px' },
+            rating >= 4.8 ? { background: '#1E9E52' } : { background: 'rgba(11,18,51,0.42)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' })}>
+            <WStar size={11} color={T.super} />{rating.toFixed(1).replace('.', ',')}
           </span>
         )}
-        {cat && <span style={{ fontFamily: T.fontUI, fontSize: 12.5, color: T.ink, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>}
-        <span style={{ fontFamily: T.fontHead, fontSize: 13, fontWeight: 800, color: T.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {cena}{maCislo && person.priceUnit ? <span style={{ fontFamily: T.fontUI, fontWeight: 600, color: T.muted }}>{' · ' + person.priceUnit}</span> : null}
+        {/* Spodní gradient — ať je bílé jméno na fotce čitelné */}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', background: 'linear-gradient(180deg, rgba(11,18,51,0) 0%, rgba(11,18,51,0.8) 100%)', pointerEvents: 'none' }} />
+        {/* Profilovka + jméno (+ověření) + hodnocení — přímo na fotce, šetří místo */}
+        <span style={{ position: 'absolute', left: 9, right: 9, bottom: 9, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {person.avatar && (
+            <span style={{ flex: 'none', width: 38, height: 38, borderRadius: 11, overflow: 'hidden', background: '#fff', border: '2.5px solid #fff', boxShadow: '0 2px 8px rgba(11,18,51,0.28)' }}>
+              <img src={person.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%', display: 'block' }} />
+            </span>
+          )}
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ minWidth: 0, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: '#fff', letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{_pShort(person.name)}</span>
+            {person.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : null)}
+          </span>
+        </span>
+      </div>
+      {/* Info — jméno/hodnocení je na fotce; tady CO nabízí, dovednosti, cena */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+        {/* CO nabízí — hlavní info, ať se pozná bez rozkliknutí (2 řádky) */}
+        {offer && (
+          <span style={{ fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.35, color: T.muted, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{offer}</span>
+        )}
+
+        {/* Filtry / obory — jen 2 */}
+        {tags.length > 0 && (
+          <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 1 }}>
+            {tags.slice(0, 2).map((t, i) => (
+              <span key={i} style={{ fontFamily: T.fontUI, fontSize: 10.5, fontWeight: 700, color: T.primary, background: 'rgba(0,32,246,0.07)', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
+            ))}
+          </span>
+        )}
+
+        {/* Peněženka + cena — menším písmem, ať se vejde i jednotka */}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, minWidth: 0 }}>
+          <Icon name="wallet-money-bold" size={14} color="#B8860B" />
+          <span style={{ minWidth: 0, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {cena}{maCislo && person.priceUnit ? <span style={{ fontFamily: T.fontUI, fontWeight: 600, fontSize: 11, color: T.muted }}>{' / ' + person.priceUnit.replace(/^za\s+/i, '')}</span> : null}
+          </span>
         </span>
       </div>
     </div>
@@ -886,10 +916,26 @@ function WPeople({ tick }) {
 
   const q = _pNorm(search.trim());
   const catDef = _P_KATEGORIE.find(c => c.key === cat);
+  // Vyhledávač platí i na filtry: relevantní kategorie hodí dopředu (Vše první, Ostatní poslední).
+  const katList = !q ? _P_KATEGORIE : [..._P_KATEGORIE].sort((a, b) => {
+    const skore = c => {
+      if (c.key === 'vse') return 3;
+      if (c.key === 'ostatni') return -1;
+      const trefa = (c.kw && c.kw.some(k => k.includes(q) || q.includes(k))) || _pNorm(c.label).includes(q);
+      return trefa ? 2 : 0;
+    };
+    return skore(b) - skore(a);
+  });
   let filtered = people.filter(p => {
     const hay = _pNorm([p.name, p.card_offer, (p.card_tags || []).join(' '), (p.skills || []).join(' '), p.city].filter(Boolean).join(' '));
     if (q && !hay.includes(q)) return false;
-    if (catDef && catDef.kw && !catDef.kw.some(k => hay.includes(k))) return false;
+    if (cat === 'ostatni') {
+      // Ostatní = nespadá do žádné konkrétní kategorie
+      const spadaNekam = _P_KATEGORIE.some(c => c.kw && c.kw.length && c.kw.some(k => hay.includes(k)));
+      if (spadaNekam) return false;
+    } else if (catDef && catDef.kw && catDef.kw.length && !catDef.kw.some(k => hay.includes(k))) {
+      return false;
+    }
     return true;
   });
   filtered = [...filtered].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
@@ -915,6 +961,7 @@ function WPeople({ tick }) {
     if (!el) return;
     const y = el.scrollTop, delta = y - lastY.current, hh = headH || 0;
     lastY.current = y;
+    if (window.wNavScroll) window.wNavScroll(y);   // zmenšení plovoucího navbaru (jako IG)
     // Dokud nescrolluješ ZA výšku hlavičky, drž ji vidět. Jinak by se schovala hned
     // na začátku a pod ní by zůstal prázdný pruh (mřížka má nahoře rezervu = headH).
     // Schová se tedy až když ti první inzeráty odjedou nahoru díky scrollu.
@@ -927,7 +974,7 @@ function WPeople({ tick }) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', marginTop: 'calc(-1 * env(safe-area-inset-top))' }}>
 
       {/* Scroll oblast: celý vršek (název + Nabídni se + vyhledávač + filtry) je
           jeden overlay, který se při scrollu dolů celý odveze nahoru (zmizí) a při
@@ -935,7 +982,7 @@ function WPeople({ tick }) {
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <div ref={headRef} style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2,
-          background: T.bg, padding: '14px 16px 12px',
+          background: T.bg, padding: 'calc(14px + env(safe-area-inset-top)) 16px 12px',
           transform: headHidden ? 'translateY(-' + (headH || 0) + 'px)' : 'translateY(0)',
           opacity: headHidden ? 0 : 1,
           // Odjezd i příjezd stejně smooth: příjezd měkce dosedne (ease-out), odjezd
@@ -945,14 +992,12 @@ function WPeople({ tick }) {
             : 'transform .48s cubic-bezier(.16,1,.3,1), opacity .34s ease',
           willChange: 'transform, opacity',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-              <span style={{ fontFamily: T.fontHead, fontSize: 27, fontWeight: 900, color: T.ink, letterSpacing: -0.8 }}>Lidé</span>
-              <button onClick={openCard} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 700, border: 'none', padding: '11px 16px', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{_PIco.plus('#fff')}Nabídni se</button>
-            </div>
+            {/* Bez nadpisu „Lidé" (je v navbaru dole) — „Nabídni se" přes celou šířku */}
+            <button onClick={openCard} style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, border: 'none', padding: '13px 16px', borderRadius: 15, cursor: 'pointer', marginBottom: 12, WebkitTapHighlightColor: 'transparent' }}>{_PIco.plus('#fff')}Nabídni se</button>
             <WPeopleSearch value={search} onChange={e => setSearch(e.target.value)} />
 
             <div className="wfilter-strip" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', margin: '12px -16px 0', padding: '0 16px' }}>
-              {_P_KATEGORIE.map(c => {
+              {katList.map(c => {
                 const on = cat === c.key;
                 return <button key={c.key} onClick={() => setCat(c.key)} style={{ flex: 'none', border: 'none', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: on ? '#fff' : T.primary, background: on ? T.primary : T.tint, padding: '9px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>{c.label}</button>;
               })}
@@ -962,7 +1007,7 @@ function WPeople({ tick }) {
         </div>
 
         {/* Mřížka lidí — pod overlayem; odsazená o jeho výšku (headH). */}
-        <div ref={scrollRef} onScroll={onGridScroll} style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '0 16px calc(20px + env(safe-area-inset-bottom))', paddingTop: headH == null ? 140 : headH }} aria-busy={loading ? 'true' : 'false'}>
+        <div ref={scrollRef} onScroll={onGridScroll} style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '0 16px calc(84px + env(safe-area-inset-bottom))', paddingTop: headH == null ? 140 : headH }} aria-busy={loading ? 'true' : 'false'}>
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
             {Array.from({ length: 6 }).map((_, i) => <WPersonSkeleton key={i} />)}

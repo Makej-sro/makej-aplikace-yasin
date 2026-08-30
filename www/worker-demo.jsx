@@ -100,7 +100,7 @@ function wSeedDemoProfil() {
     const vlakna = [];
 
     // 1) Kavárna Pobřeží — barista: seskupení do balíků, karta směny, včera + dnes
-    vlakna.push({ name: 'Kavárna Pobřeží', role: 'Barista', rating: 4.9, verified: true, unread: 0, msgs: [
+    vlakna.push({ name: 'Kavárna Pobřeží', role: 'Barista', rating: 4.9, verified: true, unread: 0, online: true, msgs: [
       txt('them', 'Ahoj! 👋 Koukám, žes projevil zájem o baristu.', now - den - 10 * hod),
       txt('them', 'Umíš dělat latte art?', now - den - 10 * hod + 8000),
       txt('me',   'Ahoj! Jasně, latte art i espresso zvládám 🙂', now - den - 10 * hod + 22 * min),
@@ -125,7 +125,7 @@ function wSeedDemoProfil() {
     ] });
 
     // 4) Lidé chat — Tereza (peer-to-peer, kind='people')
-    vlakna.push({ name: 'Tereza Málková', role: 'Výpomoc na stěhování', kind: 'people', rating: 5.0, verified: true, unread: 1, msgs: [
+    vlakna.push({ name: 'Tereza Málková', role: 'Výpomoc na stěhování', kind: 'people', rating: 5.0, verified: true, unread: 1, online: true, typing: true, msgs: [
       txt('them', 'Ahoj! Viděla jsem tvůj profil, sháním výpomoc na stěhování 📦', now - 55 * min),
       txt('me',   'Ahoj Terezo! Jasně, kdy to bude?', now - 50 * min),
       txt('them', 'Tuhle sobotu dopoledne, zvládneš?', now - 49 * min),
@@ -142,7 +142,8 @@ function wSeedDemoProfil() {
         employerId: null, confirmed: false,
         name: v.name, avatar: _wDemoInic(v.name), color: barva, logoUrl: null,
         role: v.role || '', rating: v.rating || 0, verified: !!v.verified,
-        last: preview, time: last.t, unread: v.unread || 0, online: !!v.online,
+        last: preview, time: last.t, unread: v.unread || 0, online: !!v.online, typing: !!v.typing,
+        lastFrom: last.from, lastTs: last.ts,
         msgs: v.msgs, _demo: true,
       });
     });

@@ -841,35 +841,36 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
         <div style={{ padding: '18px 18px 10px' }}>
           {/* Dropdown přepínač Brigády ↔ Lidé (styl jako IG). Ikonky stejné jako
               spodní nav bar. Vybraný = modrý, s počtem nepřečtených. */}
-          <div style={{ position: 'relative', marginBottom: 12 }}>
+          <div style={{ position: 'relative', marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+            {/* Vycentrovaný přepínač bez rámečku (styl IG) — jen nápis + šipečka. */}
             <button onClick={() => setKindOpen(o => !o)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 9, padding: '8px 15px',
-              borderRadius: 15, border: '1px solid ' + T.border, background: '#fff', cursor: 'pointer',
-              fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: T.ink, letterSpacing: -0.4,
-              boxShadow: kindOpen ? '0 6px 18px rgba(20,22,40,0.12)' : '0 1px 3px rgba(20,22,40,0.05)',
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '2px 4px',
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, color: T.ink, letterSpacing: -0.5,
               WebkitTapHighlightColor: 'transparent',
             }}>
               {kindFilter === 'people' ? 'Lidé' : 'Brigády'}
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: kindOpen ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform .22s' }}><path d="M6 15l6-6 6 6" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.ink} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ transform: kindOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .22s', marginTop: 3 }}><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {kindOpen && (<>
-              <div onClick={() => setKindOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, zIndex: 41, minWidth: 250, background: '#fff', borderRadius: 20, boxShadow: '0 18px 44px rgba(11,18,51,0.2)', border: '1px solid ' + T.border, padding: 7 }}>
+              <div onClick={() => setKindOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(11,18,51,0.04)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }} />
+              {/* Roletka — obě volby spolu v jednom zaobleném boxu (vycentrovaná). */}
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 12, zIndex: 41, minWidth: 210, background: '#fff', borderRadius: 18, boxShadow: '0 18px 44px rgba(11,18,51,0.2)', border: '1px solid ' + T.border, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {[
-                  { id: 'job', label: 'Brigády', img: 'jobs-outline.svg', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
-                  { id: 'people', label: 'Lidé', img: 'people-outline.svg', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
+                  { id: 'job', label: 'Brigády', badge: threads.filter(t => (t.kind || 'job') === 'job').reduce((s, t) => s + (t.unread || 0), 0) },
+                  { id: 'people', label: 'Lidé', badge: threads.filter(t => t.kind === 'people').reduce((s, t) => s + (t.unread || 0), 0) },
                 ].map(v => {
                   const on = kindFilter === v.id;
                   return (
                     <button key={v.id} onClick={() => { setKindFilter(v.id); setKindOpen(false); }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 14px', borderRadius: 14,
-                      border: 'none', cursor: 'pointer', background: on ? 'rgba(0,32,246,0.07)' : 'transparent',
-                      WebkitTapHighlightColor: 'transparent',
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 14px', borderRadius: 13,
+                      border: 'none', background: on ? 'rgba(0,32,246,0.07)' : 'transparent', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                      fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, letterSpacing: -0.3,
+                      color: on ? T.primary : T.ink,
                     }}>
-                      <WIkonaPng src={v.img} size={21} color={on ? T.primary : T.ink} />
-                      <span style={{ flex: 1, textAlign: 'left', fontFamily: T.fontHead, fontSize: 16.5, fontWeight: 800, color: on ? T.primary : T.ink }}>{v.label}</span>
+                      {v.label}
                       {v.badge > 0 && (
-                        <span style={{ minWidth: 24, height: 24, padding: '0 8px', borderRadius: 999, background: on ? T.primary : T.surfaceAlt, color: on ? '#fff' : T.muted, fontFamily: T.fontHead, fontSize: 12.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{v.badge}</span>
+                        <span style={{ minWidth: 21, height: 21, padding: '0 6px', borderRadius: 999, background: on ? T.primary : T.surfaceAlt, color: on ? '#fff' : T.muted, fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{v.badge}</span>
                       )}
                     </button>
                   );
@@ -896,39 +897,52 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
           )}
           {filtered.map((t) => {
             const unread = t.unread > 0;
+            // Firma bez nahraného loga → vygeneruj profilovku z iniciál (opravdový obrázek).
+            const logoImg = t.logoUrl || ((t.kind || 'job') !== 'people' ? wLogoImg(t.avatar, t.name) : null);
+            const jaPosledni = t.lastFrom === 'me' || (Array.isArray(t.msgs) && t.msgs.length > 0 && t.msgs[t.msgs.length - 1].from === 'me');
             return (
               // Čistý vzdušný řádek (jako reference): žádná červená tečka ani linky.
               // Nepřečtené pozná modrý náhled + modrý odznak s počtem vpravo.
               <button key={t.id} onClick={() => setActive(t.id)} style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 13,
-                padding: '12px 6px', textAlign: 'left', borderRadius: 16,
-                background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', fontFamily: 'inherit',
-                WebkitTapHighlightColor: 'transparent',
+                padding: '11px 10px', textAlign: 'left', borderRadius: 18,
+                background: unread ? 'rgba(0,32,246,0.05)' : 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', fontFamily: 'inherit',
+                WebkitTapHighlightColor: 'transparent', transition: 'background .15s',
               }}>
-                <div style={{
-                  position: 'relative', overflow: 'hidden',
-                  width: 54, height: 54, borderRadius: 999, background: t.color || T.avatarGrad,
-                  display: 'grid', placeItems: 'center',
-                  color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 18, flexShrink: 0,
-                }}>
-                  <span>{t.avatar}</span>
-                  {t.logoUrl && (
-                    <img src={t.logoUrl} alt=""
-                      onError={e => { e.currentTarget.style.display = 'none'; }}
-                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                  {t.online && <span style={{ position: 'absolute', bottom: 1, right: 1, width: 14, height: 14, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{
+                    position: 'relative', overflow: 'hidden',
+                    width: 54, height: 54, borderRadius: 999, background: t.color || T.avatarGrad,
+                    display: 'grid', placeItems: 'center',
+                    color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 18,
+                    boxShadow: t.online ? '0 0 0 2px #f7f8fc, 0 0 0 4px ' + T.green : 'none',
+                  }}>
+                    <span>{t.avatar}</span>
+                    {logoImg && (
+                      <img src={logoImg} alt=""
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                  </div>
+                  {t.online && <span style={{ position: 'absolute', bottom: 0, right: 0, width: 13, height: 13, borderRadius: 999, background: T.green, border: '2.5px solid #f7f8fc' }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3, alignItems: 'baseline' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                       <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, letterSpacing: -0.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
                       {t.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={14} /> : <Icon name="verified-check-bold" size={13} color={T.primary} />)}
                     </span>
-                    <span style={{ color: unread ? T.primary : T.mutedSoft, fontFamily: T.fontUI, fontSize: 12, fontWeight: unread ? 700 : 500, flexShrink: 0 }}>{t.time}</span>
+                    <span style={{ color: t.online ? T.green : (unread ? T.primary : T.mutedSoft), fontFamily: T.fontUI, fontSize: 12, fontWeight: (t.online || unread) ? 700 : 500, flexShrink: 0 }}>{t.online ? 'Aktivní' : t.time}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0, color: unread ? T.primary : T.muted, fontSize: 13.5, fontFamily: T.fontUI, fontWeight: unread ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last}</div>
+                    {t.typing ? (
+                      <span style={{ flex: 1, minWidth: 0, color: T.green, fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700, fontStyle: 'italic' }}>píše…</span>
+                    ) : (
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, color: unread ? T.primary : T.muted, fontSize: 13.5, fontFamily: T.fontUI, fontWeight: unread ? 600 : 500 }}>
+                        {jaPosledni && <span style={{ flexShrink: 0, color: unread ? T.primary : T.mutedSoft, fontWeight: 600 }}>Ty:&nbsp;</span>}
+                        <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.last}</span>
+                      </div>
+                    )}
                     {unread && (
                       <span style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, background: T.primary, color: '#fff', fontSize: 11, fontWeight: 800, fontFamily: T.fontHead, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{t.unread}</span>
                     )}
@@ -955,7 +969,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
               style={{ display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flex: 1, minWidth: 0, textAlign: 'left' }}>
               <div style={{ position: 'relative', width: 42, height: 42, borderRadius: 999, background: thread.color || T.avatarGrad, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 700, fontSize: 15, flexShrink: 0, overflow: 'hidden' }}>
                 <span>{thread.avatar}</span>
-                {thread.logoUrl && <img src={thread.logoUrl} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {(thread.logoUrl || ((thread.kind || 'job') !== 'people' ? wLogoImg(thread.avatar, thread.name) : null)) && <img src={thread.logoUrl || wLogoImg(thread.avatar, thread.name)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                 {thread.online && <span style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 999, background: T.green, border: '2.5px solid #fff' }} />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -963,8 +977,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                   <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.name}</span>
                   {thread.verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={15} /> : <Icon name="verified-check-bold" size={14} color={T.primary} />)}
                 </div>
-                <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>
-                  {(thread.online ? 'Aktivní teď' : (thread.role || (thread.kind === 'people' ? 'Kontakt z Lidé' : 'Zaměstnavatel'))) + ' · Zobrazit profil'}
+                <div style={{ color: thread.online ? T.green : T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: thread.online ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>
+                  {thread.online ? 'Aktivní teď' : ((thread.role || (thread.kind === 'people' ? 'Kontakt z Lidé' : 'Zaměstnavatel')) + ' · Zobrazit profil')}
                 </div>
               </div>
               <Icon name="alt-arrow-right-bold" size={16} color={T.mutedSoft} />
@@ -988,15 +1002,15 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                 <div style={{ alignSelf: 'center', margin: '16px 0 10px', padding: '4px 12px', borderRadius: 999, background: T.surfaceAlt, color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11.5, fontWeight: 700 }}>{_wDenPopis(m.ts)}</div>
               ) : null;
 
-              // Patička pod posledním v balíku: čas + u odeslaných dvojitá fajfka ✓✓
+              // Patička pod posledním v balíku: čas + u odeslaných stav (Odesláno/Doručeno/Přečteno).
               const odesilam = m.nahravam || (mine && !_wJeOdeslana(m.id));
+              // „Přečteno" = protistrana po mé zprávě už něco napsala (reálně z read_at, teď z dema).
+              const precteno = mine && thread.msgs.slice(i + 1).some(lm => lm.from === 'them');
               const patka = konec ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                   <span style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 500 }}>{odesilam ? 'Odesílám…' : m.t}</span>
                   {mine && !odesilam && (
-                    <svg width="17" height="11" viewBox="0 0 24 16" fill="none" stroke={T.primary} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }} aria-label="Doručeno">
-                      <path d="M2 8.5 6.5 13 15 3" /><path d="M11 13 19.5 3" />
-                    </svg>
+                    <span style={{ color: precteno ? T.green : T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700 }}>· {precteno ? 'Přečteno' : 'Doručeno'}</span>
                   )}
                 </div>
               ) : null;

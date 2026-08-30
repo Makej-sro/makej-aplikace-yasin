@@ -12,13 +12,15 @@
     "backgroundColor": "#f3f2ec"
   },
   "server": {
+    "url": "http://192.168.0.64:4000",
+    "cleartext": true,
     "androidScheme": "https"
   },
   "plugins": {
     "StatusBar": {
-      "style": "DARK",
+      "style": "LIGHT",
       "backgroundColor": "#f3f2ec",
-      "overlaysWebView": false
+      "overlaysWebView": true
     },
     "SplashScreen": {
       "launchShowDuration": 900,
