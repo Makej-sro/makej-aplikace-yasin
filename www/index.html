@@ -31,6 +31,11 @@
   <script src="vendor/react.production.min.js"></script>
   <script src="vendor/react-dom.production.min.js"></script>
   <script src="vendor/babel.min.js"></script>
+  <script src="vendor/globe-icon.js"></script>
+  <script src="vendor/drill-vibrate.js"></script>
+  <script src="vendor/broom-sweep.js"></script>
+  <script src="vendor/book-open.js?v=3"></script>
+  <script src="vendor/sprout-water.js"></script>
 
   <style>
     :root { color-scheme: light; }
@@ -68,6 +73,11 @@
     @keyframes empSpin { to { transform: rotate(360deg); } }
     @keyframes wPop { 0% { transform: scale(0.85) translateY(20px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
     @keyframes wSpin { to { transform: rotate(360deg); } }
+    /* Airbnb-styl filtr kategorií — ikonka se při výběru rozhýbe */
+    @keyframes wCatSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+    @keyframes wCatSwing { 0%,100% { transform: rotate(0); } 15% { transform: rotate(17deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 78% { transform: rotate(3deg); } }
+    @keyframes wCatBounce { 0% { transform: translateY(0) scale(1); } 28% { transform: translateY(-7px) scale(1.14); } 52% { transform: translateY(0) scale(1); } 70% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
+    @keyframes wCatSweep { 0% { transform: rotate(0); } 20% { transform: rotate(-22deg); } 45% { transform: rotate(17deg); } 68% { transform: rotate(-11deg); } 85% { transform: rotate(6deg); } 100% { transform: rotate(0); } }
     @keyframes wRecPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.6); opacity: 0.45; } }
     /* Pilulka % ve Výdělku jednou za cyklus jemně poskočí (jako v appkách) */
     @keyframes wBadgeHop { 0%, 84%, 100% { transform: translateY(0); } 88% { transform: translateY(-5px); } 93% { transform: translateY(-1px); } 97% { transform: translateY(0); } }
@@ -770,7 +780,7 @@
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel" src="app.jsx?v=15"></script>
+<script type="text/babel" src="app.jsx?v=16"></script>
 <script type="text/babel" src="makej-badge.jsx?v=1"></script>
 <script src="cz-mesta.js?v=1"></script>
 <script src="cz-profese.js?v=2"></script>
@@ -778,8 +788,8 @@
 <script type="text/babel" src="worker-supabase.jsx?v=4"></script>
 <script type="text/babel" src="worker-demo.jsx?v=3"></script>
 <script type="text/babel" src="worker-swipe.jsx?v=101"></script>
-<script type="text/babel" src="worker-people.jsx?v=79"></script>
-<script type="text/babel" src="worker-messages.jsx?v=15"></script>
+<script type="text/babel" src="worker-people.jsx?v=99"></script>
+<script type="text/babel" src="worker-messages.jsx?v=16"></script>
 <script type="text/babel" src="worker-profile.jsx?v=26"></script>
 <script type="text/babel" src="worker-history.jsx"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>

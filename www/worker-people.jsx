@@ -31,6 +31,215 @@ const _P_KATEGORIE = [
   { key: 'ostatni',   label: 'Ostatní',        kw: [] },
 ];
 
+// Emoji + typ animace pro Airbnb-styl filtr (spin = točí se, swing = zakývá „cinkne", bounce = poskočí).
+const _P_KAT_META = {
+  vse: ['🌍', 'spin'], remesla: ['🔧', 'swing'], uklid: ['🧹', 'sweep'], zahrada: ['🌱', 'bounce'],
+  doucovani: ['📚', 'bounce'], it: ['💻', 'bounce'], foto: ['📸', 'bounce'], gastro: ['🍳', 'swing'],
+  hlidani: ['🍼', 'bounce'], zvirata: ['🐕', 'bounce'], krasa: ['💅', 'swing'], stehovani: ['📦', 'bounce'],
+  hudba: ['🎸', 'swing'], doprava: ['🚗', 'bounce'], trenink: ['🏋️', 'bounce'], pece: ['🤝', 'bounce'],
+  masaze: ['💆', 'bounce'], admin: ['📋', 'bounce'], ostatni: ['✨', 'spin'],
+};
+const _P_ANIM = { spin: 'wCatSpin .7s ease', swing: 'wCatSwing .7s ease', bounce: 'wCatBounce .55s ease', sweep: 'wCatSweep .85s ease' };
+
+// 3D zeměkoule (canvas) místo emoji u „Vše" — po kliknutí se jednou otočí (spinKey).
+function WGlobeIcon({ size = 24, spinKey }) {
+  const ref = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (ref.current && typeof window !== 'undefined' && window.GlobeIcon) {
+      inst.current = new window.GlobeIcon(ref.current, { size: size, interactive: false });
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.spin) inst.current.spin();
+  }, [spinKey]);
+  return <canvas ref={ref} style={{ width: size, height: size, display: 'block' }} aria-hidden="true" />;
+}
+
+// Vrtačka (SVG) místo emoji u „Řemesla" — po kliknutí se rozvibruje (DrillVibrate).
+function WDrillIcon({ size = 26, spinKey }) {
+  const ref = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (ref.current && typeof window !== 'undefined' && window.DrillVibrate) {
+      // Amplitudy z předlohy jsou pro 300px; na ~26px je zmenšíme (power/push), pocit zůstane.
+      inst.current = new window.DrillVibrate(ref.current, { duration: 1.4, power: 0.45, push: 1.3, interactive: false });
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.start) inst.current.start();
+  }, [spinKey]);
+  return (
+    <svg ref={ref} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: 'block', transformOrigin: '28% 86%', willChange: 'transform' }}>
+      {/* tělo (motor) */}
+      <rect x="7" y="12" width="33" height="19" rx="6" fill="#F9B233" />
+      {/* rukojeť */}
+      <path d="M14 29 h13 l-2 21 h-9 z" fill="#F4A72C" />
+      {/* baterie / základna */}
+      <rect x="7" y="50" width="26" height="9" rx="3" fill="#F19A00" />
+      {/* spoušť */}
+      <path d="M23 31 h7 l-1 5 h-6 z" fill="#7E8A9A" />
+      {/* sklíčidlo */}
+      <rect x="39" y="15" width="8" height="13" rx="2" fill="#8B98A8" />
+      <path d="M40.6 17.6v7.8 M43 17.6v7.8 M45.4 17.6v7.8" stroke="#66717F" strokeWidth="1.4" strokeLinecap="round" />
+      {/* vrták */}
+      <path d="M47 17 L57 21.5 L47 26 Z" fill="#8B98A8" />
+      <rect x="55" y="20.4" width="6" height="2.2" rx="1.1" fill="#66717F" />
+    </svg>
+  );
+}
+
+// Koště (reálný obrázek) u „Úklid" — po kliknutí zamete i s prachem a obláčky (BroomSweep, podle handoffu).
+// Předloha je scéna 560×380 s koštětem 320px; tady ji jen zmenšíme (scale) a vycentrujeme na koště.
+const _BROOM_PUFFS = [
+  { d: 26, c: '#b6c2cb' }, { d: 20, c: '#cdd6dc' }, { d: 32, c: '#a9b6c0' }, { d: 18, c: '#c3ced6' },
+  { d: 28, c: '#b6c2cb' }, { d: 22, c: '#cdd6dc' }, { d: 30, c: '#a9b6c0' }, { d: 16, c: '#c3ced6' },
+  { d: 24, c: '#b6c2cb' }, { d: 19, c: '#cdd6dc' }, { d: 34, c: '#a9b6c0' }, { d: 17, c: '#c3ced6' },
+  { d: 12, c: '#4c6272' }, { d: 9, c: '#3f5665' }, { d: 14, c: '#4c6272' }, { d: 8, c: '#3f5665' },
+];
+function WBroomIcon({ size = 26, spinKey }) {
+  const stageRef = useRefW(null);
+  const broomRef = useRefW(null);
+  const dustARef = useRefW(null);
+  const dustBRef = useRefW(null);
+  const puffsRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 320;                          // scale scény na velikost ikonky
+  useEffectW(() => {
+    if (broomRef.current && typeof window !== 'undefined' && window.BroomSweep) {
+      inst.current = new window.BroomSweep(
+        { stage: stageRef.current, arm: broomRef.current, dustA: dustARef.current, dustB: dustBRef.current, puffs: puffsRef.current },
+        { interactive: false, duration: 1.4 },   // travel 20 / swing 4 / dust true = originální hodnoty z handoffu
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.start) inst.current.start();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      <div ref={stageRef} style={{ position: 'absolute', left: 0, top: 0, width: 560, height: 380, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 320 * f) + 'px,' + (size / 2 - 180 * f) + 'px) scale(' + f + ')' }}>
+        <img ref={dustARef} src="assets/broom-dust.png" alt="" style={{ position: 'absolute', left: 160, top: 20, width: 320, height: 320, opacity: 0, zIndex: 1 }} />
+        <img ref={dustBRef} src="assets/broom-dust.png" alt="" style={{ position: 'absolute', left: 96, top: 44, width: 300, height: 300, opacity: 0, zIndex: 1 }} />
+        <div ref={puffsRef} style={{ position: 'absolute', left: 0, top: 0, width: 560, height: 380, zIndex: 2 }}>
+          {_BROOM_PUFFS.map((p, i) => (
+            <div key={i} style={{ position: 'absolute', left: 0, top: 0, width: p.d, height: p.d, borderRadius: '50%', background: p.c, opacity: 0 }} />
+          ))}
+        </div>
+        <img ref={broomRef} src="assets/broom.png" alt="" style={{ position: 'absolute', left: 160, top: 20, width: 320, height: 320, transformOrigin: '310px 4px', zIndex: 3, willChange: 'transform' }} />
+      </div>
+    </div>
+  );
+}
+
+// Kniha (3D otevírání) u „Doučování" — po kliknutí se otevře / zavře (BookOpen, podle handoffu).
+// Scéna je 520×400 s knihou 360px; zmenšíme ji (scale) a vycentrujeme na hřbet.
+function WBookIcon({ size = 26, spinKey }) {
+  const stageRef = useRefW(null);
+  const sceneRef = useRefW(null);
+  const baseRef = useRefW(null);
+  const blockRef = useRefW(null);
+  const leafRef = useRefW(null);
+  const frontRef = useRefW(null);
+  const backRef = useRefW(null);
+  const shadeFrontRef = useRefW(null);
+  const shadeBackRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 360;                          // scale scény na velikost ikonky (kniha je 360px)
+  useEffectW(() => {
+    if (baseRef.current && typeof window !== 'undefined' && window.BookOpen) {
+      // stage záměrně nepředáváme → BookOpen si nenaváže vlastní klik; spouštíme přes spinKey.
+      inst.current = new window.BookOpen(
+        { scene: sceneRef.current, base: baseRef.current, block: blockRef.current, leaf: leafRef.current, front: frontRef.current, back: backRef.current, shadeFront: shadeFrontRef.current, shadeBack: shadeBackRef.current },
+        { duration: 0.9 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.toggle) {
+      inst.current.toggle();                                  // otevři
+      const id = setTimeout(() => {                           // a po 1,5 s sama zavři
+        if (inst.current && inst.current.p > 0.5) inst.current.toggle();
+      }, 1500);
+      return () => clearTimeout(id);
+    }
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      {/* Zmenšení přes transform:scale (ne zoom — ten otevřenou knihu na iOS renderoval rozhozeně).
+          Prosvítání řeší display:none na odvrácené straně listu, takže případné zploštění 3D už nevadí. */}
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 260 * f) + 'px,' + (size / 2 - 200 * f) + 'px) scale(' + f + ')' }}>
+      <div ref={stageRef} style={{ position: 'relative', width: 520, height: 400, perspective: '1600px' }}>
+        <div ref={sceneRef} style={{ position: 'absolute', left: 0, top: 0, width: 520, height: 400, transformStyle: 'preserve-3d', transform: 'translateX(89px)' }}>
+          <img ref={baseRef} src="assets/book-base.png" alt="" style={{ position: 'absolute', left: 80, top: 20, width: 360, height: 360, opacity: 0, zIndex: 1 }} />
+          <div ref={blockRef} style={{ position: 'absolute', left: 0, top: 0, width: 520, height: 400, zIndex: 2 }}>
+            <div style={{ position: 'absolute', left: 81, top: 104, width: 180, height: 226, borderRadius: '11px 3px 3px 11px', background: '#ef3c15' }} />
+            <div style={{ position: 'absolute', left: 86, top: 109, width: 173, height: 216, borderRadius: '8px 2px 2px 8px', background: '#f7dfae' }} />
+            <div style={{ position: 'absolute', left: 90, top: 113, width: 168, height: 208, borderRadius: '6px 2px 2px 6px', background: '#fbe9c4' }} />
+            <div style={{ position: 'absolute', left: 232, top: 300, width: 16, height: 46, background: '#59617b' }} />
+          </div>
+          <div ref={leafRef} style={{ position: 'absolute', left: 261, top: 20, width: 180, height: 360, transformOrigin: '0% 50%', transformStyle: 'preserve-3d', zIndex: 3, transform: 'rotateY(-180deg)' }}>
+            <div ref={frontRef} style={{ position: 'absolute', left: 0, top: 0, width: 180, height: 360, backfaceVisibility: 'hidden', transform: 'translateZ(1px)', display: 'none', opacity: 0 }}>
+              <img src="assets/book-page-right.png" alt="" style={{ position: 'absolute', left: -181, top: 0, width: 360, height: 360, backfaceVisibility: 'hidden' }} />
+              <div ref={shadeFrontRef} style={{ position: 'absolute', left: 0, top: 84, width: 180, height: 226, background: '#6b5a3a', opacity: 0, backfaceVisibility: 'hidden' }} />
+            </div>
+            <div ref={backRef} style={{ position: 'absolute', left: 0, top: 0, width: 180, height: 360, transformOrigin: '0% 50%', transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}>
+              <div style={{ position: 'absolute', left: -178, top: 84, width: 178, height: 226, borderRadius: '11px 3px 3px 11px', background: '#ff5023', backfaceVisibility: 'hidden' }} />
+              <div style={{ position: 'absolute', left: -15, top: 84, width: 15, height: 226, borderRadius: '0 3px 3px 0', background: '#ef3c15', backfaceVisibility: 'hidden' }} />
+              <div ref={shadeBackRef} style={{ position: 'absolute', left: -178, top: 84, width: 178, height: 226, borderRadius: '11px 3px 3px 11px', background: '#000', opacity: 0, backfaceVisibility: 'hidden' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+// Rostlinka u „Zahrada" — po kliknutí se zalije (SproutWater, podle handoffu).
+// Scéna 540×430, rostlinka 330px; zmenšíme (scale) a vycentrujeme na rostlinku.
+const _SPROUT_DROPS = [
+  { w: 8, h: 13, c: '#52b3e8' }, { w: 7, h: 12, c: '#79c9f2' }, { w: 9, h: 14, c: '#3fa5df' }, { w: 7, h: 11, c: '#52b3e8' },
+  { w: 8, h: 13, c: '#79c9f2' }, { w: 6, h: 11, c: '#3fa5df' }, { w: 9, h: 13, c: '#52b3e8' }, { w: 7, h: 12, c: '#79c9f2' },
+  { w: 8, h: 12, c: '#3fa5df' }, { w: 6, h: 10, c: '#52b3e8' }, { w: 9, h: 14, c: '#79c9f2' }, { w: 7, h: 12, c: '#3fa5df' },
+  { w: 8, h: 13, c: '#52b3e8' }, { w: 7, h: 11, c: '#79c9f2' }, { w: 8, h: 12, c: '#3fa5df' }, { w: 6, h: 10, c: '#52b3e8' },
+];
+function WSproutIcon({ size = 26, spinKey }) {
+  const stageRef = useRefW(null);
+  const plantRef = useRefW(null);
+  const dropsRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 330;                          // scale scény na velikost ikonky (rostlinka je 330px)
+  useEffectW(() => {
+    if (plantRef.current && typeof window !== 'undefined' && window.SproutWater) {
+      inst.current = new window.SproutWater(
+        { plant: plantRef.current, drops: dropsRef.current },
+        { interactive: false, duration: 1.5, rate: 20 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.water) inst.current.water();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      <div ref={stageRef} style={{ position: 'absolute', left: 0, top: 0, width: 540, height: 430, overflow: 'hidden', transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 255 * f) + 'px,' + (size / 2 - 255 * f) + 'px) scale(' + f + ')' }}>
+        <img ref={plantRef} src="assets/sprout.png" alt="" style={{ position: 'absolute', left: 90, top: 90, width: 330, height: 330, transformOrigin: '50% 92%', zIndex: 2 }} />
+        <div ref={dropsRef} style={{ position: 'absolute', left: 0, top: 0, width: 540, height: 430, zIndex: 3 }}>
+          {_SPROUT_DROPS.map((d, i) => (
+            <div key={i} style={{ position: 'absolute', left: 0, top: 0, width: d.w, height: d.h, borderRadius: '4px 4px 5px 5px', background: d.c, opacity: 0 }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Klíčová slova pro typewriter efekt v placeholderu vyhledávání.
 const _P_HLEDEJ = ['doučování', 'opravy', 'foto', 'stěhování', 'web na míru', 'dort', 'kytaru', 'hodinky', 'úklid'];
 
@@ -231,7 +440,7 @@ function WPeopleSearch({ value, onChange }) {
   const ph = empty ? ('Hledej ' + typed + (blink ? '|' : ' ')) : '';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid ' + T.border, borderRadius: 16, padding: '13px 15px' }}>
-      <Icon name="magnifer-linear" size={18} color={T.muted} />
+      <WSearchIco size={18} color={T.muted} />
       <input value={value} onChange={onChange} placeholder={ph} aria-label="Hledat pomoc"
         style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontFamily: T.fontUI, fontSize: 14, color: T.ink }} />
       {value && <button onClick={() => onChange({ target: { value: '' } })} title="Vymazat" style={{ border: 'none', background: 'none', color: T.muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>✕</button>}
@@ -892,6 +1101,12 @@ function WPeople({ tick }) {
   const [loading, setLoading] = useStateW(true);
   const [search, setSearch] = useStateW('');
   const [cat, setCat] = useStateW('vse');
+  const [katAnim, setKatAnim] = useStateW(0);   // bumpne se při výběru → přehraje animaci ikonky
+  const [globeSpin, setGlobeSpin] = useStateW(0);   // bumpne se při kliknutí na „Vše" → zeměkoule se otočí
+  const [drillSpin, setDrillSpin] = useStateW(0);   // bumpne se při kliknutí na „Řemesla" → vrtačka zavibruje
+  const [broomSpin, setBroomSpin] = useStateW(0);   // bumpne se při kliknutí na „Úklid" → koště zamete
+  const [bookSpin, setBookSpin] = useStateW(0);     // bumpne se při kliknutí na „Doučování" → kniha se otevře/zavře
+  const [sproutSpin, setSproutSpin] = useStateW(0); // bumpne se při kliknutí na „Zahrada" → rostlinka se zalije
   const [detailPerson, setDetailPerson] = useStateW(null);
   const [info, setInfo] = useStateW(null);               // { title, text }
   const [showCard, setShowCard] = useStateW(false);      // editor „Moje karta"
@@ -996,10 +1211,36 @@ function WPeople({ tick }) {
             <button onClick={openCard} style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, border: 'none', padding: '13px 16px', borderRadius: 15, cursor: 'pointer', marginBottom: 12, WebkitTapHighlightColor: 'transparent' }}>{_PIco.plus('#fff')}Nabídni se</button>
             <WPeopleSearch value={search} onChange={e => setSearch(e.target.value)} />
 
-            <div className="wfilter-strip" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', margin: '12px -16px 0', padding: '0 16px' }}>
+            <div className="wfilter-strip" style={{ display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', margin: '12px -16px 0', padding: '2px 16px' }}>
               {katList.map(c => {
                 const on = cat === c.key;
-                return <button key={c.key} onClick={() => setCat(c.key)} style={{ flex: 'none', border: 'none', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, color: on ? '#fff' : T.primary, background: on ? T.primary : T.tint, padding: '9px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}>{c.label}</button>;
+                const meta = _P_KAT_META[c.key] || ['•', 'bounce'];
+                const isVse = c.key === 'vse';
+                const isRemesla = c.key === 'remesla';
+                const isUklid = c.key === 'uklid';
+                const isDoucovani = c.key === 'doucovani';
+                const isZahrada = c.key === 'zahrada';
+                return (
+                  <button key={c.key} onClick={() => { setCat(c.key); setKatAnim(n => n + 1); if (isVse) setGlobeSpin(s => s + 1); if (isRemesla) setDrillSpin(s => s + 1); if (isUklid) setBroomSpin(s => s + 1); if (isDoucovani) setBookSpin(s => s + 1); if (isZahrada) setSproutSpin(s => s + 1); }} style={{
+                    flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    border: '1.5px solid ' + (on ? 'rgba(11,18,51,0.9)' : 'transparent'),
+                    background: on ? '#fff' : 'transparent', padding: '7px 13px', borderRadius: 16,
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minWidth: 62,
+                  }}>
+                    {isVse
+                      ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WGlobeIcon size={24} spinKey={globeSpin} /></span>
+                      : isRemesla
+                        ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WDrillIcon size={26} spinKey={drillSpin} /></span>
+                        : isUklid
+                          ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBroomIcon size={26} spinKey={broomSpin} /></span>
+                          : isDoucovani
+                            ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBookIcon size={28} spinKey={bookSpin} /></span>
+                            : isZahrada
+                              ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WSproutIcon size={28} spinKey={sproutSpin} /></span>
+                              : <span key={on ? 'a' + katAnim : 'i'} style={{ fontSize: 23, lineHeight: 1, display: 'inline-block', transformOrigin: meta[1] === 'sweep' ? '72% 24%' : 'center', animation: on ? _P_ANIM[meta[1]] : 'none' }}>{meta[0]}</span>}
+                    <span style={{ fontFamily: T.fontUI, fontSize: 11.5, fontWeight: on ? 800 : 600, color: on ? T.ink : T.muted, whiteSpace: 'nowrap' }}>{c.label}</span>
+                  </button>
+                );
               })}
             </div>
 

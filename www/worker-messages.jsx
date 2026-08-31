@@ -879,7 +879,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
             </>)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 999, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.05)' }}>
-            <Icon name="magnifer-linear" size={16} color={T.mutedSoft} />
+            <WSearchIco size={16} color={T.mutedSoft} />
             <input
               value={q} onChange={e => setQ(e.target.value)}
               placeholder={kindFilter === 'people' ? 'Hledat v Lidé' : 'Hledat konverzaci'}

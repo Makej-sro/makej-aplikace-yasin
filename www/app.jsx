@@ -34,6 +34,16 @@ function _wShade(hex, amt) {   // amt: -100 (ztmavit) … +100 (zesvětlit)
   const r = adj((n >> 16) & 255), g = adj((n >> 8) & 255), b = adj(n & 255);
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
+// Lupa do search barů — jednotná ikonka (kruh + krátká rukojeť), aby byla všude stejná.
+function WSearchIco({ size = 18, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
+      <circle cx="10.5" cy="10.5" r="7.3" stroke={color} strokeWidth="2.1" />
+      <path d="M15.9 15.9 L21 21" stroke={color} strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function wLogoImg(text, seed) {
   const initials = String(text || '?').slice(0, 2).toUpperCase();
   const base = _W_LOGO_PALETA[_wStrHash(seed || text) % _W_LOGO_PALETA.length];
