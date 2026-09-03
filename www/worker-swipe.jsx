@@ -1403,7 +1403,175 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
 }
 
 // ── Detail inzerátu (reálná data od zaměstnavatele) ────────────
+// ─── Nahlášení inzerátu (App Store Guideline 1.2) ────────────────────────────
+// Dva kroky: výběr důvodu → poděkování.
+//
+// Text poděkování začíná tím, co s hlášením UDĚLÁME, ne tím, že ho schováme —
+// jinak to zní jako odbytí ve stylu „nic s tím neuděláme, jen ti to zmizí".
+// Zároveň ale neslibuje odebrání natvrdo: jedno hlášení na to stačit nesmí,
+// protože pak by šlo cizí inzeráty vystřílet konkurencí.
+function WReportSheet({ job, onClose, onReported }) {
+  const [duvod, setDuvod] = useStateW('');
+  const [poznamka, setPoznamka] = useStateW('');
+  const [odesilam, setOdesilam] = useStateW(false);
+  const [hotovo, setHotovo] = useStateW(false);
+  const [chyba, setChyba] = useStateW('');
+  const [zaviram, setZaviram] = useStateW(false);
+  // Dokud sheet nedojede nahoru, klikání na pozadí se ignoruje. Bez toho ho
+  // zavře ještě doznívající dotyk z položky „Nahlásit" a sheet jen probliskne.
+  const [pripraven, setPripraven] = useStateW(false);
+  useEffectW(() => { const t = setTimeout(() => setPripraven(true), 320); return () => clearTimeout(t); }, []);
+
+  // Zavírá se přes stav, ne rovnou odpojením — jinak sheet zmizí skokem.
+  // Nejdřív dojede animace dolů, teprve pak se odpojí.
+  function zavri(pak) {
+    if (zaviram) return;
+    setZaviram(true);
+    setTimeout(() => { if (pak) pak(); onClose(); }, 250);
+  }
+  const duvody = (typeof window !== 'undefined' && window.W_DUVODY_HLASENI) || [];
+
+  // Poděkování se smí ukázat, jen když hlášení fakt padlo do databáze — jinak
+  // by uživatel odešel s pocitem, že to nahlásil, a přitom by se nestalo nic.
+  // U „Něco jiného" nemá obsluha z čeho poznat, o co jde, takže je popis povinný.
+  const POPIS_MIN = 4;
+  const popisOk = duvod !== 'jine' || poznamka.trim().length >= POPIS_MIN;
+
+  async function odesli() {
+    if (!duvod || !popisOk || odesilam) return;
+    setOdesilam(true);
+    setChyba('');
+    let r = { ok: false, reason: 'vyjimka' };
+    try { r = await window.reportContentW('job', job.id, duvod, poznamka); } catch (e) { console.error('odesli:', e); }
+    setOdesilam(false);
+    if (r && r.ok) { setHotovo(true); return; }
+    const d = r && r.reason;
+    setChyba(
+      d === 'neplatne-id'   ? 'Tenhle inzerát je jen ukázkový (demo), hlášení nejde uložit.' :
+      d === 'chybi-tabulka' ? 'Nahlašování zatím není v databázi zapnuté.' :
+      d === 'neprihlasen'   ? 'Pro nahlášení musíš být přihlášený.' :
+                              'Hlášení se nepodařilo odeslat. Zkus to prosím znovu.'
+    );
+  }
+
+  return (
+    <div onClick={e => { e.stopPropagation(); if (pripraven) zavri(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(10,12,26,0.55)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      animation: zaviram ? 'wFadeOut .24s ease forwards' : 'wFadeIn .2s ease',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 520, background: '#fff',
+        borderRadius: '22px 22px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
+        animation: zaviram
+          ? 'wSheetDown .25s cubic-bezier(.4,0,1,1) forwards'
+          : 'wSheetUp .28s cubic-bezier(.2,.9,.3,1)',
+      }}>
+        {hotovo ? (
+          <div style={{ textAlign: 'center', padding: '10px 4px 4px' }}>
+            <div style={{ fontSize: 40, lineHeight: 1 }}>✅</div>
+            <div style={{ fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, color: '#0B1233', marginTop: 12 }}>
+              Předali jsme to ke kontrole
+            </div>
+            <div style={{ fontFamily: T.fontUI, fontSize: 14, color: '#6B7192', lineHeight: 1.5, marginTop: 8 }}>
+              Inzerát prověříme a pokud porušuje pravidla, odebereme ho. Do té doby se ti už nebude zobrazovat.
+            </div>
+            <button onClick={() => zavri(onReported)} style={{
+              width: '100%', marginTop: 20, padding: '14px 0', borderRadius: 14,
+              background: T.primary, border: 'none', color: '#fff',
+              fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer',
+            }}>Hotovo</button>
+          </div>
+        ) : (
+          <React.Fragment>
+            <div style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233' }}>
+              Nahlásit inzerát
+            </div>
+            <div style={{ fontFamily: T.fontUI, fontSize: 13.5, color: '#6B7192', marginTop: 5, marginBottom: 16 }}>
+              Co je s ním v nepořádku?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {duvody.map(([kod, popis]) => (
+                <button key={kod} onClick={() => setDuvod(kod)} style={{
+                  width: '100%', textAlign: 'left', padding: '13px 15px', borderRadius: 13,
+                  background: duvod === kod ? 'rgba(0,32,246,0.06)' : '#F6F7FB',
+                  border: '1.5px solid ' + (duvod === kod ? T.primary : 'transparent'),
+                  color: '#0B1233', fontFamily: T.fontUI, fontSize: 14.5,
+                  fontWeight: duvod === kod ? 700 : 500, cursor: 'pointer',
+                }}>{popis}</button>
+              ))}
+            </div>
+            {chyba ? (
+              <div style={{
+                marginTop: 14, padding: '11px 13px', borderRadius: 12,
+                background: 'rgba(214,45,60,0.08)', color: '#B3243A',
+                fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.45,
+              }}>{chyba}</div>
+            ) : null}
+            {duvod === 'jine' ? (
+              <textarea
+                value={poznamka}
+                onChange={e => setPoznamka(e.target.value.slice(0, 300))}
+                placeholder="Napiš, o co jde…"
+                rows={3}
+                autoFocus
+                style={{
+                  width: '100%', boxSizing: 'border-box', marginTop: 10, padding: '12px 13px',
+                  borderRadius: 13, background: '#F6F7FB', border: '1.5px solid transparent',
+                  color: '#0B1233', fontFamily: T.fontUI, fontSize: 14.5, lineHeight: 1.45,
+                  resize: 'none', outline: 'none',
+                }}
+              />
+            ) : null}
+            {duvod === 'jine' ? (
+              <div style={{ fontFamily: T.fontUI, fontSize: 12, color: '#8F96B3', margin: '6px 2px 0', textAlign: 'right' }}>
+                {poznamka.trim().length < POPIS_MIN ? 'Napiš aspoň pár slov' : poznamka.length + '/300'}
+              </div>
+            ) : null}
+            <button onClick={odesli} disabled={!duvod || !popisOk || odesilam} style={{
+              width: '100%', marginTop: 18, padding: '14px 0', borderRadius: 14,
+              background: (duvod && popisOk) ? T.primary : '#C9CEE4', border: 'none', color: '#fff',
+              fontFamily: T.fontHead, fontSize: 15, fontWeight: 800,
+              cursor: (duvod && popisOk) ? 'pointer' : 'default',
+            }}>{odesilam ? 'Odesílám…' : 'Odeslat hlášení'}</button>
+            <button onClick={() => zavri()} style={{
+              width: '100%', marginTop: 8, padding: '12px 0', borderRadius: 14,
+              background: 'none', border: 'none', color: '#6B7192',
+              fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
+            }}>Zpět</button>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const _wMenuPolozka = {
+  width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+  padding: '13px 16px', background: 'none', border: 'none', textAlign: 'left',
+  color: '#0B1233', fontFamily: T.fontUI, fontSize: 15, fontWeight: 600,
+  cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+};
+
 function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper, onPass, readOnly, statusLabel, onChat, onCancel }) {
+  const [reportOpen, setReportOpen] = useStateW(false);
+  const [menuOpen, setMenuOpen] = useStateW(false);
+  const [menuZavira, setMenuZavira] = useStateW(false);
+
+  // Zavření přes stav, ať stihne dojet animace — bez toho roletka mizí skokem.
+  function zavriMenu(pak) {
+    if (menuZavira) return;
+    setMenuZavira(true);
+    setTimeout(() => { setMenuOpen(false); setMenuZavira(false); if (pak) pak(); }, 150);
+  }
+
+  async function sdilet() {
+    const text = [job.title, job.company_name || job.company, job.city].filter(Boolean).join(' · ');
+    try {
+      if (navigator.share) { await navigator.share({ title: job.title || 'Brigáda', text }); return; }
+      await navigator.clipboard.writeText(text);
+    } catch (e) { /* uživatel sdílení zrušil — nic neřešíme */ }
+  }
   // „Expand" detailu z karty: po mountu se list roztáhne z rectu karty do celé
   // obrazovky (rohy 26→0, scale, fade), při zavření se smrskne zpět a pak odmountuje.
   const [shown, setShown] = useStateW(false);
@@ -1570,6 +1738,16 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
             <div style={{ position: 'absolute', top: 'calc(14px + env(safe-area-inset-top))', left: 16, right: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => animClose(true)} aria-label="Zpět na kartu" title="Zpět na kartu" style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.36)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
                 <svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 1L2 9l7 8" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              {/* Tři tečky vpravo — nahlašování musí být vidět hned po otevření
+                  inzerátu. Recenzentovi Applu nestačí, že je odkaz až úplně dole:
+                  když mechanismus nenajde, vrátí to jako nedostupný. */}
+              <button onClick={() => setMenuOpen(true)} aria-label="Další možnosti" title="Další možnosti"
+                style={{ marginLeft: 'auto', width: 40, height: 40, borderRadius: '50%', border: 0,
+                  background: 'rgba(0,0,0,0.36)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  WebkitTapHighlightColor: 'transparent' }}>
+                <WIkonaPng src="more.png" size={18} color="#fff" />
               </button>
             </div>
           </div>
@@ -1750,6 +1928,17 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
             )}
 
             <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#A6ADCB', lineHeight: 1.5 }}>Pravidla směny a přesnou adresu dostaneš do chatu, jakmile firma potvrdí zájem.</span>
+
+            {/* Nahlásit — úplně dole, ať to nekřičí, ale jde to najít. */}
+            <button onClick={() => setReportOpen(true)} style={{
+              alignSelf: 'flex-start', marginTop: 4, padding: '9px 0',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#8F96B3', fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              textDecoration: 'underline', textUnderlineOffset: 3,
+            }}>
+              <Icon name="flag-bold" size={13} color="#8F96B3" /> Nahlásit inzerát
+            </button>
           </div>
         </div>
 
@@ -1821,6 +2010,38 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
         </div>
         )}
       </div>
+      {menuOpen && (
+        <React.Fragment>
+          {/* Kliknutí mimo zavře — průhledná plocha přes celou obrazovku. */}
+          <div onClick={e => { e.stopPropagation(); zavriMenu(); }} style={{ position: 'fixed', inset: 0, zIndex: 204 }} />
+          <div onClick={e => e.stopPropagation()} style={{
+            position: 'fixed', top: 'calc(60px + env(safe-area-inset-top))', right: 16, zIndex: 205,
+            minWidth: 190, background: '#fff', borderRadius: 16, overflow: 'hidden',
+            boxShadow: '0 12px 34px rgba(11,18,51,0.20), 0 2px 8px rgba(11,18,51,0.10)',
+            transformOrigin: 'top right',
+            animation: menuZavira ? 'wMenuOut .14s ease forwards' : 'wMenuIn .16s cubic-bezier(.2,.9,.3,1)',
+          }}>
+            <button onClick={e => { e.stopPropagation(); zavriMenu(sdilet); }} style={_wMenuPolozka}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 15V3m0 0L8 7m4-4 4 4" stroke="#0B1233" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" stroke="#0B1233" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Sdílet
+            </button>
+            <div style={{ height: 1, background: '#EDEFF6' }} />
+            <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setMenuZavira(false); setReportOpen(true); }} style={{ ..._wMenuPolozka, color: '#B3243A' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 21V4m0 0h11l-2 4 2 4H5" stroke="#B3243A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Nahlásit
+            </button>
+          </div>
+        </React.Fragment>
+      )}
+      {reportOpen && (
+        <WReportSheet job={job} onClose={() => setReportOpen(false)}
+          onReported={() => { animClose(); setTimeout(() => onPass && onPass(), 220); }} />
+      )}
     </div>
   );
 }

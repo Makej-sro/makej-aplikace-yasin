@@ -370,6 +370,35 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
   const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
   const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
+  // Nevhodný obsah v textových polích profilu. Kontroluje se při psaní i před
+  // uložením — pole zčervená, cukne a „Uložit" neprojde, dokud se to nespraví.
+  const [filtrChyba, setFiltrChyba] = useStateW(null);   // { pole, hlaska }
+  const [filtrShake, setFiltrShake] = useStateW(0);
+  function _filtr(txt) {
+    const F = typeof window !== 'undefined' && window.MkjFiltr;
+    if (!F || !txt) return null;
+    const r = F.zkontroluj(txt);
+    return r.ok ? null : r;
+  }
+  function hlidejPole(pole, hodnota) {
+    const r = _filtr(hodnota);
+    setFiltrChyba(prev => {
+      if (r) return { pole, hlaska: r.hlaska };
+      return prev && prev.pole === pole ? null : prev;
+    });
+    if (r && (!filtrChyba || filtrChyba.pole !== pole)) setFiltrShake(n => n + 1);
+    return !r;
+  }
+  const spatnePole = p => filtrChyba && filtrChyba.pole === p;
+  // Červené zvýraznění musí přijít až ZA výchozí styl, jinak ho přebije.
+  // Zvýraznění nesmí měnit rozměry pole — border ani padding, jinak se text
+  // v poli posune a vypadá to, jako by uskočil kurzor. Outline se kreslí mimo
+  // layout, takže se nic nepřepočítává a psaní zůstává plynulé.
+  const zvyrazniSpatne = (pole, zaklad) => (spatnePole(pole)
+    ? { ...zaklad, color: T.destructive, background: 'rgba(226,86,74,0.07)',
+        outline: '1.5px solid ' + T.destructive, outlineOffset: 2, borderRadius: 6,
+        animation: 'wShake .45s ease' }
+    : zaklad);
   const [avatarPreview, setAvatarPreview] = useStateW('');   // náhled právě vybrané fotky (data URL)
   const [fotoMenu, setFotoMenu] = useStateW(false);          // spodní list Vyfotit / Galerie
   const [rozsireneOpen, setRozsireneOpen] = useStateW(false);// rozbalený rozšířený profil
@@ -541,6 +570,14 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
       setTitulShake(n => n + 1);
       return;
     }
+    // Pojistka i pro případ, že se text dostal do pole jinak než psaním
+    // (vložení schránkou, automatické vyplnění).
+    const kontrola = [['jmeno', form.jmeno], ['prijmeni', form.prijmeni],
+                      ['bio', form.bio], ['skills', (form.skills || []).join(' ')]];
+    for (const [pole, txt] of kontrola) {
+      const r = _filtr(txt);
+      if (r) { setFiltrChyba({ pole, hlaska: r.hlaska }); setFiltrShake(n => n + 1); return; }
+    }
     setSaving(true);
     const norm = { ...form, titul: _wNormTitul(form.titul), titulZa: _wNormTitul(form.titulZa) };
     await updateProfileW(userId, {
@@ -662,11 +699,12 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
               <div style={{ ...KARTA, padding: 0 }}>
                 <div style={radek}>
                   <span style={radekLabel}>Jméno</span>
-                  <input value={form.jmeno} onChange={e => setForm(f => ({ ...f, jmeno: e.target.value }))} placeholder="Zadej jméno" style={radekInput} />
+                  <input value={form.jmeno} onChange={e => { setForm(f => ({ ...f, jmeno: e.target.value })); hlidejPole('jmeno', e.target.value); }}
+                    onAnimationEnd={e => { e.currentTarget.style.animation = 'none'; }} placeholder="Zadej jméno" style={zvyrazniSpatne('jmeno', radekInput)} />
                 </div>
                 <div style={{ ...radek, borderTop: '1px solid ' + T.border }}>
                   <span style={radekLabel}>Příjmení</span>
-                  <input value={form.prijmeni} onChange={e => setForm(f => ({ ...f, prijmeni: e.target.value }))} placeholder="Zadej příjmení" style={radekInput} />
+                  <input value={form.prijmeni} onChange={e => { setForm(f => ({ ...f, prijmeni: e.target.value })); hlidejPole('prijmeni', e.target.value); }} placeholder="Zadej příjmení" style={zvyrazniSpatne('prijmeni', radekInput)} />
                 </div>
                 <div style={{ ...radek, borderTop: '1px solid ' + T.border, justifyContent: 'space-between' }}>
                   <span style={radekLabel}>Datum narození</span>
@@ -740,8 +778,11 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
             </div>
             <div>
               <div style={labelStyle}>O mně</div>
-              <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} placeholder="Napiš pár vět o sobě, zkušenostech nebo dostupnosti…" rows={3}
-                style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5 }} />
+              <textarea value={form.bio} onChange={e => { setForm(f => ({ ...f, bio: e.target.value })); hlidejPole('bio', e.target.value); }} placeholder="Napiš pár vět o sobě, zkušenostech nebo dostupnosti…" rows={3}
+                style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5,
+                  ...(spatnePole('bio') ? { outline: '1.5px solid ' + T.destructive,
+                    outlineOffset: -1, background: 'rgba(226,86,74,0.07)', color: T.destructive,
+                    animation: 'wShake .45s ease' } : {}) }} />
             </div>
             <div>
               <div style={labelStyle}>Dovednosti</div>

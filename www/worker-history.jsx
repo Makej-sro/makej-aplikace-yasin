@@ -212,10 +212,22 @@ function WReviewModal({ item, onClose, onDone }) {
   async function submit() {
     if (rating < 1) { setErr('Vyber počet hvězdiček.'); return; }
     if (!item.employerId) { setErr('Chybí zaměstnavatel.'); return; }
+    // Filtr zkontrolujeme dřív, než se něco odešle — jinak by zápis tiše
+    // zablokovala pojistka v index.html a uživatel by nevěděl proč.
+    const F = typeof window !== 'undefined' && window.MkjFiltr;
+    if (F && text) {
+      const r = F.zkontroluj(text);
+      if (!r.ok) { setErr(r.hlaska); return; }
+    }
     setSaving(true); setErr('');
     const ok = await submitReviewW(item.match_id, item.employerId, rating, text);
     setSaving(false);
-    if (!ok) { setErr('Hodnocení se nepodařilo uložit.'); return; }
+    if (!ok) {
+      // Kdyby to přesto zarazil filtr (jiné pole, jiná cesta), ukaž skutečný důvod.
+      const d = typeof window !== 'undefined' && window._wFiltrDuvod;
+      setErr(d && d.hlaska ? d.hlaska : 'Hodnocení se nepodařilo uložit.');
+      return;
+    }
     onDone?.();
   }
 

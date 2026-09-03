@@ -23,7 +23,7 @@ const _P_KATEGORIE = [
   { key: 'stehovani', label: 'Stěhování',  kw: ['stehov', 'dodavk', 'odvoz', 'preprav', 'sila', 'vynos'] },
   { key: 'hudba',     label: 'Hudba',      kw: ['kytar', 'hud', 'hraj', 'zpev', 'nastroj', 'klavir', 'piano'] },
   { key: 'doprava',   label: 'Doprava',        kw: ['ridic', 'odvez', 'prevoz', 'prevez', 'letist', 'rozvoz', 'svez'] },
-  { key: 'trenink',   label: 'Trénink',        kw: ['trener', 'joga', 'fitness', 'kondic', 'cvic', 'sport'] },
+  { key: 'trenink',   label: 'Sport',          kw: ['trener', 'joga', 'fitness', 'kondic', 'cvic', 'sport', 'trenink'] },
   { key: 'pece',      label: 'Péče',           kw: ['senior', 'asisten', 'pecovat', 'doprovod', 'babick'] },
   { key: 'masaze',    label: 'Masáže',         kw: ['masaz', 'wellness', 'relax', 'fyzio', 'lymf'] },
   { key: 'admin',     label: 'Administrativa', kw: ['preklad', 'administr', 'papirov', 'ucetni', 'danov', 'formular'] },
@@ -236,6 +236,518 @@ function WSproutIcon({ size = 26, spinKey }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Notebook u „IT" — po kliknutí se modrá chybová obrazovka „opraví" (načítání → zelená fajfka; LaptopFix).
+// Scéna 540×420, notebook 400px; zmenšíme (scale) a vycentrujeme na notebook.
+function WLaptopIcon({ size = 26, spinKey }) {
+  const bsodRef = useRefW(null);
+  const loadRef = useRefW(null);
+  const doneRef = useRefW(null);
+  const spinRef = useRefW(null);
+  const checkRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 400;                          // scale scény na velikost ikonky (notebook je 400px)
+  useEffectW(() => {
+    if (bsodRef.current && typeof window !== 'undefined' && window.LaptopFix) {
+      inst.current = new window.LaptopFix(
+        { bsod: bsodRef.current, load: loadRef.current, done: doneRef.current, spin: spinRef.current, check: checkRef.current },
+        { interactive: false, loading: 1.4, hold: 1.3, spin: 1.4 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.fix) inst.current.fix();
+  }, [spinKey]);
+  const scr = { position: 'absolute', left: 0, top: 0, width: 252, height: 173 };
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 270 * f) + 'px,' + (size / 2 - 220 * f) + 'px) scale(' + f + ')' }}>
+        <div style={{ position: 'relative', width: 540, height: 420 }}>
+          <img src="assets/laptop.png" alt="" style={{ position: 'absolute', left: 70, top: 20, width: 400, height: 400, zIndex: 1 }} />
+          <div style={{ position: 'absolute', left: 144, top: 64, width: 252, height: 173, overflow: 'hidden', zIndex: 2 }}>
+            <div ref={bsodRef} style={{ ...scr, background: '#1273b8', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 22px', boxSizing: 'border-box' }}>
+              <div style={{ fontSize: 40, lineHeight: 1, fontWeight: 300, color: '#fff', letterSpacing: '1px' }}>:(</div>
+              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.35, color: '#fff' }}>Něco se pokazilo a systém se musí restartovat.</div>
+              <div style={{ marginTop: 8, fontSize: 8, lineHeight: 1.3, color: 'rgba(255,255,255,0.82)' }}>Kód chyby: IT_TICKET_0042</div>
+            </div>
+            <div ref={loadRef} style={{ ...scr, background: '#0d4f7d', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
+              <div ref={spinRef} style={{ width: 46, height: 46, borderRadius: '50%', border: '5px solid rgba(255,255,255,0.24)', borderTopColor: '#fff', boxSizing: 'border-box' }} />
+            </div>
+            <div ref={doneRef} style={{ ...scr, background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
+              <div ref={checkRef} style={{ width: 64, height: 34, borderLeft: '10px solid #2fbe5c', borderBottom: '10px solid #2fbe5c', borderRadius: '3px', transform: 'rotate(-45deg) scale(0.2)', opacity: 0 }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Foťák u „Foto" — po kliknutí blikne dioda a cvakne blesk (CameraShot).
+// Scéna 540×420, foťák 400px; zmenšíme (scale) a vycentrujeme na foťák. Blesk ořízneme na ikonku (overflow hidden).
+function WCameraIcon({ size = 26, spinKey }) {
+  const camRef = useRefW(null);
+  const ledRef = useRefW(null);
+  const glowRef = useRefW(null);
+  const flashRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 400;                          // scale scény na velikost ikonky (foťák je 400px)
+  useEffectW(() => {
+    if (camRef.current && typeof window !== 'undefined' && window.CameraShot) {
+      inst.current = new window.CameraShot(
+        { cam: camRef.current, led: ledRef.current, glow: glowRef.current, flash: flashRef.current },
+        { interactive: false, blink: 0.85, rate: 7, flash: 0.9 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.shoot) inst.current.shoot();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 270 * f) + 'px,' + (size / 2 - 240 * f) + 'px) scale(' + f + ')' }}>
+        <div style={{ position: 'relative', width: 540, height: 420 }}>
+          <img ref={camRef} src="assets/camera.png" alt="" style={{ position: 'absolute', left: 70, top: 40, width: 400, height: 400, zIndex: 2 }} />
+          <div ref={ledRef} style={{ position: 'absolute', left: 110, top: 156, width: 23, height: 23, borderRadius: '50%', background: '#ff3b4f', opacity: 0, zIndex: 3 }} />
+          <div ref={glowRef} style={{ position: 'absolute', left: 130, top: 132, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 42%, rgba(255,255,255,0) 72%)', opacity: 0, zIndex: 4 }} />
+          <div ref={flashRef} style={{ position: 'absolute', left: 0, top: 0, width: 540, height: 420, background: '#fff', opacity: 0, zIndex: 5 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pánev u „Jídlo" — po kliknutí spadne vejce a usmaží se na volské oko (PanFryEgg).
+// Scéna 540×420, pánev 380px; zmenšíme (scale) a vycentrujeme na pánev. Padající vejce ořízneme na ikonku.
+function WPanIcon({ size = 26, spinKey }) {
+  const panRef = useRefW(null);
+  const friedRef = useRefW(null);
+  const rawRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 380;                          // scale scény na velikost ikonky (pánev je 380px)
+  useEffectW(() => {
+    if (panRef.current && typeof window !== 'undefined' && window.PanFryEgg) {
+      inst.current = new window.PanFryEgg(
+        { pan: panRef.current, fried: friedRef.current, raw: rawRef.current },
+        { interactive: false, fall: 0.45, hold: 1.1 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.cook) inst.current.cook();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 270 * f) + 'px,' + (size / 2 - 220 * f) + 'px) scale(' + f + ')' }}>
+        <div style={{ position: 'relative', width: 540, height: 420 }}>
+          <img ref={panRef} src="assets/pan.png" alt="" style={{ position: 'absolute', left: 80, top: 30, width: 380, height: 380, zIndex: 2 }} />
+          <img ref={friedRef} src="assets/egg-fried.png" alt="" style={{ position: 'absolute', left: 80, top: 30, width: 380, height: 380, transformOrigin: '145px 141px', opacity: 0, zIndex: 3 }} />
+          <div ref={rawRef} style={{ position: 'absolute', left: 208, top: 148, width: 34, height: 44, borderRadius: '50% 50% 48% 48% / 58% 58% 42% 42%', background: '#fff', boxShadow: 'inset -4px -6px 0 rgba(0,0,0,0.05)', opacity: 0, zIndex: 4 }}>
+            <div style={{ position: 'absolute', left: 9, top: 15, width: 16, height: 16, borderRadius: '50%', background: '#edb22e' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Vláček u „Hlídání" — po kliknutí kouří z komínku (TrainSmoke).
+// Scéna 540×430, vláček 400px; zmenšíme (scale) a vycentrujeme na vláček. Kouř ořízneme na ikonku.
+const _TRAIN_PUFFS = [
+  { d: 30, c: '#e8eef3' }, { d: 24, c: '#f2f6f9' }, { d: 34, c: '#dde5ec' }, { d: 22, c: '#eef3f7' },
+  { d: 28, c: '#e3eaf0' }, { d: 20, c: '#f4f7fa' }, { d: 32, c: '#dde5ec' }, { d: 26, c: '#e8eef3' },
+  { d: 18, c: '#f2f6f9' }, { d: 30, c: '#e3eaf0' }, { d: 23, c: '#eef3f7' }, { d: 36, c: '#dde5ec' },
+  { d: 21, c: '#f4f7fa' }, { d: 27, c: '#e8eef3' }, { d: 31, c: '#e8eef3' }, { d: 25, c: '#f2f6f9' },
+  { d: 35, c: '#dde5ec' }, { d: 22, c: '#eef3f7' }, { d: 29, c: '#e3eaf0' }, { d: 19, c: '#f4f7fa' },
+  { d: 33, c: '#dde5ec' }, { d: 26, c: '#e8eef3' }, { d: 24, c: '#f2f6f9' }, { d: 30, c: '#e3eaf0' },
+  { d: 20, c: '#eef3f7' }, { d: 37, c: '#dde5ec' }, { d: 23, c: '#f4f7fa' }, { d: 28, c: '#e8eef3' },
+];
+function WTrainIcon({ size = 26, spinKey }) {
+  const trainRef = useRefW(null);
+  const smokeRef = useRefW(null);
+  const inst = useRefW(null);
+  const f = size / 400;                          // scale scény na velikost ikonky (vláček je 400px)
+  useEffectW(() => {
+    if (trainRef.current && typeof window !== 'undefined' && window.TrainSmoke) {
+      inst.current = new window.TrainSmoke(
+        { train: trainRef.current, smoke: smokeRef.current },
+        { interactive: false, duration: 1.5, rate: 12, rise: 1.2 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.puff) inst.current.puff();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 270 * f) + 'px,' + (size / 2 - 220 * f) + 'px) scale(' + f + ')' }}>
+        <div style={{ position: 'relative', width: 540, height: 430 }}>
+          <div ref={smokeRef} style={{ position: 'absolute', left: 0, top: 0, width: 540, height: 430, zIndex: 1 }}>
+            {_TRAIN_PUFFS.map((p, i) => (
+              <div key={i} style={{ position: 'absolute', left: 0, top: 0, width: p.d, height: p.d, borderRadius: '50%', background: p.c, opacity: 0 }} />
+            ))}
+          </div>
+          <img ref={trainRef} src="assets/toy-train.png" alt="" style={{ position: 'absolute', left: 70, top: 20, width: 400, height: 400, zIndex: 2 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Psí bouda u „Zvířata" — po kliknutí spadne pytlík krmiva a nad boudou stoupají srdíčka (DoghouseFeed).
+// Scéna 560×440, bouda 400px; zmenšíme (scale) a vycentrujeme na boudu. Pytlík i srdíčka ořízneme na ikonku.
+const _DOG_HEARTS = [
+  { w: 64, c: '#ef3f4a' }, { w: 52, c: '#f4565f' }, { w: 76, c: '#e0323d' }, { w: 58, c: '#ef3f4a' },
+  { w: 70, c: '#f4565f' }, { w: 50, c: '#e0323d' }, { w: 64, c: '#f4565f' }, { w: 54, c: '#ef3f4a' },
+];
+// Jedno srdíčko = 2 kolečka vedle sebe + otočený čtvereček pod nimi (poměry z předlohy).
+function _wHeart(w, c) {
+  const cd = Math.round(0.6 * w), cy = Math.round(0.175 * w), c2x = Math.round(0.4 * w);
+  const sqx = Math.round(0.2 * w), sqy = Math.round(0.38 * w);
+  return (
+    <React.Fragment>
+      <div style={{ position: 'absolute', left: 0, top: cy, width: cd, height: cd, borderRadius: '50%', background: c }} />
+      <div style={{ position: 'absolute', left: c2x, top: cy, width: cd, height: cd, borderRadius: '50%', background: c }} />
+      <div style={{ position: 'absolute', left: sqx, top: sqy, width: cd, height: cd, background: c, transform: 'rotate(45deg)', borderRadius: 3 }} />
+    </React.Fragment>
+  );
+}
+function WDoghouseIcon({ size = 26, spinKey }) {
+  const bagRef = useRefW(null);
+  const heartsRef = useRefW(null);
+  const inst = useRefW(null);
+  // Pytlík stojí daleko vpravo (kolem x496) — scénu zmenšíme tak, aby se do ikonky vešla bouda i pytlík.
+  const f = size / 500;
+  useEffectW(() => {
+    if (heartsRef.current && typeof window !== 'undefined' && window.DoghouseFeed) {
+      inst.current = new window.DoghouseFeed(
+        { bag: bagRef.current, hearts: heartsRef.current },
+        { interactive: false, fall: 0.25, stay: 3, hearts: 4, lift: 2.5 },   // stay delší (pytlík poleží), lift vyšší (srdíčka výš)
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.feed) inst.current.feed();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      {/* Vycentrováno na střed obsahu bouda+pytlík (268,225), ne na střed boudy — jinak pytlík vpravo spadne za ořez. */}
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: 'translate(' + (size / 2 - 268 * f) + 'px,' + (size / 2 - 225 * f) + 'px) scale(' + f + ')' }}>
+        <div style={{ position: 'relative', width: 560, height: 440 }}>
+          <img src="assets/dog-house.png" alt="" style={{ position: 'absolute', left: 40, top: 30, width: 400, height: 400, zIndex: 2 }} />
+          <img ref={bagRef} src="assets/pet-food.png" alt="" style={{ position: 'absolute', left: 372, top: 282, width: 124, height: 124, transformOrigin: '50% 100%', opacity: 0, zIndex: 3 }} />
+          <div ref={heartsRef} style={{ position: 'absolute', left: 0, top: 0, width: 560, height: 440, zIndex: 4 }}>
+            {_DOG_HEARTS.map((h, i) => (
+              <div key={i} style={{ position: 'absolute', left: 0, top: 0, width: h.w, height: h.w, opacity: 0 }}>{_wHeart(h.w, h.c)}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Kosmetika u „Krása" — obrázek rozdělen na 3 svislá okna (zrcátko/rtěnka/štětec); po kliknutí
+// každé poskočí s malým zpožděním (mexická vlna) a nakonec přejede lesk přes sklíčko zrcátka (CosmeticsWave).
+function WCosmeticsIcon({ size = 30, spinKey }) {
+  const aRef = useRefW(null);
+  const bRef = useRefW(null);
+  const cRef = useRefW(null);
+  const glintRef = useRefW(null);
+  const streakRef = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (aRef.current && typeof window !== 'undefined' && window.CosmeticsWave) {
+      inst.current = new window.CosmeticsWave(
+        { strips: [aRef.current, bRef.current, cRef.current], glint: glintRef.current, streak: streakRef.current },
+        { interactive: false, dur: 1.5 },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.wave) inst.current.wave();
+  }, [spinKey]);
+  // svislé hranice oken (podíl šířky): zrcátko 0..0.5, rtěnka 0.5..0.72, štětec 0.72..1
+  const wa = 0.5 * size, wb = 0.22 * size, wc = 0.28 * size;
+  const img = { position: 'absolute', top: 0, width: size, height: size, display: 'block' };
+  const win = { position: 'absolute', top: 0, height: size, overflow: 'hidden', transformOrigin: '50% 100%', willChange: 'transform' };
+  // sklíčko zrcátka (podíly z obrázku): střed ~ (0.273, 0.703), poloměr ~0.185
+  const gd = 0.37 * size, gl = 0.088 * size, gt = 0.518 * size;
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      <div ref={aRef} style={{ ...win, left: 0, width: wa }}><img src="assets/cosmetics.png" alt="" style={{ ...img, left: 0 }} /></div>
+      <div ref={bRef} style={{ ...win, left: wa, width: wb }}><img src="assets/cosmetics.png" alt="" style={{ ...img, left: -wa }} /></div>
+      <div ref={cRef} style={{ ...win, left: wa + wb, width: wc }}><img src="assets/cosmetics.png" alt="" style={{ ...img, left: -(wa + wb) }} /></div>
+      <div ref={glintRef} style={{ position: 'absolute', left: gl, top: gt, width: gd, height: gd, borderRadius: '50%', overflow: 'hidden', opacity: 0, zIndex: 5, pointerEvents: 'none' }}>
+        <div ref={streakRef} style={{ position: 'absolute', left: 0, top: '-50%', width: '55%', height: '200%', background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0) 100%)', transform: 'translateX(-160%) skewX(-18deg)' }} />
+      </div>
+    </div>
+  );
+}
+
+// Krabice u „Stěhování" — po kliknutí odjede doprava, zmizí a přijede zpět zprava, s čárkami
+// pohybu za sebou (jako rychlost). Bez handoffu, vlastní animace (BoxPack).
+// left řídí až animace (translateX sweep), tady jen svislá pozice a délka čárky
+const _BOX_LINES = [
+  { top: 0.22, w: 0.34 }, { top: 0.37, w: 0.46 }, { top: 0.52, w: 0.30 },
+  { top: 0.66, w: 0.44 }, { top: 0.80, w: 0.32 },
+];
+function WBoxIcon({ size = 24, spinKey }) {
+  const boxRef = useRefW(null);
+  const l0 = useRefW(null), l1 = useRefW(null), l2 = useRefW(null), l3 = useRefW(null), l4 = useRefW(null);
+  const lineRefs = [l0, l1, l2, l3, l4];
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (boxRef.current && typeof window !== 'undefined' && window.BoxPack) {
+      inst.current = new window.BoxPack(
+        { box: boxRef.current, lines: lineRefs.map(r => r.current) },
+        { interactive: false, dur: 1.3, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.pack) inst.current.pack();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      {/* čárky pohybu (za krabicí) */}
+      {_BOX_LINES.map((ln, i) => (
+        <div key={i} ref={lineRefs[i]} style={{ position: 'absolute', left: 0, top: ln.top * size, width: ln.w * size, height: Math.max(1.5, 0.05 * size), background: 'rgba(107,74,55,0.7)', borderRadius: 2, opacity: 0, zIndex: 1, willChange: 'opacity, transform' }} />
+      ))}
+      {/* krabice */}
+      <img ref={boxRef} src="assets/package.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 2, willChange: 'transform' }} />
+    </div>
+  );
+}
+
+// Kytara u „Hudba" — po kliknutí brnkne (celá se zachvěje), struny podél krku kmitají a z těla
+// letí noty nahoru (GuitarStrum). Bez handoffu, vlastní animace.
+const _GUITAR_NOTES = ['♪', '♫', '♩', '♪', '♫', '♩'];
+function WGuitarIcon({ size = 28, spinKey }) {
+  const guitarRef = useRefW(null);
+  const s0 = useRefW(null), s1 = useRefW(null), s2 = useRefW(null), s3 = useRefW(null);
+  const n0 = useRefW(null), n1 = useRefW(null), n2 = useRefW(null), n3 = useRefW(null), n4 = useRefW(null), n5 = useRefW(null);
+  const stringRefs = [s0, s1, s2, s3];
+  const noteRefs = [n0, n1, n2, n3, n4, n5];
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (guitarRef.current && typeof window !== 'undefined' && window.GuitarStrum) {
+      inst.current = new window.GuitarStrum(
+        { guitar: guitarRef.current, strings: stringRefs.map(r => r.current), notes: noteRefs.map(r => r.current) },
+        { interactive: false, dur: 1.7, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.strum) inst.current.strum();
+  }, [spinKey]);
+  const noteColors = ['#3a3a3a', '#d1273a', '#3a3a3a', '#d1273a', '#3a3a3a', '#d1273a'];
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      {/* strum wrapper – kytara + struny se hýbou společně */}
+      <div ref={guitarRef} style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, transformOrigin: '45% 60%', willChange: 'transform' }}>
+        <img src="assets/electric-guitar.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 1 }} />
+        {/* krk se strunami – otočený kontejner podél krku, čárky kmitají napříč */}
+        <div style={{ position: 'absolute', left: 0.65 * size - 0.21 * size, top: 0.33 * size - 0.06 * size, width: 0.42 * size, height: 0.12 * size, transform: 'rotate(-46deg)', transformOrigin: '50% 50%', zIndex: 2 }}>
+          {stringRefs.map((r, i) => (
+            <div key={i} ref={r} style={{ position: 'absolute', left: 0, top: (18 + i * 21) + '%', width: '100%', height: Math.max(1, 0.025 * size), background: 'rgba(235,235,235,0.8)', borderRadius: 1, willChange: 'transform' }} />
+          ))}
+        </div>
+      </div>
+      {/* noty – nerotují se strumem */}
+      {_GUITAR_NOTES.map((g, i) => (
+        <div key={i} ref={noteRefs[i]} style={{ position: 'absolute', left: 0, top: 0, fontSize: 0.5 * size, lineHeight: 1, color: noteColors[i], opacity: 0, zIndex: 3, willChange: 'transform, opacity' }}>{g}</div>
+      ))}
+    </div>
+  );
+}
+
+// Auto u „Doprava" — po kliknutí přijede zprava další auto, narazí do stávajícího, to odletí
+// doleva a narážející zůstane. Nekonečné: každé kliknutí prohodí role (CarBump). Vlastní animace.
+function WCarIcon({ size = 30, spinKey }) {
+  const aRef = useRefW(null);
+  const bRef = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (aRef.current && typeof window !== 'undefined' && window.CarBump) {
+      inst.current = new window.CarBump(
+        { carA: aRef.current, carB: bRef.current },
+        { interactive: false, dur: 1.15, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.bump) inst.current.bump();
+  }, [spinKey]);
+  // auta zmenšená na ~2/3 a vycentrovaná, aby se vešla vedle sebe a mohla se srazit nárazníky
+  const carW = 0.66 * size, off = (size - carW) / 2;
+  const car = { position: 'absolute', left: off, top: off, width: carW, height: carW, display: 'block', willChange: 'transform' };
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      <img ref={aRef} src="assets/car.png" alt="" style={car} />
+      <img ref={bRef} src="assets/car.png" alt="" style={car} />
+    </div>
+  );
+}
+
+// Běžec na páse u „Sport" — po kliknutí se rozběhne, pak zpomalí a zastaví (~2 s); postava se
+// pohupuje v rytmu běhu a pod pásem svišti čárky rychlosti (TreadmillRun). Vlastní animace.
+const _RUN_LINES = [
+  { top: 0.82, w: 0.30 }, { top: 0.87, w: 0.40 }, { top: 0.92, w: 0.26 }, { top: 0.90, w: 0.36 }, { top: 0.84, w: 0.24 },
+];
+function WTreadmillIcon({ size = 30, spinKey }) {
+  const runnerRef = useRefW(null);
+  const l0 = useRefW(null), l1 = useRefW(null), l2 = useRefW(null), l3 = useRefW(null), l4 = useRefW(null);
+  const lineRefs = [l0, l1, l2, l3, l4];
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (runnerRef.current && typeof window !== 'undefined' && window.TreadmillRun) {
+      inst.current = new window.TreadmillRun(
+        { runner: runnerRef.current, lines: lineRefs.map(r => r.current) },
+        { interactive: false, dur: 2.1, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.go) inst.current.go();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      {/* čárky rychlosti pod pásem */}
+      {_RUN_LINES.map((ln, i) => (
+        <div key={i} ref={lineRefs[i]} style={{ position: 'absolute', left: 0, top: ln.top * size, width: ln.w * size, height: Math.max(1, 0.03 * size), background: 'rgba(90,100,110,0.6)', borderRadius: 2, opacity: 0, zIndex: 1, willChange: 'opacity, transform' }} />
+      ))}
+      {/* běžec + pás (pohupuje se v rytmu běhu) */}
+      <img ref={runnerRef} src="assets/treadmill.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 2, willChange: 'transform' }} />
+    </div>
+  );
+}
+
+// Basketbalová síť u „Sport" — po kliknutí prolétne shora míč sítí v popředí (před síťkou),
+// síť lehce cukne (net swish) (BallDrop). Vlastní animace.
+function WHoopIcon({ size = 30, spinKey }) {
+  const ballRef = useRefW(null);
+  const hoopRef = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (hoopRef.current && typeof window !== 'undefined' && window.BallDrop) {
+      inst.current = new window.BallDrop(
+        { ball: ballRef.current, hoop: hoopRef.current },
+        { interactive: false, dur: 1.2, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.shoot) inst.current.shoot();
+  }, [spinKey]);
+  const ballW = 0.32 * size, ballLeft = (size - ballW) / 2;
+  const seam = { position: 'absolute', background: 'rgba(120,60,20,0.55)' };
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      {/* síť + obruč */}
+      <img ref={hoopRef} src="assets/hoop.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, transformOrigin: '50% 12%', zIndex: 1, willChange: 'transform' }} />
+      {/* míč v popředí (před sítí) */}
+      <div ref={ballRef} style={{ position: 'absolute', left: ballLeft, top: 0.05 * size, width: ballW, height: ballW, borderRadius: '50%', background: 'radial-gradient(circle at 35% 32%, #f4a24a, #d9772a 70%)', opacity: 0, zIndex: 3, willChange: 'transform, opacity' }}>
+        <div style={{ ...seam, left: '48%', top: 0, width: Math.max(1, 0.02 * size), height: '100%' }} />
+        <div style={{ ...seam, top: '48%', left: 0, height: Math.max(1, 0.02 * size), width: '100%' }} />
+      </div>
+    </div>
+  );
+}
+
+// Tabule u „Doučování" — po kliknutí se na ni křídou napíše „1" (nakreslí se tahem), chvíli
+// vydrží a smaže se (ChalkWrite). Vlastní animace.
+function WBoardIcon({ size = 30, spinKey }) {
+  const pathRef = useRefW(null);
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (pathRef.current && typeof window !== 'undefined' && window.ChalkWrite) {
+      inst.current = new window.ChalkWrite({ path: pathRef.current }, { interactive: false, dur: 1.9 });
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.write) inst.current.write();
+  }, [spinKey]);
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'hidden' }}>
+      <img src="assets/blackboard.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 1 }} />
+      <svg viewBox="0 0 100 100" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 2, pointerEvents: 'none' }}>
+        <path ref={pathRef} d="M40,28 L48,18 L48,54" fill="none" stroke="#f2f2f2" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 300, strokeDashoffset: 300 }} />
+      </svg>
+    </div>
+  );
+}
+
+// Ruce-srdce u „Péče" — po kliknutí se v dlaních objeví červené srdíčko (naskočí s odrazem, tluče)
+// a praskne jako balónek (nafoukne, zmizí, střepy odletí) (HeartPop). Vlastní animace.
+function WHeartHandsIcon({ size = 30, spinKey }) {
+  const heartRef = useRefW(null);
+  const sh0 = useRefW(null), sh1 = useRefW(null), sh2 = useRefW(null), sh3 = useRefW(null);
+  const sh4 = useRefW(null), sh5 = useRefW(null), sh6 = useRefW(null), sh7 = useRefW(null);
+  const shardRefs = [sh0, sh1, sh2, sh3, sh4, sh5, sh6, sh7];
+  const inst = useRefW(null);
+  useEffectW(() => {
+    if (heartRef.current && typeof window !== 'undefined' && window.HeartPop) {
+      inst.current = new window.HeartPop(
+        { heart: heartRef.current, shards: shardRefs.map(r => r.current) },
+        { interactive: false, dur: 1.6, s: size },
+      );
+    }
+    return () => { if (inst.current && inst.current.destroy) { inst.current.destroy(); inst.current = null; } };
+  }, []);
+  useEffectW(() => {
+    if (spinKey && inst.current && inst.current.pop) inst.current.pop();
+  }, [spinKey]);
+  // Dutina mezi dlaněmi — proměřeno z assets/heart-hands.png (512×512).
+  // Vnitřní bbox obrysu: x 165–346, y 227–352. Přepočteno na podíl velikosti ikony.
+  const CAV_CX = 0.4990, CAV_CY = 0.5654, CAV_W = 0.3555, CAV_H = 0.2461;
+
+  // _wHeart skládá srdce ze dvou koleček a čtverce otočeného o 45°. Jeho viditelný
+  // tvar se NEKRYJE s boxem, do kterého se vkládá — dolní hrot čtverce box přetéká:
+  //   šířka = 1.000 × w,  výška = 0.929 × w  (od 0.175 × w po 1.104 × w)
+  //   svislý střed tvaru leží na 0.640 × w, ne na 0.5 × w
+  // Bez téhle korekce sedí srdce o 0.14 × w níž, než se čeká.
+  const HV_H = 0.9293, HV_CY = 0.6396;
+
+  // Velikost podle VÝŠKY dutiny — ta je těsnější než šířka, takže srdce nikdy
+  // nepřeteče přes prsty nahoře ani přes hrot dole.
+  const heartW = (CAV_H / HV_H) * size;
+  // Dutina je širší, než odpovídá poměru stran tohohle srdce (1,44 vs 1,08),
+  // proto se tvar vodorovně roztáhne, aby dutinu opravdu vyplnil.
+  const heartSX = CAV_W / (heartW / size);
+  const shW = 0.08 * size;
+  const hcx = CAV_CX * size, hcy = CAV_CY * size;
+  return (
+    <div style={{ width: size, height: size, position: 'relative', overflow: 'visible' }}>
+      <img src="assets/heart-hands.png" alt="" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, zIndex: 1 }} />
+      {/* Červené srdíčko v dlaních.
+          transformOrigin míří na skutečný střed TVARU (0.640), ne na střed boxu —
+          jinak by tlukot i prasknutí škálovaly kolem bodu nad srdcem a tvar by
+          při animaci ujížděl dolů. HeartPop zapisuje jen scale(), origin nechává na nás. */}
+      <div ref={heartRef} style={{ position: 'absolute', left: hcx - heartW / 2, top: hcy - HV_CY * heartW, width: heartW, height: heartW, transformOrigin: '50% ' + (HV_CY * 100).toFixed(2) + '%', opacity: 0, zIndex: 2, willChange: 'transform, opacity' }}>
+        {/* Vlastní vrstva pro vodorovné roztažení — HeartPop přepisuje transform
+            na vnějším divu, takže scaleX musí být na samostatném prvku. */}
+        <div style={{ position: 'absolute', left: 0, top: 0, width: heartW, height: heartW, transform: 'scaleX(' + heartSX.toFixed(4) + ')', transformOrigin: '50% 50%' }}>{_wHeart(heartW, '#e0323d')}</div>
+      </div>
+      {/* střepy po prasknutí */}
+      {shardRefs.map((r, i) => (
+        <div key={i} ref={r} style={{ position: 'absolute', left: hcx - shW / 2, top: hcy - shW / 2, width: shW, height: shW, background: '#e0323d', borderRadius: 2, transformOrigin: '50% 50%', opacity: 0, zIndex: 3, willChange: 'transform, opacity' }} />
+      ))}
     </div>
   );
 }
@@ -914,6 +1426,7 @@ function WMyCard({ onClose }) {
   const [adding, setAdding] = useStateW(false);
   const [tagInput, setTagInput] = useStateW('');
   const [saved, setSaved] = useStateW(false);
+  const [filtrChyba, setFiltrChyba] = useStateW('');
   const MAX = 240, MAXB = 500, MAXTAGS = 5;
 
   const addTag = t => { const s = (t || '').trim(); if (!s || tags.includes(s) || tags.length >= MAXTAGS) return; setTags([...tags, s]); };
@@ -922,6 +1435,18 @@ function WMyCard({ onClose }) {
   const priceStr = _pPriceStr(priceType, priceAmount);
 
   async function save() {
+    // Kontrola dřív, než se cokoli uloží — i do localStorage. Jinak by zápis do
+    // databáze tiše zarazila pojistka v index.html, ale karta by si sprostý text
+    // nechala uloženou u sebe a dál ho zobrazovala.
+    const F = typeof window !== 'undefined' && window.MkjFiltr;
+    if (F) {
+      for (const txt of [offer, bio, experience, (tags || []).join(' ')]) {
+        if (!txt) continue;
+        const r = F.zkontroluj(txt);
+        if (!r.ok) { setFiltrChyba(r.hlaska); return; }
+      }
+    }
+    setFiltrChyba('');
     const card = { enabled, offer: offer.slice(0, MAX), bio: bio.slice(0, MAXB), experience, priceType, priceAmount, availability, modes, tags, price: priceStr, mode: modes.join(' · ') };
     _pSaveMyCard(card);
     try { const uid = (await sb.auth.getSession()).data.session?.user?.id; if (uid) await updateProfileW(uid, { card_enabled: card.enabled, card_offer: card.offer, card_tags: card.tags, bio: card.bio }); } catch (e) {}
@@ -953,6 +1478,10 @@ function WMyCard({ onClose }) {
         <span style={{ flex: 1, fontFamily: T.fontHead, fontSize: 22, fontWeight: 800, color: T.ink, letterSpacing: -0.4 }}>Moje karta</span>
         <button onClick={save} style={{ border: 'none', background: 'none', color: T.primary, fontFamily: T.fontHead, fontSize: 15.5, fontWeight: 800, cursor: 'pointer', padding: '6px 4px' }}>{saved ? 'Uloženo ✓' : 'Uložit'}</button>
       </div>
+
+      {filtrChyba ? (
+        <div style={{ flex: 'none', margin: '0 16px 10px', padding: '11px 13px', borderRadius: 12, background: 'rgba(214,45,60,0.08)', color: '#B3243A', fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.45 }}>{filtrChyba}</div>
+      ) : null}
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 16px calc(28px + env(safe-area-inset-bottom))' }}>
         {/* Switch */}
@@ -1107,6 +1636,17 @@ function WPeople({ tick }) {
   const [broomSpin, setBroomSpin] = useStateW(0);   // bumpne se při kliknutí na „Úklid" → koště zamete
   const [bookSpin, setBookSpin] = useStateW(0);     // bumpne se při kliknutí na „Doučování" → kniha se otevře/zavře
   const [sproutSpin, setSproutSpin] = useStateW(0); // bumpne se při kliknutí na „Zahrada" → rostlinka se zalije
+  const [laptopSpin, setLaptopSpin] = useStateW(0); // bumpne se při kliknutí na „IT" → notebook se „opraví"
+  const [cameraSpin, setCameraSpin] = useStateW(0); // bumpne se při kliknutí na „Foto" → foťák cvakne
+  const [panSpin, setPanSpin] = useStateW(0);       // bumpne se při kliknutí na „Jídlo" → usmaží se vejce
+  const [trainSpin, setTrainSpin] = useStateW(0);   // bumpne se při kliknutí na „Hlídání" → vláček zakouří
+  const [dogSpin, setDogSpin] = useStateW(0);       // bumpne se při kliknutí na „Zvířata" → nasype se krmivo + srdíčka
+  const [beautySpin, setBeautySpin] = useStateW(0); // bumpne se při kliknutí na „Krása" → mexická vlna + lesk zrcátka
+  const [boxSpin, setBoxSpin] = useStateW(0);       // bumpne se při kliknutí na „Stěhování" → krabice se sbalí
+  const [guitarSpin, setGuitarSpin] = useStateW(0); // bumpne se při kliknutí na „Hudba" → kytara brnkne + noty
+  const [carSpin, setCarSpin] = useStateW(0);       // bumpne se při kliknutí na „Doprava" → auto narazí a odjede
+  const [runSpin, setRunSpin] = useStateW(0);       // bumpne se při kliknutí na „Sport" → míč propadne sítí
+  const [peceSpin, setPeceSpin] = useStateW(0);     // bumpne se při kliknutí na „Péče" → srdíčko naskočí a praskne
   const [detailPerson, setDetailPerson] = useStateW(null);
   const [info, setInfo] = useStateW(null);               // { title, text }
   const [showCard, setShowCard] = useStateW(false);      // editor „Moje karta"
@@ -1220,8 +1760,19 @@ function WPeople({ tick }) {
                 const isUklid = c.key === 'uklid';
                 const isDoucovani = c.key === 'doucovani';
                 const isZahrada = c.key === 'zahrada';
+                const isIt = c.key === 'it';
+                const isFoto = c.key === 'foto';
+                const isGastro = c.key === 'gastro';
+                const isHlidani = c.key === 'hlidani';
+                const isZvirata = c.key === 'zvirata';
+                const isKrasa = c.key === 'krasa';
+                const isStehovani = c.key === 'stehovani';
+                const isHudba = c.key === 'hudba';
+                const isDoprava = c.key === 'doprava';
+                const isSport = c.key === 'trenink';
+                const isPece = c.key === 'pece';
                 return (
-                  <button key={c.key} onClick={() => { setCat(c.key); setKatAnim(n => n + 1); if (isVse) setGlobeSpin(s => s + 1); if (isRemesla) setDrillSpin(s => s + 1); if (isUklid) setBroomSpin(s => s + 1); if (isDoucovani) setBookSpin(s => s + 1); if (isZahrada) setSproutSpin(s => s + 1); }} style={{
+                  <button key={c.key} onClick={() => { setCat(c.key); setKatAnim(n => n + 1); if (isVse) setGlobeSpin(s => s + 1); if (isRemesla) setDrillSpin(s => s + 1); if (isUklid) setBroomSpin(s => s + 1); if (isDoucovani) setBookSpin(s => s + 1); if (isZahrada) setSproutSpin(s => s + 1); if (isIt) setLaptopSpin(s => s + 1); if (isFoto) setCameraSpin(s => s + 1); if (isGastro) setPanSpin(s => s + 1); if (isHlidani) setTrainSpin(s => s + 1); if (isZvirata) setDogSpin(s => s + 1); if (isKrasa) setBeautySpin(s => s + 1); if (isStehovani) setBoxSpin(s => s + 1); if (isHudba) setGuitarSpin(s => s + 1); if (isDoprava) setCarSpin(s => s + 1); if (isSport) setRunSpin(s => s + 1); if (isPece) setPeceSpin(s => s + 1); }} style={{
                     flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     border: '1.5px solid ' + (on ? 'rgba(11,18,51,0.9)' : 'transparent'),
                     background: on ? '#fff' : 'transparent', padding: '7px 13px', borderRadius: 16,
@@ -1234,10 +1785,32 @@ function WPeople({ tick }) {
                         : isUklid
                           ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBroomIcon size={26} spinKey={broomSpin} /></span>
                           : isDoucovani
-                            ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBookIcon size={28} spinKey={bookSpin} /></span>
+                            ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBoardIcon size={30} spinKey={bookSpin} /></span>
                             : isZahrada
                               ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WSproutIcon size={28} spinKey={sproutSpin} /></span>
-                              : <span key={on ? 'a' + katAnim : 'i'} style={{ fontSize: 23, lineHeight: 1, display: 'inline-block', transformOrigin: meta[1] === 'sweep' ? '72% 24%' : 'center', animation: on ? _P_ANIM[meta[1]] : 'none' }}>{meta[0]}</span>}
+                              : isIt
+                                ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WLaptopIcon size={30} spinKey={laptopSpin} /></span>
+                                : isFoto
+                                  ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WCameraIcon size={30} spinKey={cameraSpin} /></span>
+                                  : isGastro
+                                    ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WPanIcon size={30} spinKey={panSpin} /></span>
+                                    : isHlidani
+                                      ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WTrainIcon size={30} spinKey={trainSpin} /></span>
+                                      : isZvirata
+                                        ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WDoghouseIcon size={30} spinKey={dogSpin} /></span>
+                                        : isKrasa
+                                          ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WCosmeticsIcon size={30} spinKey={beautySpin} /></span>
+                                          : isStehovani
+                                            ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WBoxIcon size={24} spinKey={boxSpin} /></span>
+                                            : isHudba
+                                              ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WGuitarIcon size={28} spinKey={guitarSpin} /></span>
+                                              : isDoprava
+                                                ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WCarIcon size={30} spinKey={carSpin} /></span>
+                                                : isSport
+                                                  ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WHoopIcon size={30} spinKey={runSpin} /></span>
+                                                  : isPece
+                                                    ? <span style={{ display: 'inline-flex', height: 24, alignItems: 'center' }}><WHeartHandsIcon size={26} spinKey={peceSpin} /></span>
+                                                    : <span key={on ? 'a' + katAnim : 'i'} style={{ fontSize: 23, lineHeight: 1, display: 'inline-block', transformOrigin: meta[1] === 'sweep' ? '72% 24%' : 'center', animation: on ? _P_ANIM[meta[1]] : 'none' }}>{meta[0]}</span>}
                     <span style={{ fontFamily: T.fontUI, fontSize: 11.5, fontWeight: on ? 800 : 600, color: on ? T.ink : T.muted, whiteSpace: 'nowrap' }}>{c.label}</span>
                   </button>
                 );

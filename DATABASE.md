@@ -31,9 +31,6 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 
 ## Připravené změny (ještě nespuštěné)
 
-> `availability` (dostupnost) zatím záměrně nepřidáváme — nemáme dořešený tvar
-> (zaškrtávátka vs. dny). Doplní se jedním řádkem, až bude UI.
-
 ### Fotogalerie inzerátu — víc fotek (čeká na Sama: sloupec + nahrávání na dashboardu)
 Detail inzerátu v appce brigádníka umí od 2026-08-16 **galerii fotek** (swipe +
 tečky). Čte pole `job.photos` (pole URL); když chybí, spadne zpět na jednu hero
@@ -71,6 +68,32 @@ plní jen když i dashboard posílá heartbeat. Appka se napojí, jakmile SQL po
 ---
 
 ## Historie provedených změn
+
+### 2026-09-03 · Yasin · SPUŠTĚNO: tabulka `reports` (nahlašování obsahu)
+Yasin pustil v Supabase SQL Editoru (main/production) — `Success. No rows returned`.
+Additivní, nesahá na žádnou stávající tabulku. Vyžaduje to **App Store Guideline 1.2**
+(User-Generated Content): appka s chatem a profily musí umět nevhodný obsah nahlásit.
+
+Celé SQL: `supabase/migration_reports.sql`. Co vzniklo:
+- `public.reports` — `reporter_id` → `profiles.id`, `target_type`
+  (`job|person|employer|thread|review`), `target_id uuid`, `duvod`, `poznamka`,
+  `stav` (`nove|resi_se|vyrizeno|zamitnuto`), `created_at`, `resolved_at`.
+  Záměrně obecná, ať jde použít i na profily a konverzace, ne jen na inzeráty;
+- unique index `(reporter_id, target_type, target_id)` — jeden člověk nahlásí
+  tutéž věc jen jednou; index `(stav, created_at desc)` na frontu vyřizování;
+- RLS: přihlášený smí hlášení **jen vytvořit a číst svoje**. Update/delete
+  policy schválně nejsou → stav mění jen `service_role` (obsluha);
+- pohled `public.reports_souhrn` (kolikrát byla věc nahlášena) se
+  `security_invoker = on` + `revoke` pro `anon`/`authenticated` — bez toho by
+  pohled obešel RLS a každý přihlášený by přes něj četl cizí hlášení.
+
+Appka po odeslání hlášení zároveň přidá inzerát mezi odmítnuté, takže tomu, kdo
+ho nahlásil, hned zmizí z feedu — to je ta viditelná reakce, kterou Apple chce.
+
+> **Zbývá:** vyřizování hlášení (změna `stav`) nemá zatím žádné UI — musí se
+> dělat ručně v Supabase, nebo to Sam přidá do dashboardu.
+> Pozn.: v demo režimu (`W_DEMO_ON = true`) mají inzeráty id typu `demo-h-1`,
+> což není uuid — hlášení se u nich neuloží a appka to rovnou napíše.
 
 ### 2026-08-22 · Yasin · SPUŠTĚNO: sloupce jobs + profiles (detail karty + filtr)
 Yasin sám pustil v Supabase SQL Editoru (main/production) additivní migraci —

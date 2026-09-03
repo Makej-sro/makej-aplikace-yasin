@@ -15,3 +15,6 @@ android/app/release/
 # System
 .DS_Store
 *.log
+
+# Vývojářská pomůcka na testování filtru — nepatří do buildu
+www/_test-filtru.html

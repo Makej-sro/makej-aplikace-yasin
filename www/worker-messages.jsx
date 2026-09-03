@@ -498,6 +498,18 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
     }
   }, [chatTarget]);
   const [msgInput, setMsgInput] = useStateW('');
+  // Nevhodný obsah ve zprávě. Pole zčervená a cukne hned při psaní, odeslání
+  // se nepustí. Datová vrstva to blokuje taky, tohle je jen to, co člověk vidí.
+  const [msgFiltr, setMsgFiltr] = useStateW(null);
+  const [msgShake, setMsgShake] = useStateW(false);
+  function hlidejZpravu(txt) {
+    const F = typeof window !== 'undefined' && window.MkjFiltr;
+    if (!F) return true;
+    const r = F.zkontroluj(txt);
+    if (!r.ok) { if (!msgFiltr) setMsgShake(true); setMsgFiltr(r); return false; }
+    setMsgFiltr(null);
+    return true;
+  }
   const [sending,  setSending]  = useStateW(false);
   const [q,        setQ]        = useStateW('');
   const [kindFilter, setKindFilter] = useStateW('job');   // 'job' (Brigády) | 'people' (Lidé) — oddělené chaty
@@ -605,6 +617,9 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   async function handleSend() {
     const text = msgInput.trim();
     if (!text || !active || !userId.current || sending) return;
+    // Pojistka i pro vložení schránkou nebo odeslání tlačítkem — pole se
+    // vyprázdní až potom, aby si text uživatel mohl opravit.
+    if (!hlidejZpravu(text)) return;
     setMsgInput('');
     setSending(true);
     const tempId = 'tmp-' + Date.now();
@@ -1181,16 +1196,19 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
               </div>
             ) : (
               /* Klid — normální psací oválek */
-              <div style={{
+              <div onAnimationEnd={() => setMsgShake(false)} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '5px 5px 5px 18px', borderRadius: 999,
-                background: T.surfaceAlt, border: '1px solid ' + T.border,
+                background: msgFiltr ? 'rgba(226,86,74,0.07)' : T.surfaceAlt,
+                border: '1px solid ' + (msgFiltr ? T.destructive : T.border),
+                boxShadow: msgFiltr ? '0 0 0 1.5px ' + T.destructive : 'none',
+                animation: msgShake ? 'wShake .45s ease' : 'none',
               }}>
                 <input
                   placeholder="Napiš zprávu…"
                   value={msgInput}
-                  onChange={e => setMsgInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  onChange={e => { setMsgInput(e.target.value); hlidejZpravu(e.target.value); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (hlidejZpravu(msgInput)) handleSend(); } }}
                   style={{
                     flex: 1, minWidth: 0, padding: '10px 0', border: 'none', background: 'transparent',
                     color: T.ink, fontSize: 15, outline: 'none', fontFamily: T.fontUI,

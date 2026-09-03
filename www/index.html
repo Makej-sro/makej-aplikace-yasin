@@ -36,6 +36,19 @@
   <script src="vendor/broom-sweep.js"></script>
   <script src="vendor/book-open.js?v=3"></script>
   <script src="vendor/sprout-water.js"></script>
+  <script src="vendor/laptop-fix.js"></script>
+  <script src="vendor/camera-shot.js"></script>
+  <script src="vendor/pan-fry-egg.js"></script>
+  <script src="vendor/train-smoke.js"></script>
+  <script src="vendor/doghouse-feed.js"></script>
+  <script src="vendor/cosmetics-wave.js"></script>
+  <script src="vendor/box-pack.js?v=5"></script>
+  <script src="vendor/guitar-strum.js"></script>
+  <script src="vendor/car-bump.js?v=3"></script>
+  <script src="vendor/treadmill-run.js?v=2"></script>
+  <script src="vendor/ball-drop.js"></script>
+  <script src="vendor/chalk-write.js?v=3"></script>
+  <script src="vendor/heart-pop.js"></script>
 
   <style>
     :root { color-scheme: light; }
@@ -106,6 +119,11 @@
 
     /* „Zájem odeslán" panel — vyjede zdola, 6s časomíra sama zavře; fajfka ve stylu potvrzení platby */
     @keyframes wSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes wSheetDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
+    @keyframes wFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes wFadeOut { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes wMenuIn  { from { opacity: 0; transform: translateY(-6px) scale(.94); } to { opacity: 1; transform: none; } }
+    @keyframes wMenuOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.97); } }
     @keyframes wBarGrow { from { width: 100%; } to { width: 0%; } }
     @keyframes wApRing  { to { stroke-dashoffset: 0; } }
     @keyframes wApCheck { to { stroke-dashoffset: 0; } }
@@ -258,6 +276,9 @@
 
     /* Chybné pole — hláška nahoře řekne co, tohle ukáže kde */
     .au-input--bad { border-color: #e11d48; background: rgba(244,63,94,0.05); }
+    /* Třepnutí se spouští přidáním třídy — po dojetí se zase odebere,
+       jinak by se podruhé už nepřehrálo (animace se nerestartuje sama). */
+    .au-input--shake { animation: auShake .4s ease; }
     .au-consent { display: flex; gap: 10px; align-items: flex-start; margin: 4px 2px 20px; }
     .au-check { width: 22px; height: 22px; border-radius: 7px; border: 2px solid #d0d3e0; background: #fff; flex-shrink: 0; cursor: pointer; display: grid; place-items: center; margin-top: 1px; transition: all .15s; }
     .au-check.on { background: #0020F6; border-color: #0020F6; }
@@ -270,9 +291,19 @@
     .au-btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
     .au-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 16px; color: #252525; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 12px; font-weight: 700; }
     .au-divider::before, .au-divider::after { content: ''; flex: 1; height: 1px; background: #eef0f6; }
-    .au-social { display: flex; gap: 12px; }
-    .au-soc { flex: 1; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; background: #fff; border: 1px solid #eaedf5; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+    /* Tlačítka pod sebou, ne vedle sebe: „Přihlásit se přes Google" se vedle
+       sebe vejde jen tak tak (166 px do 166 px) a při větším systémovém písmu
+       by přeteklo. Na plnou šířku je klid a je to i dnešní běžný vzor. */
+    .au-social { display: flex; flex-direction: column; gap: 10px; }
+    /* Rozměry podle pokynů Applu: minimum je 140×30 pt a odstup 1/10 výšky.
+       Písmo drží jejich referenční poměr — u tlačítka 44 pt mají 19 pt text
+       (0,43 výšky); při 50 pt výšky tomu odpovídá 19–21 px. */
+    .au-soc { width: 100%; height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 14px; background: #fff; border: 1px solid #eaedf5; color: #14162b; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 600; letter-spacing: -0.2px; cursor: pointer; }
     .au-soc:active { background: #f7f7fb; }
+    /* Apple: černá varianta s bílým textem — jedna ze tří podob, které Apple
+       ve svých pokynech povoluje. Výška 50 px je nad jejich minimem 44 pt. */
+    .au-soc--apple { background: #000; border-color: #000; color: #fff; }
+    .au-soc--apple:active { background: #1a1a1a; }
     .au-err { border-radius: 12px; padding: 11px 14px; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; display: none; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.28); color: #e11d48; }
     .au-foot { text-align: center; margin-top: auto; padding-top: 22px; color: #6b7192; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; }
     .au-foot button { color: #0020F6; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
@@ -354,16 +385,16 @@
         <button type="button" class="au-pw-toggle" data-pw="reg-password" tabindex="-1">Zobrazit</button>
       </div>
       <div class="au-consent">
-        <div class="au-check on" id="reg-consent" role="checkbox" aria-checked="true">
+        <div class="au-check" id="reg-consent" role="checkbox" aria-checked="false" tabindex="0">
           <svg class="ck" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <div class="au-consent-txt">Souhlasím s <a href="https://makej.eu/terms.html" target="_blank" rel="noopener">podmínkami</a> a <a href="https://makej.eu/privacy.html" target="_blank" rel="noopener">zpracováním údajů</a></div>
       </div>
       <button class="au-btn" id="reg-submit">Vytvořit účet</button>
-      <div class="au-divider">nebo pokračuj přes</div>
+      <div class="au-divider">nebo</div>
       <div class="au-social">
-        <button class="au-soc" type="button" data-oauth="google"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5Z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7Z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 34.9 26.7 36 24 36c-5.3 0-9.7-2.6-11.3-6.9l-6.5 5C9.6 39.6 16.2 44 24 44Z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.3 5.3C41.1 36 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5Z"/></svg> Google</button>
-        <button class="au-soc" type="button" data-oauth="apple"><svg width="16" height="18" viewBox="0 0 24 24" fill="#111"><path d="M17.05 12.6c-.03-2.6 2.13-3.85 2.22-3.9-1.21-1.77-3.09-2.02-3.76-2.05-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.9-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.88 2.65 3.22 2.6 1.29-.05 1.78-.83 3.34-.83 1.55 0 2 .83 3.37.81 1.39-.03 2.27-1.27 3.12-2.53.98-1.45 1.39-2.86 1.41-2.93-.03-.01-2.7-1.04-2.72-4.13ZM14.53 4.9c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg> Apple</button>
+        <button class="au-soc au-soc--apple" type="button" data-oauth="apple"><svg width="19" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.05 12.6c-.03-2.6 2.13-3.85 2.22-3.9-1.21-1.77-3.09-2.02-3.76-2.05-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.9-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.88 2.65 3.22 2.6 1.29-.05 1.78-.83 3.34-.83 1.55 0 2 .83 3.37.81 1.39-.03 2.27-1.27 3.12-2.53.98-1.45 1.39-2.86 1.41-2.93-.03-.01-2.7-1.04-2.72-4.13ZM14.53 4.9c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg> Přihlásit se s Apple</button>
+        <button class="au-soc" type="button" data-oauth="google"><svg width="21" height="21" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5Z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7Z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 34.9 26.7 36 24 36c-5.3 0-9.7-2.6-11.3-6.9l-6.5 5C9.6 39.6 16.2 44 24 44Z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.3 5.3C41.1 36 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5Z"/></svg> Přihlásit se přes Google</button>
       </div>
       <div class="au-foot">Už máš účet? <button type="button" id="go-login">Přihlas se</button></div>
     </div>
@@ -389,10 +420,10 @@
       <div class="au-field"><input class="au-input" type="text" id="login-key" inputmode="numeric" autocomplete="off" autocapitalize="none" autocorrect="off" placeholder="Přístupový klíč" /></div>
       <div style="font-size:12px;color:#8a8f98;margin:-2px 2px 10px;line-height:1.4">Pouze pro oficiální testovací a vývojářské účty.</div>
       <button class="au-btn" id="login-submit" style="margin-top:6px">Přihlásit se</button>
-      <div class="au-divider">nebo pokračuj přes</div>
+      <div class="au-divider">nebo</div>
       <div class="au-social">
-        <button class="au-soc" type="button" data-oauth="google"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5Z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7Z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 34.9 26.7 36 24 36c-5.3 0-9.7-2.6-11.3-6.9l-6.5 5C9.6 39.6 16.2 44 24 44Z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.3 5.3C41.1 36 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5Z"/></svg> Google</button>
-        <button class="au-soc" type="button" data-oauth="apple"><svg width="16" height="18" viewBox="0 0 24 24" fill="#111"><path d="M17.05 12.6c-.03-2.6 2.13-3.85 2.22-3.9-1.21-1.77-3.09-2.02-3.76-2.05-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.9-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.88 2.65 3.22 2.6 1.29-.05 1.78-.83 3.34-.83 1.55 0 2 .83 3.37.81 1.39-.03 2.27-1.27 3.12-2.53.98-1.45 1.39-2.86 1.41-2.93-.03-.01-2.7-1.04-2.72-4.13ZM14.53 4.9c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg> Apple</button>
+        <button class="au-soc au-soc--apple" type="button" data-oauth="apple"><svg width="19" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.05 12.6c-.03-2.6 2.13-3.85 2.22-3.9-1.21-1.77-3.09-2.02-3.76-2.05-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.9-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.88 2.65 3.22 2.6 1.29-.05 1.78-.83 3.34-.83 1.55 0 2 .83 3.37.81 1.39-.03 2.27-1.27 3.12-2.53.98-1.45 1.39-2.86 1.41-2.93-.03-.01-2.7-1.04-2.72-4.13ZM14.53 4.9c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg> Přihlásit se s Apple</button>
+        <button class="au-soc" type="button" data-oauth="google"><svg width="21" height="21" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5Z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7Z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 34.9 26.7 36 24 36c-5.3 0-9.7-2.6-11.3-6.9l-6.5 5C9.6 39.6 16.2 44 24 44Z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.3 5.3C41.1 36 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5Z"/></svg> Přihlásit se přes Google</button>
       </div>
       <div class="au-foot">Nemáš účet? <button type="button" id="go-register">Zaregistruj se</button></div>
     </div>
@@ -447,9 +478,84 @@
 <script>
   const SUPABASE_URL = 'https://cxegfwfbgcgpwerfbvra.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_N_BIwMCTD6ZOTrtBl3juyw_CGIQ_lvh';
+  // flowType 'pkce' je nutný pro přihlášení přes Google v nativní appce: návrat
+  // z prohlížeče přijde jako deep link s jednorázovým kódem, který se pak vymění
+  // za session. E-mail + heslo ani ověřovací kód se tím nemění.
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, storageKey: 'makej-auth' }
+    auth: { persistSession: true, storageKey: 'makej-auth', flowType: 'pkce' }
   });
+
+  // ─── Centrální filtr nevhodného obsahu ───────────────────────────────────────
+  // Místo hlídání v každé funkci zvlášť se obalí SAMOTNÝ klient. Cokoli, co
+  // appka zapíše do databáze, projde filtrem — včetně funkcí, které teprve
+  // vzniknou. Jeden seznam slov, jedno místo, nedá se to obejít ani zapomenout.
+  //
+  // Přeskakují se sloupce, kde text nepíše uživatel (odkazy, identifikátory,
+  // stavy, časy) — tam by kontrola jen dělala plané poplachy.
+  (function obalKlientaFiltrem() {
+    const PRESKOCIT = /(^id$|_id$|_url$|_at$|password|token|status|type|kind|mime|bucket)/i;
+
+    function zavadny(hodnota) {
+      const F = window.MkjFiltr;
+      if (!F) return null;
+      const radky = Array.isArray(hodnota) ? hodnota : [hodnota];
+      for (const radek of radky) {
+        if (!radek || typeof radek !== 'object') continue;
+        for (const klic of Object.keys(radek)) {
+          if (PRESKOCIT.test(klic)) continue;
+          const v = radek[klic];
+          const texty = Array.isArray(v) ? v : [v];
+          for (const t of texty) {
+            if (typeof t !== 'string' || !t) continue;
+            const r = F.zkontroluj(t);
+            if (!r.ok) return { sloupec: klic, ...r };
+          }
+        }
+      }
+      return null;
+    }
+
+    // Když se zápis zablokuje, musí se vrátit něco, co se chová jako dotaz
+    // Supabase (.select().single() atd.), jinak by volající spadl na undefined.
+    function zamitnuto(duvod) {
+      const vysledek = { data: null, error: { message: 'blokovano-filtrem', duvod } };
+      const stub = new Proxy(function () {}, {
+        get(_, prop) {
+          if (prop === 'then') return (res) => Promise.resolve(vysledek).then(res);
+          if (prop === 'catch' || prop === 'finally') return () => stub;
+          return () => stub;
+        },
+        apply() { return stub; },
+      });
+      return stub;
+    }
+
+    // Tabulky, kde se filtrovat NESMÍ. Hlášení není obsah pro ostatní — čte ho
+    // obsluha. Kdo nahlašuje obtěžování, do poznámky typicky cituje, co mu psali
+    // („psal mi ať jdu do prdele"), a filtr by mu to hlášení zahodil.
+    const BEZ_FILTRU = /^(reports)$/i;
+
+    const puvodniFrom = sb.from.bind(sb);
+    sb.from = function (tabulka) {
+      const dotaz = puvodniFrom(tabulka);
+      if (BEZ_FILTRU.test(tabulka)) return dotaz;
+      for (const metoda of ['insert', 'update', 'upsert']) {
+        const puvodni = dotaz[metoda];
+        if (typeof puvodni !== 'function') continue;
+        dotaz[metoda] = function (data, ...zbytek) {
+          const nalez = zavadny(data);
+          if (nalez) {
+            window._wFiltrDuvod = nalez;
+            console.warn('[filtr] zápis do „' + tabulka + '" zablokován — sloupec „' +
+                         nalez.sloupec + '", shoda „' + nalez.nalezeno + '"');
+            return zamitnuto(nalez);
+          }
+          return puvodni.call(this, data, ...zbytek);
+        };
+      }
+      return dotaz;
+    };
+  })();
 
   // ─── Přístupový klíč (pre-launch) ────────────────────────────────────────────
   // Dashboard ještě není hotový → do rozhraní se nikdo nedostane bez klíče.
@@ -495,11 +601,69 @@
   });
 
   // Souhlas (checkbox)
+  // Zaškrtnutý NENÍ a být nesmí: podle GDPR musí být souhlas aktivní projev vůle,
+  // předvyplněné políčko je neplatné (recitál 32, rozsudek SDEU Planet49).
   const consent = document.getElementById('reg-consent');
-  consent.addEventListener('click', () => {
+  function prepniSouhlas() {
     consent.classList.toggle('on');
     consent.setAttribute('aria-checked', consent.classList.contains('on') ? 'true' : 'false');
+    prepocitejRegistraci();
+  }
+  consent.addEventListener('click', prepniSouhlas);
+  consent.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); prepniSouhlas(); }
   });
+
+  // „Vytvořit účet" je aktivní, až když je vyplněné jméno, e-mail, heslo (6+ znaků)
+  // a zaškrtnutý souhlas. Validace v odesílacím handleru zůstává — tohle je jen
+  // to, co člověk vidí, ne náhrada kontroly.
+  const regPolia = ['reg-name', 'reg-email', 'reg-password'].map(id => document.getElementById(id));
+  const regSubmitBtn = document.getElementById('reg-submit');
+  function registraceVyplnena() {
+    const [jm, em, he] = regPolia.map(el => (el.value || '').trim());
+    if (!jm || !em || !em.includes('@') || he.length < 6 || !consent.classList.contains('on')) return false;
+    return !jmenoZavadne();          // sprosté jméno drží tlačítko zamčené
+  }
+  function prepocitejRegistraci() {
+    if (regSubmitBtn) regSubmitBtn.disabled = !registraceVyplnena();
+  }
+  // ─── Živá kontrola jména na nevhodná slova ─────────────────────────────
+  // Kontroluje se při psaní, ne až při odeslání: pole zčervená, třepne se
+  // a „Vytvořit účet" zůstane zamčené, dokud se to nespraví.
+  const regName = document.getElementById('reg-name');
+  let jmenoByloSpatne = false;
+  function jmenoZavadne() {
+    if (!window.MkjFiltr) return null;
+    const v = (regName.value || '').trim();
+    if (!v) return null;
+    const r = window.MkjFiltr.zkontroluj(v);
+    return r.ok ? null : r;
+  }
+  function zkontrolujJmeno() {
+    const spatne = jmenoZavadne();
+    if (spatne) {
+      regName.classList.add('au-input--bad');
+      // Třepnout jen ve chvíli, kdy se to pokazí — ne při každém dalším písmenu.
+      if (!jmenoByloSpatne) {
+        regName.classList.remove('au-input--shake');
+        void regName.offsetWidth;                 // vynutí restart animace
+        regName.classList.add('au-input--shake');
+        setTimeout(() => regName.classList.remove('au-input--shake'), 450);
+      }
+      // Při psaní se hláška ZÁMĚRNĚ neukazuje: chybový pruh je nad formulářem,
+      // jeho naskočení posune pole dolů a uživateli uteče kurzor. Stačí červená
+      // a cuknutí; text se objeví až kdyby zkusil odeslat.
+      jmenoByloSpatne = true;
+    } else {
+      regName.classList.remove('au-input--bad');
+      jmenoByloSpatne = false;
+    }
+    return !spatne;
+  }
+  regName.addEventListener('input', zkontrolujJmeno);
+
+  regPolia.forEach(el => el && el.addEventListener('input', prepocitejRegistraci));
+  prepocitejRegistraci();   // výchozí stav = neaktivní
 
   const regErr = document.getElementById('reg-err');
   const loginErr = document.getElementById('login-err');
@@ -561,6 +725,12 @@
     }
     if (password.length < 6) { setErr(regErr, 'Heslo musí mít alespoň 6 znaků.'); oznacPole(['reg-password']); return; }
     if (!consent.classList.contains('on')) { setErr(regErr, 'Musíš souhlasit s podmínkami a zpracováním údajů.'); oznacPole([]); return; }
+    // Jméno se tu ukládá přímo do metadat účtu (signUp), tedy MIMO updateProfileW,
+    // kde filtr sedí. Bez téhle kontroly by šlo se sprostým jménem rovnou zaregistrovat.
+    if (window.MkjFiltr) {
+      const kontrola = window.MkjFiltr.zkontroluj(name);
+      if (!kontrola.ok) { setErr(regErr, 'Tohle jako jméno nejde. ' + kontrola.hlaska); oznacPole(['reg-name']); return; }
+    }
     const btn = document.getElementById('reg-submit');
     btn.disabled = true; btn.textContent = 'Vytvářím účet…';
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name, role: 'worker' } } });
@@ -626,20 +796,158 @@
   document.getElementById('login-submit').addEventListener('click', doLogin);
   document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-  // Google / Apple
+  // ─── Přihlášení / registrace přes Apple a Google ────────────────────────────
+  // V nativní appce NEJDE použít signInWithOAuth s přesměrováním uvnitř webview:
+  //   • Google vestavěné webview odmítá (403 disallowed_useragent) — jeho politika,
+  //   • Apple pro appky vyžaduje nativní dialog (ASAuthorization).
+  // Proto tři cesty:
+  //   Apple v appce  → nativní plugin → identityToken → signInWithIdToken
+  //   Google v appce → systémový prohlížeč (SFSafariViewController) → deep link → PKCE
+  //   prohlížeč      → původní signInWithOAuth, aby www/ fungovalo i mimo appku
+  //
+  // POZOR: než se v Supabase → Authentication → Providers zapne Apple a Google,
+  // tlačítka skončí hláškou „zatím není dostupné". Viz OAUTH-SETUP.md.
+
+  const OAUTH_REDIRECT = 'eu.makej.brigadnik://auth-callback';
+
+  function capPlugin(name) {
+    try { const C = window.Capacitor; return (C && C.Plugins && C.Plugins[name]) || null; }
+    catch (e) { return null; }
+  }
+  function jeNativniObal() {
+    try { const c = window.Capacitor; return !!(c && (c.isNativePlatform ? c.isNativePlatform() : c.isNative)); }
+    catch (e) { return false; }
+  }
+  function nahodnyNonce() {
+    const a = new Uint8Array(32); crypto.getRandomValues(a);
+    return Array.from(a, x => ('0' + x.toString(16)).slice(-2)).join('');
+  }
+  async function sha256Hex(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf), x => ('0' + x.toString(16)).slice(-2)).join('');
+  }
+
+  // crypto.subtle existuje jen v zabezpečeném kontextu (HTTPS, localhost nebo
+  // capacitor://). Při vývoji s `server.url` v capacitor.config.json se appka
+  // načítá přes http://<IP>:4000 → kontext NENÍ zabezpečený a Apple nonce
+  // i PKCE pro Google by spadly na nesrozumitelné chybě. Radši to poznáme dřív.
+  function kryptoDostupne() {
+    return !!(window.crypto && window.crypto.subtle && window.isSecureContext);
+  }
+
+  // Apple: do požadavku jde SHA-256 otisk nonce, Supabase pak ověřuje původní řetězec.
+  async function prihlasApple() {
+    const P = capPlugin('SignInWithApple');
+    if (!P) throw new Error('plugin-chybi');
+    const raw = nahodnyNonce();
+    const res = await P.authorize({
+      clientId: 'eu.makej.brigadnik',      // na iOS = bundle ID, ne Service ID
+      redirectURI: OAUTH_REDIRECT,
+      scopes: 'email name',
+      nonce: await sha256Hex(raw),
+    });
+    const token = res && res.response && res.response.identityToken;
+    if (!token) throw new Error('bez-tokenu');
+    const { error } = await sb.auth.signInWithIdToken({ provider: 'apple', token, nonce: raw });
+    if (error) throw error;
+    // Apple pošle jméno JEN při úplně první autorizaci — jindy už nikdy.
+    const jm = res.response.givenName ? (res.response.givenName + ' ' + (res.response.familyName || '')).trim() : '';
+    return jm;
+  }
+
+  // Google: Supabase vrátí URL, otevřeme ji v systémovém prohlížeči a počkáme,
+  // až se appka probudí deep linkem s kódem.
+  async function prihlasGoogle() {
+    const Browser = capPlugin('Browser'), App = capPlugin('App');
+    if (!Browser || !App) throw new Error('plugin-chybi');
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: OAUTH_REDIRECT, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    if (!data || !data.url) throw new Error('bez-url');
+
+    let handle = null, hotovo = false;
+    try {
+      const cekej = new Promise((vyres, zamitni) => {
+        const casovac = setTimeout(() => { if (!hotovo) zamitni(new Error('vyprselo')); }, 180000);
+        App.addListener('appUrlOpen', async (ev) => {
+          if (hotovo) return;
+          let kod = null;
+          try { kod = new URL(ev.url).searchParams.get('code'); } catch (e) { return; }
+          if (!kod) return;                       // jiný deep link — nechat být
+          hotovo = true; clearTimeout(casovac);
+          try { await Browser.close(); } catch (e) {}
+          const r = await sb.auth.exchangeCodeForSession(kod);
+          r.error ? zamitni(r.error) : vyres();
+        }).then(h => { handle = h; });
+      });
+      await Browser.open({ url: data.url, presentationStyle: 'popover' });
+      await cekej;
+    } finally {
+      if (handle && handle.remove) { try { await handle.remove(); } catch (e) {} }
+    }
+    return '';
+  }
+
   document.querySelectorAll('[data-oauth]').forEach(b => b.addEventListener('click', async () => {
     const provider = b.getAttribute('data-oauth');
+    const nazev = provider === 'google' ? 'Google' : 'Apple';
+    const el = loginView.style.display === 'none' ? regErr : loginErr;
+    setErr(el, '');
+
     if (!accessKeyOk()) {
-      const el = loginView.style.display === 'none' ? regErr : loginErr;
       setErr(el, 'Spouštíme 1. 10. — přihlášení jen s přístupovým klíčem. 🔧');
       if (loginView.style.display !== 'none') oznacPole(['login-key']);
       return;
     }
-    markGateOk();   // klíč platí přes redirect (OAuth odejde a vrátí se) → poznač předem
-    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.href } });
-    if (error) {
-      const el = loginView.style.display === 'none' ? regErr : loginErr;
-      setErr(el, 'Přihlášení přes ' + (provider === 'google' ? 'Google' : 'Apple') + ' zatím není dostupné.');
+    markGateOk();   // klíč platí i přes odchod do prohlížeče → poznač předem
+
+    b.disabled = true;
+    try {
+      if (!jeNativniObal()) {
+        // Web: prohlížeč se přesměruje pryč, session se dotáhne po návratu.
+        const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.href } });
+        if (error) throw error;
+        return;
+      }
+      if (!kryptoDostupne()) throw new Error('nezabezpeceny-kontext');
+      const jmeno = provider === 'apple' ? await prihlasApple() : await prihlasGoogle();
+
+      // Účet z OAuth nemá roli ani jméno — doplnit, zbytek appky s rolí počítá.
+      const { data: { user } } = await sb.auth.getUser();
+      const chybiRole = !user?.user_metadata?.role;
+      const chybiJmeno = !user?.user_metadata?.name && jmeno;
+      if (chybiRole || chybiJmeno) {
+        const doplnek = {};
+        if (chybiRole) doplnek.role = 'worker';
+        if (chybiJmeno) doplnek.name = jmeno;
+        await sb.auth.updateUser({ data: doplnek });
+      }
+      if (user?.user_metadata?.role === 'employer') {
+        await sb.auth.signOut();
+        setErr(el, 'Tento účet je zaměstnavatelský. Přihlaš se jako brigádník.');
+        return;
+      }
+      markGateOk();
+      hideGate();
+    } catch (e) {
+      const kod = String((e && (e.code || e.message)) || '');
+      if (/1001|canceled|cancelled|user_cancel|popup_closed/i.test(kod)) return;   // uživatel zavřel dialog
+      if (kod === 'plugin-chybi') {
+        setErr(el, 'Přihlášení přes ' + nazev + ' vyžaduje novější verzi appky.');
+      } else if (kod === 'nezabezpeceny-kontext') {
+        // Jen při vývoji přes server.url — v ostrém buildu (capacitor://localhost) nenastane.
+        setErr(el, 'Přihlášení přes ' + nazev + ' nejde testovat přes vývojový server. Viz OAUTH-SETUP.md.');
+      } else if (kod === 'vyprselo') {
+        setErr(el, 'Přihlášení přes ' + nazev + ' se nestihlo dokončit. Zkus to znovu.');
+      } else if (/provider is not enabled|Unsupported provider|validation_failed/i.test(kod)) {
+        setErr(el, 'Přihlášení přes ' + nazev + ' zatím není dostupné.');
+      } else {
+        setErr(el, 'Přihlášení přes ' + nazev + ' se nepovedlo. Zkus to prosím znovu.');
+      }
+    } finally {
+      b.disabled = false;
     }
   }));
 
@@ -782,16 +1090,17 @@
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
 <script type="text/babel" src="app.jsx?v=16"></script>
 <script type="text/babel" src="makej-badge.jsx?v=1"></script>
+<script src="text-filtr.js?v=1"></script>
 <script src="cz-mesta.js?v=1"></script>
 <script src="cz-profese.js?v=2"></script>
 <script type="text/babel" src="worker-theme.jsx"></script>
-<script type="text/babel" src="worker-supabase.jsx?v=4"></script>
+<script type="text/babel" src="worker-supabase.jsx?v=8"></script>
 <script type="text/babel" src="worker-demo.jsx?v=3"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=101"></script>
-<script type="text/babel" src="worker-people.jsx?v=99"></script>
-<script type="text/babel" src="worker-messages.jsx?v=16"></script>
-<script type="text/babel" src="worker-profile.jsx?v=26"></script>
-<script type="text/babel" src="worker-history.jsx"></script>
+<script type="text/babel" src="worker-swipe.jsx?v=110"></script>
+<script type="text/babel" src="worker-people.jsx?v=129"></script>
+<script type="text/babel" src="worker-messages.jsx?v=22"></script>
+<script type="text/babel" src="worker-profile.jsx?v=30"></script>
+<script type="text/babel" src="worker-history.jsx?v=2"></script>
 <script type="text/babel" src="worker-calendar.jsx"></script>
 <script type="text/babel" src="worker-main.jsx?v=37"></script>
 

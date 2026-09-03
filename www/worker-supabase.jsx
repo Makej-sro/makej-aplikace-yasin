@@ -142,7 +142,9 @@ async function wPosliPrilohu(matchId, userId, file) {
     match_id: matchId, sender_id: userId, text: '',
     file_url: cesta,
     file_type: jeObrazek ? 'image' : 'file',
-    file_name: file.name || 'příloha',
+    // Název souboru je od uživatele a v chatu je vidět — projít filtrem,
+    // jinak by stačilo poslat obrázek pojmenovaný sprostě.
+    file_name: (_wFiltrOk(file.name) ? file.name : null) || 'příloha',
     file_size: telo.size,
   }).select().single();
   if (error) {
@@ -781,6 +783,7 @@ async function logJobViewW(jobId) {
 async function submitReviewW(matchId, reviewedId, rating, text) {
   const { data: { session } } = await sb.auth.getSession();
   if (!session?.user) return false;
+  if (!_wFiltrOk(text)) return false;
   const { error } = await sb.from('reviews').insert({
     reviewer_id: session.user.id,
     reviewed_id: reviewedId,
@@ -814,6 +817,7 @@ async function postReviewReplyW(reviewId, text) {
   if (!session?.user) return null;
   const clean = (text || '').trim();
   if (!clean) return null;
+  if (!_wFiltrOk(clean)) return null;
   const { data, error } = await sb.from('review_replies')
     .insert({ review_id: reviewId, author_id: session.user.id, text: clean })
     .select().single();
@@ -908,6 +912,51 @@ async function createRejectionW(workerId, jobId) {
   if (error && error.code !== '23505') console.error('createRejectionW:', error);
 }
 
+// ─── Nahlášení obsahu (App Store Guideline 1.2) ──────────────────────────────
+// Kromě zápisu hlášení se položka rovnou přidá mezi odmítnuté. Feed odmítnuté
+// odfiltrovává, takže nahlášený inzerát tomu, kdo ho nahlásil, hned zmizí —
+// a to je ta viditelná reakce, kterou Apple u nahlašování chce. Skutečné
+// odebrání pro všechny rozhodne až kontrola, ne jedno hlášení.
+const W_DUVODY_HLASENI = [
+  ['sexualni',   'Sexuální nebo nevhodný obsah'],
+  ['nenavist',   'Nenávistný obsah nebo urážky'],
+  ['podvod',     'Podvod nebo nereálná nabídka'],
+  ['obtezovani', 'Obtěžování'],
+  ['spam',       'Spam'],
+  ['jine',       'Něco jiného'],
+];
+
+// `reports.target_id` je v databázi uuid, takže cokoliv jiného (třeba demo id
+// `demo-h-1`) by Postgres odmítl chybou 22P02. Chytneme to dřív, ať víme proč.
+const _W_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function reportContentW(targetType, targetId, duvod, poznamka) {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return { ok: false, reason: 'neprihlasen' };
+  if (!targetId || !duvod) return { ok: false, reason: 'chybi-udaje' };
+  if (!_W_UUID_RE.test(String(targetId))) {
+    console.warn('reportContentW: target_id není uuid (demo záznam?):', targetId);
+    return { ok: false, reason: 'neplatne-id' };
+  }
+
+  const { error } = await sb.from('reports').insert({
+    reporter_id: uid, target_type: targetType, target_id: targetId,
+    duvod, poznamka: (poznamka || '').trim() || null,
+  });
+  // 23505 = stejnou věc už jednou nahlásil. Pro uživatele to není chyba.
+  if (error && error.code !== '23505') {
+    console.error('reportContentW:', error.code, error.message, error);
+    // 42P01 = tabulka `reports` neexistuje → nespuštěná migrace.
+    return { ok: false, reason: error.code === '42P01' ? 'chybi-tabulka' : 'db', error };
+  }
+  // Skrýt to, co nahlásil. U inzerátu na to stačí existující tabulka odmítnutí.
+  if (targetType === 'job') {
+    try { await createRejectionW(uid, targetId); } catch (e) {}
+  }
+  return { ok: true };
+}
+
 // Odmítnuté nabídky pro "projít znovu" — jen čtení, historie odmítnutí zůstává.
 // Vrací pouze ty, které jsou pořád aktivní, aby počet na tlačítku odpovídal realitě.
 async function fetchRejectedJobsW(workerId) {
@@ -928,7 +977,24 @@ async function fetchRejectedJobsW(workerId) {
   return { jobs: aktivni, celkem: ids.length };
 }
 
+// ─── Filtr nevhodného obsahu (App Store Guideline 1.2) ────────────────────
+// Kontrola sedí ve vrstvě, která zapisuje do databáze — ne v UI. Díky tomu
+// nic neproklouzne, ať se to zavolá odkudkoli. Důvod se předá do okna, aby
+// ho obrazovka mohla ukázat uživateli.
+function _wFiltrOk(...texty) {
+  const F = typeof window !== 'undefined' && window.MkjFiltr;
+  if (!F) return true;                       // filtr se nenačetl — neblokovat
+  for (const t of texty) {
+    if (!t) continue;
+    const r = F.zkontroluj(t);
+    if (!r.ok) { window._wFiltrDuvod = r; return false; }
+  }
+  window._wFiltrDuvod = null;
+  return true;
+}
+
 async function sendMessageW(matchId, senderId, text, type, metadata) {
+  if (!_wFiltrOk(text)) return null;
   const payload = { match_id: matchId, sender_id: senderId, text };
   if (type && type !== 'text') payload.type = type;
   if (metadata) payload.metadata = metadata;
@@ -938,6 +1004,9 @@ async function sendMessageW(matchId, senderId, text, type, metadata) {
 }
 
 async function updateProfileW(workerId, updates) {
+  const u = updates || {};
+  const skills = Array.isArray(u.skills) ? u.skills.join(' ') : u.skills;
+  if (!_wFiltrOk(u.name, u.bio, u.card_offer, u.experience, u.equipment, skills)) return false;
   const { error } = await sb.from('profiles').update(updates).eq('id', workerId);
   if (error) { console.error('updateProfileW:', error); return false; }
   Object.assign(W_PROFILE, updates);
@@ -949,6 +1018,6 @@ Object.assign(window, {
   fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
   fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW,
   fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
-  fetchReviewRepliesW, postReviewReplyW,
+  fetchReviewRepliesW, postReviewReplyW, _wFiltrOk, reportContentW, W_DUVODY_HLASENI,
   jobToCard, makejTrust, makejVydelky, makejMesice, _wMesicZpet, _wVydelek, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,
 });
