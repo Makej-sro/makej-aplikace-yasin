@@ -485,6 +485,48 @@ function WPrilohaHlasovka({ priloha, mine, nahravam, kompakt }) {
   );
 }
 
+// ── Potvrzení blokace ─────────────────────────────────────────────────────
+// Blokace je nevratná jedním klepnutím a druhá strana zmizí z chatu i z Lidí,
+// takže se na ni ptáme. Text říká, CO se stane — ne jen „opravdu?".
+function WBlokDialog({ jmeno, blokuji, chyba, onClose, onPotvrd }) {
+  return (
+    <div onClick={() => { if (!blokuji) onClose(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(10,12,26,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      animation: 'wFadeIn .2s ease',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 360, background: '#fff', borderRadius: 22,
+        padding: '22px 20px 18px', animation: 'wPop .26s cubic-bezier(.2,.9,.3,1)',
+      }}>
+        <div style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233' }}>
+          Zablokovat {jmeno}?
+        </div>
+        <div style={{ fontFamily: T.fontUI, fontSize: 13.5, color: '#6B7192', lineHeight: 1.55, marginTop: 8 }}>
+          Nebudete si už moct psát a zmizí ti z konverzací i z Lidí. Nedozví se to.
+          Blokaci můžeš kdykoli zrušit v profilu v Nastavení.
+        </div>
+        {chyba ? (
+          <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 12, background: 'rgba(220,38,38,0.08)', color: T.destructive, fontFamily: T.fontUI, fontSize: 12.5, fontWeight: 600 }}>
+            {chyba}
+          </div>
+        ) : null}
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={() => { if (!blokuji) onClose(); }} disabled={blokuji} style={{
+            flex: 1, padding: '13px 0', borderRadius: 14, background: '#F6F7FB', border: 'none',
+            color: '#0B1233', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer',
+          }}>Zrušit</button>
+          <button onClick={onPotvrd} disabled={blokuji} style={{
+            flex: 1, padding: '13px 0', borderRadius: 14, background: '#B3243A', border: 'none',
+            color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800,
+            cursor: blokuji ? 'default' : 'pointer', opacity: blokuji ? 0.6 : 1,
+          }}>{blokuji ? 'Blokuji…' : 'Zablokovat'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onRead }) {
   const [threads,  setThreads]  = useStateW(() => [...W_THREADS]);
   // Na mobilu začínáme seznamem — vlákno se otevře až po kliknutí (nebo přes chatTarget)
@@ -517,6 +559,13 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
   const [lupa,     setLupa]     = useStateW(null);          // fotka přes celou obrazovku
   const [chybaPrilohy, setChybaPrilohy] = useStateW('');
+  // Nabídka ⋯ v hlavičce vlákna: nahlásit / zablokovat (App Store Guideline 1.2).
+  const [chatMenu, setChatMenu] = useStateW(false);
+  const [chatMenuZavira, setChatMenuZavira] = useStateW(false);
+  const [reportChat, setReportChat] = useStateW(false);
+  const [blokDialog, setBlokDialog] = useStateW(false);
+  const [blokuji, setBlokuji] = useStateW(false);
+  const [blokChyba, setBlokChyba] = useStateW('');
   const [ukazPostup,   setUkazPostup]   = useStateW(false); // rozbalený návod na povolení mikrofonu
   const hlas = useHlasovka(setChybaPrilohy);               // nahrávání hlasovky
   const souborInput = useRefW(null);
@@ -627,13 +676,25 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
       ...t, last: text,
       msgs: [...t.msgs, { from: 'me', text, t: _wFmtTime(new Date().toISOString()), id: tempId }],
     }));
-    const { data } = await sb.from('messages').insert({
+    const { data, error } = await sb.from('messages').insert({
       match_id: active, sender_id: userId.current, text,
     }).select().single();
     if (data) {
       setThreads(prev => prev.map(t => t.id !== active ? t : {
         ...t, msgs: t.msgs.map(m => m.id === tempId ? { ...m, id: data.id, t: _wFmtTime(data.created_at), ts: data.created_at } : m),
       }));
+    } else {
+      // Zpráva neprošla. Předběžnou bublinu je nutné zase sundat — jinak by
+      // uživatel viděl odeslanou zprávu, která nikde není, a psal do prázdna.
+      setThreads(prev => prev.map(t => t.id !== active ? t : {
+        ...t, msgs: t.msgs.filter(m => m.id !== tempId),
+      }));
+      setMsgInput(text);            // text vrátit, ať se nemusí psát znovu
+      // P0001 = zeď z databáze při blokaci. Druhá strana mě zablokovala, což
+      // v appce nevidím (cizí blokace RLS neukazuje) — pozná se to až tady.
+      setChybaPrilohy(error && error.code === 'P0001'
+        ? 'Do téhle konverzace už psát nejde.'
+        : 'Zprávu se nepodařilo odeslat. Zkus to prosím znovu.');
     }
     setSending(false);
   }
@@ -998,7 +1059,85 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
               </div>
               <Icon name="alt-arrow-right-bold" size={16} color={T.mutedSoft} />
             </button>
+            {/* ⋯ — nahlásit / zablokovat. Musí být přímo v konverzaci: recenzent
+                Applu hledá blokaci tam, kde obtěžování probíhá, ne v nastavení. */}
+            <button onClick={() => { setChatMenuZavira(false); setChatMenu(true); }}
+              title="Další možnosti" aria-label="Další možnosti"
+              style={{ width: 34, height: 34, flex: 'none', border: 'none', borderRadius: 999, background: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
+              <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.9" fill={T.mutedSoft} />
+                <circle cx="12" cy="12" r="1.9" fill={T.mutedSoft} />
+                <circle cx="19" cy="12" r="1.9" fill={T.mutedSoft} />
+              </svg>
+            </button>
           </div>
+
+          {chatMenu && (
+            <React.Fragment>
+              {/* Kliknutí mimo zavře — průhledná plocha přes celou obrazovku. */}
+              <div onClick={() => { setChatMenuZavira(true); setTimeout(() => { setChatMenu(false); setChatMenuZavira(false); }, 140); }}
+                style={{ position: 'fixed', inset: 0, zIndex: 9500 }} />
+              <div style={{
+                position: 'fixed', top: 'calc(58px + env(safe-area-inset-top))', right: 12, zIndex: 9501,
+                minWidth: 208, background: '#fff', borderRadius: 16, overflow: 'hidden',
+                boxShadow: '0 12px 34px rgba(11,18,51,0.20), 0 2px 8px rgba(11,18,51,0.10)',
+                transformOrigin: 'top right',
+                animation: chatMenuZavira ? 'wMenuOut .14s ease forwards' : 'wMenuIn .16s cubic-bezier(.2,.9,.3,1)',
+              }}>
+                <button onClick={() => { setChatMenu(false); setChatMenuZavira(false); setReportChat(true); }}
+                  style={{ ..._wMenuPolozka, color: '#B3243A' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 21V4m0 0h11l-2 4 2 4H5" stroke="#B3243A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Nahlásit
+                </button>
+                <div style={{ height: 1, background: '#EDEFF6' }} />
+                <button onClick={() => { setChatMenu(false); setChatMenuZavira(false); setBlokChyba(''); setBlokDialog(true); }}
+                  style={{ ..._wMenuPolozka, color: '#B3243A' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8.4" stroke="#B3243A" strokeWidth="2" />
+                    <path d="m6.2 6.2 11.6 11.6" stroke="#B3243A" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Zablokovat
+                </button>
+              </div>
+            </React.Fragment>
+          )}
+
+          {reportChat && typeof WReportSheet === 'function' && (
+            <WReportSheet
+              typ={thread.kind === 'people' ? 'person' : 'employer'}
+              cilId={thread.employerId}
+              onClose={() => setReportChat(false)} />
+          )}
+
+          {blokDialog && (
+            <WBlokDialog
+              jmeno={thread.name}
+              blokuji={blokuji}
+              chyba={blokChyba}
+              onClose={() => setBlokDialog(false)}
+              onPotvrd={async () => {
+                setBlokuji(true); setBlokChyba('');
+                const r = await (window.blockUserW ? window.blockUserW(thread.employerId) : { ok: false, reason: 'db' });
+                setBlokuji(false);
+                if (!r || !r.ok) {
+                  setBlokChyba(
+                    r && r.reason === 'chybi-tabulka' ? 'Blokování zatím není v databázi zapnuté.' :
+                    r && r.reason === 'neplatne-id'   ? 'Tenhle profil je jen ukázkový (demo), zablokovat ho nejde.' :
+                    r && r.reason === 'neprihlasen'   ? 'Pro zablokování musíš být přihlášený.' :
+                                                        'Zablokování se nepovedlo. Zkus to prosím znovu.'
+                  );
+                  return;
+                }
+                // Vlákno zmizí ze seznamu a vrátíme se na přehled. Zprávy se
+                // nemažou — po odblokování se konverzace vrátí i s historií.
+                const pryc = active;
+                setBlokDialog(false);
+                setActive(null);
+                setThreads(prev => prev.filter(t => t.id !== pryc));
+              }} />
+          )}
 
           {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 18px', display: 'flex', flexDirection: 'column', gap: 0 }}>

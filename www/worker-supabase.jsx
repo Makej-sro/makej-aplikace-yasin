@@ -21,6 +21,9 @@ const W_REVIEWS  = [];   // recenze, které dostal brigádník (o něm)
 // z doby před triggerem se nepočítají, protože k nim žádný řádek není.
 // `review` sem nepatří — to není zpráva ve vlákně, ale výzva k hodnocení.
 const W_UNREAD = {};   // match_id → počet nepřečtených oznámení
+// Koho jsem zablokoval. Plní se ve fetchWorkerData, drží se v paměti, ať se
+// na to nemusí ptát databáze při každém vykreslení seznamu.
+const W_BLOCKED = new Set();
 
 // Naplní W_UNREAD z nepřečtených oznámení. Volá se ve fetchWorkerData.
 async function nactiNeprecteneW(userId) {
@@ -151,7 +154,10 @@ async function wPosliPrilohu(matchId, userId, file) {
     console.error('wPosliPrilohu (messages):', error);
     // Zpráva nevznikla → ať v úložišti nezůstane soubor, ke kterému nikdo nedojde
     try { await sb.storage.from(W_BUCKET_PRILOHY).remove([cesta]); } catch (e) {}
-    return { ok: false, error: 'Zprávu s přílohou se nepodařilo uložit.' };
+    // P0001 = zeď z triggeru při blokaci, ne technická chyba — ať to tak i zní.
+    return { ok: false, error: error.code === 'P0001'
+      ? 'Do téhle konverzace už psát nejde.'
+      : 'Zprávu s přílohou se nepodařilo uložit.' };
   }
   return { ok: true, zprava: data };
 }
@@ -533,6 +539,9 @@ async function fetchWorkerData(workerId) {
     Object.keys(W_PROFILE).forEach(k => delete W_PROFILE[k]);
     Object.assign(W_PROFILE, profile || {});
 
+    // Blokace načíst dřív než vlákna — sestavení konverzací je podle nich filtruje.
+    await fetchBlockedW();
+
     // IDs to exclude (already swiped)
     const [rejRes, matchRes] = await Promise.all([
       sb.from('rejections').select('job_id').eq('worker_id', workerId),
@@ -617,7 +626,14 @@ async function fetchWorkerData(workerId) {
 
     // Only show threads that are accepted OR have at least one message
     const messageMatchIds = new Set(messages.map(m => m.match_id));
-    const threadMatches = allMatches.filter(m => m.status === 'accepted' || messageMatchIds.has(m.id));
+    // Konverzace se zablokovaným ze seznamu mizí. Zprávy se nemažou — kdyby si to
+    // uživatel rozmyslel a blokaci zrušil, vlákno se vrátí i s historií.
+    const protistranaMatche = m => (m.kind === 'people'
+      ? (m.worker_id === workerId ? m.worker_b_id : m.worker_id)
+      : (m.job && m.job.employer_id) || null);
+    const threadMatches = allMatches
+      .filter(m => m.status === 'accepted' || messageMatchIds.has(m.id))
+      .filter(m => !W_BLOCKED.has(protistranaMatche(m)));
 
     const newThreads = threadMatches.map(match => {
       const isPeople   = match.kind === 'people';
@@ -739,9 +755,16 @@ async function fetchWorkerData(workerId) {
 // Bezpečné procházení — jde přes RPC, ne přímo tabulka profiles
 // (ta má email/telefon/datum narození, to cizím lidem nepatří).
 async function fetchPeopleCardsW(excludeIds) {
-  const { data, error } = await sb.rpc('get_people_cards', { exclude_ids: excludeIds || [] });
+  // Zablokované posíláme rovnou do výluky, ať je server ani nevrací. Filtrovat
+  // je až po návratu by znamenalo, že se občas vrátí prázdná stránka výsledků.
+  const vyluka = [...(excludeIds || []), ...W_BLOCKED];
+  const { data, error } = await sb.rpc('get_people_cards', { exclude_ids: vyluka });
   if (error) { console.error('fetchPeopleCardsW:', error); return []; }
-  return data || [];
+  // Karty čtou fotky z `photos`; v databázi se sloupec jmenuje card_photos.
+  // (Starší RPC ho ještě nevrací — pak zůstane prázdné pole a karta jede bez fotek.)
+  return (data || [])
+    .filter(c => !W_BLOCKED.has(c.id))
+    .map(c => ({ ...c, photos: Array.isArray(c.card_photos) ? c.card_photos : [] }));
 }
 
 // Vytvoří pending zájem, nebo (když druhá strana už čeká) rovnou potvrdí
@@ -926,6 +949,76 @@ const W_DUVODY_HLASENI = [
   ['jine',       'Něco jiného'],
 ];
 
+// ── Blokování uživatelů (App Store Guideline 1.2) ─────────────────────────
+// Blokace je jednosměrná: koho zablokuju, ten mi nesmí psát a ani já jemu.
+// Druhá strana se to nedozví — jinak by se z blokace stal další nástroj
+// obtěžování („tak ty jsi mě zablokoval, tak si založím nový účet").
+// Skrývání v appce je jen to, co je vidět; skutečnou zeď drží trigger
+// v databázi (supabase/migration_blocks.sql).
+
+async function fetchBlockedW() {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  W_BLOCKED.clear();
+  if (!uid) return W_BLOCKED;
+  const { data, error } = await sb.from('blocks').select('blocked_id').eq('blocker_id', uid);
+  // 42P01 = nespuštěná migrace. Nezastavovat kvůli tomu načítání celé appky.
+  if (error) { if (error.code !== '42P01') console.error('fetchBlockedW:', error); return W_BLOCKED; }
+  (data || []).forEach(r => W_BLOCKED.add(r.blocked_id));
+  return W_BLOCKED;
+}
+
+// Seznam pro nastavení „Blokovaní uživatelé" — i s tím, koho vlastně blokuju.
+async function fetchBlockedListW() {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return [];
+  const { data, error } = await sb.from('blocks')
+    .select('blocked_id, created_at, profil:profiles!blocks_blocked_id_fkey(id,name,avatar_url,company_name)')
+    .eq('blocker_id', uid)
+    .order('created_at', { ascending: false });
+  if (error) { if (error.code !== '42P01') console.error('fetchBlockedListW:', error); return []; }
+  return (data || []).map(r => ({
+    id: r.blocked_id,
+    name: (r.profil && (r.profil.company_name || r.profil.name)) || 'Uživatel',
+    avatarUrl: (r.profil && r.profil.avatar_url) || null,
+    kdy: r.created_at,
+  }));
+}
+
+async function blockUserW(targetId, duvod) {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return { ok: false, reason: 'neprihlasen' };
+  if (!targetId) return { ok: false, reason: 'chybi-udaje' };
+  if (targetId === uid) return { ok: false, reason: 'sam-sebe' };
+  if (!_W_UUID_RE.test(String(targetId))) return { ok: false, reason: 'neplatne-id' };
+
+  const { error } = await sb.from('blocks').insert({
+    blocker_id: uid, blocked_id: targetId, duvod: (duvod || '').trim() || null,
+  });
+  // 23505 = už zablokovaný. Pro uživatele to není chyba, výsledek je stejný.
+  if (error && error.code !== '23505') {
+    console.error('blockUserW:', error.code, error.message, error);
+    return { ok: false, reason: error.code === '42P01' ? 'chybi-tabulka' : 'db', error };
+  }
+  W_BLOCKED.add(targetId);
+  return { ok: true };
+}
+
+async function unblockUserW(targetId) {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid || !targetId) return { ok: false, reason: 'neprihlasen' };
+  const { error } = await sb.from('blocks').delete()
+    .eq('blocker_id', uid).eq('blocked_id', targetId);
+  if (error) { console.error('unblockUserW:', error); return { ok: false, reason: 'db', error }; }
+  W_BLOCKED.delete(targetId);
+  return { ok: true };
+}
+
+function jeBlokovanyW(id) { return !!id && W_BLOCKED.has(id); }
+
 // `reports.target_id` je v databázi uuid, takže cokoliv jiného (třeba demo id
 // `demo-h-1`) by Postgres odmítl chybou 22P02. Chytneme to dřív, ať víme proč.
 const _W_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -999,8 +1092,77 @@ async function sendMessageW(matchId, senderId, text, type, metadata) {
   if (type && type !== 'text') payload.type = type;
   if (metadata) payload.metadata = metadata;
   const { data, error } = await sb.from('messages').insert(payload).select().single();
-  if (error) console.error('sendMessageW:', error);
+  if (error) {
+    console.error('sendMessageW:', error);
+    // P0001 = zeď z triggeru `messages_kontrola_blokace`. Nastane, když druhá
+    // strana zablokovala mě — to v appce nevidím (RLS cizí blokace neukazuje),
+    // takže se to pozná až tady. Ať uživatel netlačí Odeslat pořád dokola.
+    if (error.code === 'P0001') return { blokovano: true };
+  }
   return data;
+}
+
+// ── Fotky ukázek práce na kartě Lidé ───────────────────────────────────────
+// Bucket je veřejný (viz supabase/migration_karta_fotky.sql), takže se z cesty
+// udělá obyčejná URL a nemusí se nic podepisovat. Cesta je vždy
+// '<user_id>/<timestamp>-<náhoda>.jpg' — podle první složky se v pravidlech
+// pozná vlastník.
+const W_BUCKET_KARTA = 'karta-fotky';
+
+function _wBlobZDataUrl(dataUrl) {
+  const carka = dataUrl.indexOf(',');
+  const hlavicka = dataUrl.slice(0, carka);
+  const mime = (hlavicka.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const binar = atob(dataUrl.slice(carka + 1));
+  const pole = new Uint8Array(binar.length);
+  for (let i = 0; i < binar.length; i++) pole[i] = binar.charCodeAt(i);
+  return new Blob([pole], { type: mime });
+}
+
+// Vrací { ok, url } nebo { ok: false, error }. `zdroj` je data: URL z editoru.
+async function wNahrajFotkuKartyW(userId, zdroj) {
+  if (!userId || !zdroj) return { ok: false, error: 'Chybí přihlášení nebo fotka.' };
+  if (!/^data:/.test(zdroj)) return { ok: true, url: zdroj };   // už nahraná, nic nedělej
+  let telo;
+  try { telo = _wBlobZDataUrl(zdroj); } catch (e) { return { ok: false, error: 'Fotku se nepodařilo přečíst.' }; }
+  const cesta = userId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  const { error } = await sb.storage.from(W_BUCKET_KARTA).upload(cesta, telo, {
+    contentType: telo.type || 'image/jpeg', upsert: false, cacheControl: '31536000',
+  });
+  if (error) { console.error('wNahrajFotkuKartyW:', error); return { ok: false, error: _wChybaUlozeni(error) }; }
+  const { data } = sb.storage.from(W_BUCKET_KARTA).getPublicUrl(cesta);
+  return { ok: true, url: (data && data.publicUrl) || '' };
+}
+
+// Z veřejné URL zpátky na cestu v bucketu — kvůli mazání.
+function _wCestaZUrl(url) {
+  const znacka = '/' + W_BUCKET_KARTA + '/';
+  const i = (url || '').indexOf(znacka);
+  return i < 0 ? null : decodeURIComponent(url.slice(i + znacka.length).split('?')[0]);
+}
+
+// Smaže fotky, které z karty zmizely, ať v úložišti neleží nadarmo.
+async function wSmazFotkyKartyW(urls) {
+  const cesty = (urls || []).map(_wCestaZUrl).filter(Boolean);
+  if (!cesty.length) return;
+  const { error } = await sb.storage.from(W_BUCKET_KARTA).remove(cesty);
+  if (error) console.error('wSmazFotkyKartyW:', error);
+}
+
+// Nahraje všechny nové fotky karty a vrátí hotový seznam URL ve stejném pořadí.
+// Když se něco nepovede, vrátí co má a chybu — volající se rozhodne, co dál.
+async function wUlozFotkyKartyW(userId, fotky, puvodni) {
+  const vysledek = [];
+  let chyba = '';
+  for (const f of (fotky || [])) {
+    const r = await wNahrajFotkuKartyW(userId, f);
+    if (r.ok) vysledek.push(r.url);
+    else { chyba = r.error; vysledek.push(f); }    // nahrát se nepovedlo → nech data: URL
+  }
+  // Co bylo nahrané dřív a v nové kartě už není, jde pryč z úložiště.
+  const zmizely = (puvodni || []).filter(u => _wCestaZUrl(u) && !vysledek.includes(u));
+  if (zmizely.length && !chyba) await wSmazFotkyKartyW(zmizely);
+  return { fotky: vysledek, chyba };
 }
 
 async function updateProfileW(workerId, updates) {
@@ -1017,7 +1179,9 @@ Object.assign(window, {
   W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS, W_TRUST, W_TIERS,
   fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
   fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW,
+  wNahrajFotkuKartyW, wSmazFotkyKartyW, wUlozFotkyKartyW, W_BUCKET_KARTA,
   fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
   fetchReviewRepliesW, postReviewReplyW, _wFiltrOk, reportContentW, W_DUVODY_HLASENI,
+  W_BLOCKED, fetchBlockedW, fetchBlockedListW, blockUserW, unblockUserW, jeBlokovanyW,
   jobToCard, makejTrust, makejVydelky, makejMesice, _wMesicZpet, _wVydelek, _wColor, _wFmtTime, _wFmtDate, _wFmtDateY, _wJobPassed, _wPlural, _wShiftHours,
 });

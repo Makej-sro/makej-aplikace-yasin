@@ -3,7 +3,78 @@
 function _wCalPad(n) { return String(n).padStart(2, '0'); }
 function _wCalISO(y, m, d) { return y + '-' + _wCalPad(m + 1) + '-' + _wCalPad(d); }
 
-function WCalendar({ tick, onReviewed }) {
+// Kalendář jako spodní roletka. Dřív to byl překryv přes celou obrazovku
+// s křížkem vpravo nahoře — jenže ten neměl odsazení od horní hrany
+// (`env(safe-area-inset-top)`), takže na telefonu s výřezem skončil pod
+// stavovým řádkem a nešlo na něj klepnout. Kalendář pak nešel zavřít.
+//
+// Roletka ten problém odstraňuje rovnou: hlavička je uvnitř panelu, ne u hrany
+// displeje. Zavírá se tlačítkem Zpět (stejným jako všude jinde) i klepnutím
+// mimo — a po scrollnutí dolů se roztáhne na celou obrazovku, protože v tu
+// chvíli už jde o čtení seznamu, ne o nakouknutí.
+function WKalendarSheet({ tick, onReviewed, onClose }) {
+  const R = wRoletka(onClose);
+  const [plny, setPlny] = useStateW(false);
+  const posledniY = useRefW(0);
+  const drahá = useRefW(0);   // uražená dráha v jednom směru
+
+  // Stejná mechanika jako auto-hide vršku v Lidech: nerozhoduje poloha, ale
+  // souvislá dráha v jednom směru. Vracet se do roletky až úplně nahoře bylo
+  // k ničemu — z rozečteného seznamu se nedalo odejít, aniž bys odscrolloval
+  // celou cestu zpátky. Takhle stačí kousek nahoru kdekoli.
+  const DOLU_OD = 52, NAHORU_OD = 40;   // px v jednom směru, než se to překlopí
+  function naScroll(e) {
+    const y = e.currentTarget.scrollTop;
+    const rozdil = y - posledniY.current;
+    posledniY.current = y;
+    if (y <= 2) { drahá.current = 0; if (plny) setPlny(false); return; }
+    // Obrat směru → počítej dráhu od nuly, jinak by se prahy nikdy nedosáhlo.
+    if (rozdil > 0 && drahá.current < 0) drahá.current = 0;
+    if (rozdil < 0 && drahá.current > 0) drahá.current = 0;
+    drahá.current += rozdil;
+    if (drahá.current > DOLU_OD && !plny) setPlny(true);
+    else if (drahá.current < -NAHORU_OD && plny) setPlny(false);
+  }
+
+  return (
+    <div {...R.zavojProps} style={{
+      position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(11,18,51,0.42)',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: R.zavojAnim,
+    }}>
+      <div {...R.panelProps} role="dialog" aria-label="Kalendář" style={{
+        background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 -14px 40px rgba(11,18,51,0.22)',
+        height: plny ? '100%' : '86%',
+        borderRadius: plny ? 0 : '26px 26px 0 0',
+        // Delší a měkčí křivka: přechod se odehrává, zatímco prst ještě scrolluje,
+        // a krátká animace v tu chvíli působí jako trhnutí, ne jako pohyb.
+        transition: 'height .44s cubic-bezier(.22,1,.36,1), border-radius .44s cubic-bezier(.22,1,.36,1)',
+        willChange: 'height',
+        animation: R.panelAnim,
+      }}>
+        {/* Úchyt jen zmizí, ale místo si drží. Kdyby se srazila i jeho výška,
+            přepočítá se layout ještě jednou a obsah pod ním viditelně cukne. */}
+        <div style={{ flex: 'none', height: 13, display: 'flex', justifyContent: 'center', paddingTop: 9, opacity: plny ? 0 : 1, transition: 'opacity .3s ease' }}>
+          <span style={{ width: 38, height: 4, borderRadius: 999, background: '#D4DAE8' }} />
+        </div>
+        {/* Na celé obrazovce sahá hlavička ke stavovému řádku, tak si pod něj
+            musí udělat místo — přesně to dřív chybělo. */}
+        <div style={{
+          flex: 'none', display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 16px 12px', paddingTop: plny ? 'calc(10px + env(safe-area-inset-top))' : 10,
+          background: '#fff', borderBottom: '1px solid ' + T.border,
+          transition: 'padding-top .44s cubic-bezier(.22,1,.36,1)',
+        }}>
+          <WZpet onClick={() => R.zavri()} title="Zavřít kalendář" />
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 19, fontWeight: 800, letterSpacing: -0.3 }}>Kalendář</div>
+        </div>
+        <WCalendar tick={tick} onReviewed={onReviewed} vSheetu onScroll={naScroll} />
+      </div>
+    </div>
+  );
+}
+
+function WCalendar({ tick, onReviewed, vSheetu, onScroll }) {
   const today = new Date();
   const [ym, setYm]   = useStateW(() => ({ y: today.getFullYear(), m: today.getMonth() }));
   const [sel, setSel] = useStateW(null);   // vybraný den (null = celý měsíc)
@@ -86,10 +157,13 @@ function WCalendar({ tick, onReviewed }) {
   const cardShadow = '0 6px 16px rgba(20,22,40,0.06)';
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ maxWidth: 760, margin: '0 auto', width: '100%', padding: '28px 24px 40px' }}>
+    <div onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', width: '100%', padding: vSheetu ? '16px 20px calc(30px + env(safe-area-inset-bottom))' : '28px 24px 40px' }}>
 
-        <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 32, fontWeight: 800, letterSpacing: -0.8, marginBottom: 20 }}>Kalendář</div>
+        {/* V roletce nadpis nese hlavička panelu — dvakrát pod sebou by se opakoval. */}
+        {!vSheetu && (
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 32, fontWeight: 800, letterSpacing: -0.8, marginBottom: 20 }}>Kalendář</div>
+        )}
 
         {/* Kalendářní karta */}
         <div style={{ background: '#fff', border: '1px solid ' + T.border, borderRadius: 22, boxShadow: cardShadow, padding: '20px 22px' }}>

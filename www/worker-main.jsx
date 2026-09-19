@@ -319,12 +319,13 @@ function WReviewsPanel({ employerId, data, onClose }) {
   const distTotal = [5, 4, 3, 2, 1].reduce((a, k) => a + (dist[k] || 0), 0) || 1;
   const noLow = (dist[2] || 0) === 0 && (dist[1] || 0) === 0;
 
+  const R = wRoletka(onClose);
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-label={'Recenze firmy ' + (company.name || '')} style={{
+    <div {...R.zavojProps} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: R.zavojAnim }}>
+      <div {...R.panelProps} role="dialog" aria-label={'Recenze firmy ' + (company.name || '')} style={{
         background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden',
         boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', height: 'min(660px, 88vh)',
-        display: 'flex', flexDirection: 'column', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both',
+        display: 'flex', flexDirection: 'column', animation: R.panelAnim,
       }}>
         {/* Úchyt */}
         <div style={{ flex: 'none', padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}>
@@ -343,7 +344,7 @@ function WReviewsPanel({ employerId, data, onClose }) {
               <span style={{ fontFamily: T.fontUI, fontSize: 12, color: T.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[company.category, company.district].filter(Boolean).join(' · ')}</span>
             )}
           </div>
-          <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+          <button onClick={() => R.zavri()} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
             <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke={T.muted} strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
@@ -435,6 +436,20 @@ function WIcoCalendar({ size = 20, color = 'currentColor' }) {
       <g transform="translate(2,1)" fill={color} fillRule="evenodd">
         <path d="M13.7935,-6.03961325e-14 C14.2075,-6.03961325e-14 14.5435,0.336 14.5435,0.75 L14.54396,1.59781054 C16.0040654,1.69791596 17.2167254,2.19804662 18.075,3.0581 C19.012,3.9991 19.505,5.3521 19.5000377,6.9751 L19.5000377,16.0981 C19.5000377,19.4301 17.384,21.5001 13.979,21.5001 L5.521,21.5001 C2.116,21.5001 0,19.4011 0,16.0221 L0,6.9731 C0,3.83029205 1.88705568,1.8129398 4.96468634,1.59815387 L4.9653,0.75 C4.9653,0.336 5.3013,-6.03961325e-14 5.7153,-6.03961325e-14 C6.1293,-6.03961325e-14 6.4653,0.336 6.4653,0.75 L6.465,1.579 L13.043,1.579 L13.0435,0.75 C13.0435,0.336 13.3795,-6.03961325e-14 13.7935,-6.03961325e-14 Z M18,8.904 L1.5,8.904 L1.5,16.0221 C1.5,18.5881 2.928,20.0001 5.521,20.0001 L13.979,20.0001 C16.572,20.0001 18.0000357,18.6141 18.0000357,16.0981 L18,8.904 Z M14.2012,15.1963 C14.6152,15.1963 14.9512,15.5323 14.9512,15.9463 C14.9512,16.3603 14.6152,16.6963 14.2012,16.6963 C13.7872,16.6963 13.4472,16.3603 13.4472,15.9463 C13.4472,15.5323 13.7782,15.1963 14.1922,15.1963 L14.2012,15.1963 Z M9.7637,15.1963 C10.1777,15.1963 10.5137,15.5323 10.5137,15.9463 C10.5137,16.3603 10.1777,16.6963 9.7637,16.6963 C9.3497,16.6963 9.0097,16.3603 9.0097,15.9463 C9.0097,15.5323 9.3407,15.1963 9.7547,15.1963 L9.7637,15.1963 Z M5.3169,15.1963 C5.7309,15.1963 6.0669,15.5323 6.0669,15.9463 C6.0669,16.3603 5.7309,16.6963 5.3169,16.6963 C4.9029,16.6963 4.5619,16.3603 4.5619,15.9463 C4.5619,15.5323 4.8939,15.1963 5.3079,15.1963 L5.3169,15.1963 Z M14.2012,11.3096 C14.6152,11.3096 14.9512,11.6456 14.9512,12.0596 C14.9512,12.4736 14.6152,12.8096 14.2012,12.8096 C13.7872,12.8096 13.4472,12.4736 13.4472,12.0596 C13.4472,11.6456 13.7782,11.3096 14.1922,11.3096 L14.2012,11.3096 Z M9.7637,11.3096 C10.1777,11.3096 10.5137,11.6456 10.5137,12.0596 C10.5137,12.4736 10.1777,12.8096 9.7637,12.8096 C9.3497,12.8096 9.0097,12.4736 9.0097,12.0596 C9.0097,11.6456 9.3407,11.3096 9.7547,11.3096 L9.7637,11.3096 Z M5.3169,11.3096 C5.7309,11.3096 6.0669,11.6456 6.0669,12.0596 C6.0669,12.4736 5.7309,12.8096 5.3169,12.8096 C4.9029,12.8096 4.5619,12.4736 4.5619,12.0596 C4.5619,11.6456 4.8939,11.3096 5.3079,11.3096 L5.3169,11.3096 Z M13.043,3.079 L6.465,3.079 L6.4653,4.041 C6.4653,4.455 6.1293,4.791 5.7153,4.791 C5.3013,4.791 4.9653,4.455 4.9653,4.041 L4.96476779,3.10170243 C2.72453716,3.2898928 1.5,4.64785567 1.5,6.9731 L1.5,7.404 L18,7.404 L18.0000357,6.9731 C18.004,5.7381 17.672,4.7781 17.013,4.1181 C16.4345144,3.53790796 15.5888563,3.19140086 14.5443509,3.10218199 L14.5435,4.041 C14.5435,4.455 14.2075,4.791 13.7935,4.791 C13.3795,4.791 13.0435,4.455 13.0435,4.041 L13.043,3.079 Z" />
       </g>
+    </svg>
+  );
+}
+
+// Zprávy — přesně ta ikona, kterou má appka ve spodní liště
+// (icons/messages-outline.svg). Tady je vložená přímo, aby se dala obarvit;
+// jako <img> by zůstala černá.
+function WIcoZpravy({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 25 24" fill="none" aria-hidden="true">
+      <path fillRule="evenodd" clipRule="evenodd" d="M15.1893 12.413C15.1893 11.8607 15.637 11.413 16.1893 11.413H16.1983C16.7506 11.413 17.1983 11.8607 17.1983 12.413C17.1983 12.9653 16.7506 13.413 16.1983 13.413H16.1893C15.637 13.413 15.1893 12.9653 15.1893 12.413Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M11.1804 12.413C11.1804 11.8607 11.6281 11.413 12.1804 11.413H12.1894C12.7417 11.413 13.1894 11.8607 13.1894 12.413C13.1894 12.9653 12.7417 13.413 12.1894 13.413H12.1804C11.6281 13.413 11.1804 12.9653 11.1804 12.413Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M7.17139 12.413C7.17139 11.8607 7.6191 11.413 8.17139 11.413H8.18039C8.73267 11.413 9.18039 11.8607 9.18039 12.413C9.18039 12.9653 8.73267 13.413 8.18039 13.413H8.17139C7.6191 13.413 7.17139 12.9653 7.17139 12.413Z" fill={color} />
+      <path fillRule="evenodd" clipRule="evenodd" d="M18.7906 5.45733C15.1822 1.84756 9.31897 1.84756 5.71062 5.45733L5.71047 5.45748C2.88458 8.28282 2.27089 12.4709 3.85695 15.8984C3.86227 15.9099 3.86731 15.9215 3.87204 15.9333C3.96421 16.1623 3.96214 16.4218 3.95799 16.5686C3.95278 16.7529 3.9324 16.9652 3.90723 17.1812C3.88344 17.3854 3.85322 17.6104 3.82251 17.8391L3.81613 17.8867C3.78286 18.1345 3.74899 18.3889 3.71942 18.6437C3.65946 19.1604 3.62181 19.643 3.63856 20.029C3.64691 20.2214 3.66794 20.3639 3.69479 20.4616C3.70384 20.4945 3.71212 20.5172 3.71823 20.5318C3.73284 20.5379 3.7555 20.5462 3.78842 20.5552C3.88615 20.582 4.02872 20.603 4.22108 20.6114C4.60711 20.6281 5.08965 20.5904 5.60634 20.5305C5.8611 20.501 6.11549 20.4671 6.3633 20.4339L6.41053 20.4276C6.63931 20.3969 6.8644 20.3667 7.06867 20.3429C7.28465 20.3178 7.49696 20.2974 7.68122 20.2923C7.828 20.2881 8.08748 20.2861 8.31641 20.3783C8.3281 20.383 8.33967 20.388 8.35111 20.3933C11.7793 21.9787 15.9658 21.3658 18.7906 18.5396L18.7907 18.5396C22.3995 14.9302 22.4067 9.07296 18.7907 5.45746L18.7906 5.45733ZM19.8513 4.39674C15.6571 0.201042 8.84389 0.201088 4.64975 4.39687C1.38571 7.66041 0.664461 12.4848 2.4588 16.4479C2.45934 16.4654 2.45959 16.491 2.45859 16.5262C2.45529 16.6431 2.44115 16.803 2.41731 17.0076C2.39511 17.1982 2.36657 17.4107 2.33527 17.6438L2.32946 17.6871C2.29627 17.9344 2.26072 18.201 2.22942 18.4708C2.16765 19.0031 2.11781 19.5835 2.13997 20.094C2.15108 20.35 2.1811 20.6142 2.24843 20.8591C2.31422 21.0985 2.43061 21.3749 2.65296 21.5973L2.65331 21.5976C2.87572 21.8198 3.15206 21.936 3.39132 22.0017C3.6362 22.0689 3.90031 22.0989 4.15619 22.11C4.66665 22.1321 5.24685 22.0823 5.7791 22.0205C6.0488 21.9893 6.31543 21.9538 6.56266 21.9206L6.60558 21.9149C6.83877 21.8836 7.05137 21.8551 7.24202 21.8329C7.44666 21.8091 7.60648 21.795 7.72337 21.7917C7.75859 21.7907 7.78426 21.7909 7.80179 21.7915C11.7652 23.585 16.5881 22.8649 19.8514 19.6001C24.0451 15.4059 24.054 8.5989 19.8513 4.39674Z" fill={color} />
     </svg>
   );
 }
@@ -573,9 +588,10 @@ function WWhenPanel({ job, onClose }) {
     window.wOpenPay({ pay: rate, unit, band: job.payBand, category: ((job.employer && job.employer.industry) || '').split('·')[0].trim(), locality: job.location || '', shiftTotal: total });
   };
 
+  const R = wRoletka(onClose);
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Pracovní doba" style={{ background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+    <div {...R.zavojProps} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: R.zavojAnim }}>
+      <div {...R.panelProps} role="dialog" aria-label="Pracovní doba" style={{ background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', animation: R.panelAnim }}>
         <div style={{ padding: '9px 0 0', display: 'flex', justifyContent: 'center', flex: 'none' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: T.border }} /></div>
         <div style={{ overflowY: 'auto' }}>
           {/* Hlavička */}
@@ -584,7 +600,7 @@ function WWhenPanel({ job, onClose }) {
               <span style={{ fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, color: T.ink }}>Pracovní doba</span>
               <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#5B6488' }}>Porovnáno s tvým plánem směn</span>
             </div>
-            <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <button onClick={() => R.zavri()} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
               <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke="#5B6488" strokeWidth="2" strokeLinecap="round" /></svg>
             </button>
           </div>
@@ -648,7 +664,7 @@ function WWhenPanel({ job, onClose }) {
           {/* Patka */}
           <div style={{ padding: '12px 20px calc(22px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#5B6488', lineHeight: 1.45 }}>Porovnáváme jen směny přijaté na Makej.</span>
-            <button onClick={onClose} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
+            <button onClick={() => R.zavri()} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
           </div>
         </div>
       </div>
@@ -685,9 +701,10 @@ function WPayPanel({ data, onClose }) {
   const tick = i => (binStart + i * 10) + (i === BINS - 1 ? '+' : '');
   const subtitle = [data.category, data.locality, sample + ' brigád'].filter(Boolean).join(' · ');
 
+  const R = wRoletka(onClose);
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: 'wScrimIn .3s ease' }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Odměna v okolí" style={{ position: 'relative', background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+    <div {...R.zavojProps} style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(11,18,51,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', animation: R.zavojAnim }}>
+      <div {...R.panelProps} role="dialog" aria-label="Odměna v okolí" style={{ position: 'relative', background: '#fff', borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: R.panelAnim }}>
         <div style={{ padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: T.border }} /></div>
 
         {/* Bublina s metodikou */}
@@ -730,7 +747,7 @@ function WPayPanel({ data, onClose }) {
             </span>
             <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#5B6488' }}>{subtitle}</span>
           </div>
-          <button onClick={onClose} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+          <button onClick={() => R.zavri()} aria-label="Zavřít" style={{ width: 32, height: 32, flex: 'none', border: 0, borderRadius: 10, background: T.surfaceAlt, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
             <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke={T.muted} strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
@@ -786,7 +803,7 @@ function WPayPanel({ data, onClose }) {
         {/* Patka */}
         <div style={{ padding: '18px 20px calc(22px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <span style={{ fontFamily: T.fontUI, fontSize: 11, color: '#5B6488', lineHeight: 1.5 }}>Počítáno z {sample} brigád ve stejném oboru do 5 km, zveřejněných za posledních 90 dní.</span>
-          <button onClick={onClose} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
+          <button onClick={() => R.zavri()} style={{ width: '100%', border: 0, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, padding: 15, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>Zpět na brigádu</button>
         </div>
       </div>
     </div>
@@ -1060,9 +1077,14 @@ function WorkerApp() {
     window.wSetDetailOpen = setDetailOpen;   // detail inzerátu ovládá viditelnost horní lišty
   }
 
-  // Uživatel může upozornění vypnout v profilu (Nastavení)
-  function notifsEnabled() {
-    try { return localStorage.getItem('makej-notifs') !== 'off'; } catch (e) { return true; }
+  // Uživatel si v profilu (Nastavení) přepíná každý druh upozornění zvlášť.
+  // `makej-notifs` je starý společný vypínač — po převodu v app.jsx je vždycky
+  // zapnutý, necháváme ho tu jen jako pojistku pro nepřevedené prohlížeče.
+  function notifsEnabled(druh) {
+    try {
+      if (localStorage.getItem('makej-notifs') === 'off') return false;
+    } catch (e) { return true; }
+    return typeof wNotifPovoleno === 'function' ? wNotifPovoleno(druh) : true;
   }
 
   // Toast (objekt: { title, text, type, accent, avatar, action, ttl })
@@ -1072,7 +1094,8 @@ function WorkerApp() {
   const W_MAX_TOASTU = 3;
 
   function addToast(opts) {
-    if (!notifsEnabled()) return;
+    // `druh` posílá volající — z oznámení se pozná podle kind/type.
+    if (!notifsEnabled(opts.druh)) return;
     const ttl  = opts.ttl || 6000;
     const klic = opts.groupKey || null;
 
@@ -1137,7 +1160,7 @@ function WorkerApp() {
   // níž. Od chvíle, kdy zprávy zakládá trigger v databázi, nesmí appka zapisovat
   // vlastní kopii, jinak by u každé zprávy vzniklo oznámení dvakrát.
   function addNotif(n) {
-    if (!notifsEnabled()) return;
+    if (!notifsEnabled(typeof wNotifDruh === 'function' ? wNotifDruh(n) : null)) return;
     const uid = userId.current;
     if (uid) insertNotifW(uid, n);
   }
@@ -1259,11 +1282,12 @@ function WorkerApp() {
         const thread = chat ? W_THREADS.find(t => t.id === n.matchId) : null;
         addToast({
           type: n.type, title: n.title, text: n.text,
+          druh: typeof wNotifDruh === 'function' ? wNotifDruh(n) : null,
           avatar: thread ? { initials: thread.avatar, color: thread.color, logo: thread.logoUrl } : null,
           groupKey: chat ? 'chat-' + n.matchId : null,
           action: chat
             ? { label: n.type === 'shift' ? 'Zobrazit směnu' : 'Odpovědět', onClick: () => openChat(n.matchId) }
-            : (n.kind === 'review' ? { label: 'Otevřít kalendář', onClick: () => setTab('history') } : null),
+            : (n.kind === 'review' ? { label: 'Otevřít kalendář', onClick: () => setCalendarOpen(true) } : null),
         });
       })
       .subscribe();
@@ -1311,7 +1335,7 @@ function WorkerApp() {
       key: 'shift', icon: 'calendar-minimalistic-bold',
       title: 'Nejbližší směna',
       text: [nextShift.company, nextShift.dateText].filter(Boolean).join(' · '),
-      go: () => setTab('history'),
+      go: () => setCalendarOpen(true),   // Moje brigády žijí v kalendáři, samostatná záložka není
     },
     discussCount > 0 && {
       key: 'discuss', icon: 'chat-round-bold',
@@ -1329,7 +1353,7 @@ function WorkerApp() {
       key: 'review', icon: 'star-bold',
       title: _wPlural(reviewsToDo, '1 brigáda k ohodnocení', `${reviewsToDo} brigády k ohodnocení`, `${reviewsToDo} brigád k ohodnocení`),
       text: 'Tvoje hodnocení pomůže ostatním',
-      go: () => setTab('history'),
+      go: () => setCalendarOpen(true),   // Moje brigády žijí v kalendáři, samostatná záložka není
     },
   ].filter(Boolean);
 
@@ -1508,7 +1532,7 @@ function WorkerApp() {
                     {notifs.map(n => {
                       return (
                         <button key={n.id}
-                          onClick={() => { setBellOpen(false); if (n.kind === 'chat' && n.matchId) openChat(n.matchId); else if (n.kind === 'review') setTab('history'); }}
+                          onClick={() => { setBellOpen(false); if (n.kind === 'chat' && n.matchId) openChat(n.matchId); else if (n.kind === 'review') setCalendarOpen(true); }}
                           style={{ width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 12, background: 'transparent', border: 'none' }}>
                           <WNotifZnacka avatar={n.avatar} size={40} />
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1530,16 +1554,7 @@ function WorkerApp() {
       {/* Odznáček úrovně už není v horní liště — profil (i se stupněm) je teď 4. záložka. */}
 
       {calendarOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: T.bg, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end', padding: '14px 18px 0' }}>
-            <button onClick={() => setCalendarOpen(false)} title="Zavřít kalendář" style={{
-              width: 34, height: 34, borderRadius: 999, background: '#fff', border: 'none',
-              color: '#4a4f6b', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 15,
-              boxShadow: '0 6px 16px -8px rgba(16,24,64,0.28)',
-            }}>✕</button>
-          </div>
-          <WCalendar tick={tick} onReviewed={refreshWorker} />
-        </div>
+        <WKalendarSheet tick={tick} onReviewed={refreshWorker} onClose={() => setCalendarOpen(false)} />
       )}
 
       <WToast toasts={toasts} onRemove={id => setToasts(prev => prev.filter(t => t.id !== id))} />

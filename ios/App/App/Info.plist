@@ -2,8 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Jazyk appky. Bez tohohle iOS neví, že umíme česky, a systémové panely
+	     (výběr fotky, fotoaparát, povolení) se ukazují anglicky. -->
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>cs</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>cs</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>Makej</string>
 	<key>CFBundleExecutable</key>
@@ -64,11 +71,11 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Makej potřebuje přístup k fotoaparátu, aby sis mohl vyfotit profilovou fotku.</string>
+	<string>Makej potřebuje přístup k fotoaparátu, aby sis mohl vyfotit profilovku nebo fotky své práce.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Makej potřebuje přístup k fotkám, aby sis mohl vybrat profilovou fotku z galerie.</string>
+	<string>Makej potřebuje přístup k fotkám, aby sis mohl vybrat profilovku nebo fotky své práce z galerie.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Makej ukládá vyfocenou profilovou fotku do tvé galerie.</string>
+	<string>Makej ukládá vyfocenou fotku do tvé galerie.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Mikrofon se používá jen při nahrávání hlasové zprávy v chatu.</string>
 </dict>

@@ -69,6 +69,41 @@ plní jen když i dashboard posílá heartbeat. Appka se napojí, jakmile SQL po
 
 ## Historie provedených změn
 
+### 2026-09-19 · Jan (appka, Claude) · ČEKÁ NA SPUŠTĚNÍ: fotky ukázek práce na kartě Lidé
+Fotky na kartě Lidé dosud žily **jen v telefonu** (localStorage jako `data:` URL),
+takže je nikdo jiný neviděl a vešlo se jich sedm (strop ~3,2 MB, co web v telefonu
+dostane). Tohle je dává do Supabase Storage.
+
+Celé SQL je v `supabase/migration_karta_fotky.sql` — **pustit ručně v Supabase →
+SQL editor**, je idempotentní. Pozor: předpokládá, že už běžel
+`supabase/migration_people_cards.sql` (ten podle záznamu z 2026-08-11 **taky ještě
+nikdo nepustil**).
+
+Co to dělá:
+- **bucket `karta-fotky`**, veřejný, strop 5 MB na soubor, povolené typy jen
+  `image/jpeg`, `image/png`, `image/webp`. Veřejný schválně — ukázky práce visí na
+  kartě, kterou si autor sám přepnul na „Veřejná", a veřejný bucket znamená
+  obyčejné `<img src>` bez podepisování URL. Chatové přílohy zůstávají v privátním
+  `chat-prilohy` se signed URL, tam se nic nemění.
+- **4 politiky na `storage.objects`**: číst smí kdokoli, nahrávat/měnit/mazat jen
+  vlastník ve své složce (cesta je vždy `<user_id>/<timestamp>-<náhoda>.jpg`,
+  vlastník se pozná z první složky).
+- **`profiles.card_photos text[] default '{}'`** — odkazy na fotky karty.
+- **`get_people_cards(exclude_ids)`** rozšířeno o `card_photos` (jinak beze změny,
+  pořád vrací jen bezpečné sloupce profilu).
+
+Appka je hotová a čeká (`worker-supabase.jsx`: `wNahrajFotkuKartyW`,
+`wSmazFotkyKartyW`, `wUlozFotkyKartyW`; editor karty nahrává při uložení). Dokud
+migrace neproběhne, nahrání selže a karta se uloží po staru do telefonu — jen se
+k tomu napíše hláška. Nic se nerozbije.
+
+**Chce se říct Samovi:** nový bucket + nový sloupec na `profiles` + změněná
+signatura `get_people_cards` (přibyl sloupec `card_photos` ve výstupu).
+
+**Ještě nedodělané:** zbytek karty (cena, dostupnost, vybavení, zkušenost, štítky
+„ukazovat") pořád žije jen v telefonu — na server jdou zatím `card_enabled`,
+`card_offer`, `card_tags`, `bio` a nově `card_photos`.
+
 ### 2026-09-03 · Yasin · SPUŠTĚNO: tabulka `reports` (nahlašování obsahu)
 Yasin pustil v Supabase SQL Editoru (main/production) — `Success. No rows returned`.
 Additivní, nesahá na žádnou stávající tabulku. Vyžaduje to **App Store Guideline 1.2**
@@ -275,3 +310,18 @@ alter table public.saved_jobs enable row level security;
 create policy "own saved" on public.saved_jobs
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 ```
+
+### 2026-09-06 · Yasin (web) · SPUŠTĚNO: Evidence souhlasů s cookies — `consent_log` + RPC `log_consent`
+Web makej.eu má novou lištu cookies (`consent.js`). Každé rozhodnutí posílá přes RPC
+do tabulky `consent_log` — doložitelnost souhlasu (GDPR čl. 7, § 89 odst. 3 zák.
+127/2005 Sb.). **Bez IP a bez plného user-agentu**, jen solený sha256 otisk; sůl leží
+v `private.consent_salt` (schéma mimo API). Tabulka má RLS bez policy, zapisuje jen
+funkce. Yasin pustil 2026-09-06 v SQL Editoru (main/production) včetně soli; ověřeno zápisem přes anon API (otisk + rodina prohlížeče se plní) a že tabulku zvenku číst nejde (42501).
+
+Celý skript: `makej-web-sam/supabase/migration_consent_log.sql`. Po spuštění **vložit sůl**:
+```sql
+insert into private.consent_salt (salt)
+  values (encode(extensions.gen_random_bytes(32), 'hex'))
+  on conflict (id) do nothing;
+```
+Skartace (zásady slibují 3 roky): `delete from public.consent_log where decided_at < now() - interval '3 years';`

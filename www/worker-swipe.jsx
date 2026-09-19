@@ -230,7 +230,11 @@ function _wJobMatchesProfese(job, codes) {
 // Zdroj feedu → filtr území (město+okolí NEBO kraje) → profese → filtr sekcí.
 function _wComputeFeed(kraje, filters, loc, profese) {
   const real = W_JOBS.map(jobToCard);
-  const src  = real.length ? real : _wDemoJobs();
+  // Když v databázi nic není, feed dosypou ukázkové inzeráty — jinak by nová
+  // appka vypadala rozbitě. S `?prazdno=1` se ale nedosypou, ať jde vidět, co
+  // uvidí někdo, komu se po stažení nic nenabídne.
+  const prazdno = typeof window !== 'undefined' && window._W_PRAZDNO;
+  const src  = real.length ? real : (prazdno ? [] : _wDemoJobs());
   let geo;
   if (loc && loc.center) {                          // vybráno město → okolí do X km
     const c = loc.center.c, r = loc.radius || 25;
@@ -554,7 +558,10 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
   // Přepnutí kategorie → seznam voleb zpět nahoru (jinak zůstane odscrollovaný a zdá se prázdný).
   useEffectW(() => { if (optsRef.current) optsRef.current.scrollTop = 0; }, [idx]);
 
-  const close = () => setOpen(false);
+  // Panel zůstává v komponentě i zavřený (řídí ho `open`), proto se předává
+  // `otevreno` — jinak by si nesl `zaviram` z minula a hned zase sjel dolů.
+  const R = wRoletka(() => setOpen(false), { otevreno: open, panelIn: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' });
+  const close = () => R.zavri();
 
   // Volba bez zaškrtávátka — vybraný řádek se podbarví a text zmodrá.
   const optRow = (on, dead) => ({
@@ -676,13 +683,13 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
       {open && (
         <>
           {/* Závoj — klik mimo zavře (filtr platí živě) */}
-          <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 8590, background: 'rgba(20,22,43,.38)', animation: 'wScrimIn .2s ease both' }} />
+          <div {...R.zavojProps} style={{ position: 'fixed', inset: 0, zIndex: 8590, background: 'rgba(20,22,43,.38)', animation: R.zavojAnim }} />
           {/* Spodní panel 75 % */}
           <div role="dialog" aria-label="Filtry" style={{
             position: 'fixed', left: 0, right: 0, bottom: 0, height: '90%', zIndex: 8600,
             background: '#f7f8fc', borderRadius: '28px 28px 0 0', overflow: 'hidden',
             boxShadow: '0 -16px 44px rgba(0,32,246,.12)', display: 'flex', flexDirection: 'column',
-            animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' }}>
+            animation: R.panelAnim }}>
             {/* Úchyt */}
             <div style={{ flex: 'none', padding: '9px 0 0', display: 'flex', justifyContent: 'center' }}><span style={{ width: 38, height: 4, borderRadius: 999, background: '#e3e7f2' }} /></div>
             {/* Lišta — křížek + Vymazat */}
@@ -800,12 +807,14 @@ function WSwipe({ tick }) {
 
   const snapBack = () => setDrag({ x: 0, y: 0, dragging: false, moved: false, startX: 0, startY: 0 });
 
-  const closeMatch = () => setMatchAnim(null);
+  // Panel zůstává v komponentě i zavřený (řídí ho `matchAnim`), proto `otevreno`.
+  const Rmatch = wRoletka(() => setMatchAnim(null), { otevreno: !!matchAnim });
+  const closeMatch = () => Rmatch.zavri();
 
   // Panel „Zájem odeslán" se po dojetí 6s časomíry sám zavře (swipování pak jede dál).
   useEffectW(() => {
     if (!matchAnim) return;
-    const t = setTimeout(() => setMatchAnim(null), 6000);
+    const t = setTimeout(() => Rmatch.zavri(), 6000);
     return () => clearTimeout(t);
   }, [matchAnim]);
 
@@ -1004,12 +1013,12 @@ function WSwipe({ tick }) {
       {matchAnim && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {/* Scrim — ztmaví feed, klik zavře */}
-          <div onClick={closeMatch} style={{ position: 'absolute', inset: 0, background: 'rgba(11,18,51,0.28)', animation: 'wScrimIn .34s ease both' }} />
+          <div {...Rmatch.zavojProps} style={{ position: 'absolute', inset: 0, background: 'rgba(11,18,51,0.28)', animation: Rmatch.zavojAnim }} />
 
           {/* Panel */}
-          <div role="dialog" aria-live="polite" aria-label="Zájem odeslán" style={{
+          <div {...Rmatch.panelProps} role="dialog" aria-live="polite" aria-label="Zájem odeslán" style={{
             position: 'relative', background: '#fff', borderRadius: '26px 26px 0 0', overflow: 'hidden',
-            boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both',
+            boxShadow: '0 -14px 40px rgba(11,18,51,0.22)', animation: Rmatch.panelAnim,
           }}>
             {/* Odpočet do automatického zavření */}
             <span style={{ display: 'block', height: 3, background: T.primary, animation: 'wBarGrow 6s linear both' }} />
@@ -1410,25 +1419,36 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
 // jinak to zní jako odbytí ve stylu „nic s tím neuděláme, jen ti to zmizí".
 // Zároveň ale neslibuje odebrání natvrdo: jedno hlášení na to stačit nesmí,
 // protože pak by šlo cizí inzeráty vystřílet konkurencí.
-function WReportSheet({ job, onClose, onReported }) {
+// `job` je původní volání od inzerátu; `cil` je obecná varianta pro chat,
+// profil člověka i firmu. Texty se liší jen nadpisem a poděkováním — samotné
+// nahlašování je pro všechny typy stejné.
+const W_REPORT_TEXTY = {
+  job:      { nadpis: 'Nahlásit inzerát',  otazka: 'Co je s ním v nepořádku?',
+              diky: 'Inzerát prověříme a pokud porušuje pravidla, odebereme ho. Do té doby se ti už nebude zobrazovat.' },
+  person:   { nadpis: 'Nahlásit uživatele', otazka: 'Co se stalo?',
+              diky: 'Profil prověříme a pokud porušuje pravidla, zasáhneme. Pokud tě obtěžuje, můžeš ho rovnou i zablokovat.' },
+  employer: { nadpis: 'Nahlásit firmu',     otazka: 'Co se stalo?',
+              diky: 'Firmu prověříme a pokud porušuje pravidla, zasáhneme.' },
+  thread:   { nadpis: 'Nahlásit konverzaci', otazka: 'Co se stalo?',
+              diky: 'Konverzaci prověříme a pokud porušuje pravidla, zasáhneme. Pokud tě někdo obtěžuje, můžeš ho rovnou i zablokovat.' },
+  review:   { nadpis: 'Nahlásit recenzi',   otazka: 'Co je s ní v nepořádku?',
+              diky: 'Recenzi prověříme a pokud porušuje pravidla, odebereme ji.' },
+};
+
+function WReportSheet({ job, typ, cilId, onClose, onReported }) {
+  const druh = typ || 'job';
+  const cil  = cilId || (job && job.id);
+  const texty = W_REPORT_TEXTY[druh] || W_REPORT_TEXTY.job;
   const [duvod, setDuvod] = useStateW('');
   const [poznamka, setPoznamka] = useStateW('');
   const [odesilam, setOdesilam] = useStateW(false);
   const [hotovo, setHotovo] = useStateW(false);
   const [chyba, setChyba] = useStateW('');
-  const [zaviram, setZaviram] = useStateW(false);
-  // Dokud sheet nedojede nahoru, klikání na pozadí se ignoruje. Bez toho ho
-  // zavře ještě doznívající dotyk z položky „Nahlásit" a sheet jen probliskne.
-  const [pripraven, setPripraven] = useStateW(false);
-  useEffectW(() => { const t = setTimeout(() => setPripraven(true), 320); return () => clearTimeout(t); }, []);
-
-  // Zavírá se přes stav, ne rovnou odpojením — jinak sheet zmizí skokem.
-  // Nejdřív dojede animace dolů, teprve pak se odpojí.
-  function zavri(pak) {
-    if (zaviram) return;
-    setZaviram(true);
-    setTimeout(() => { if (pak) pak(); onClose(); }, 250);
-  }
+  // Pojistka 320 ms: sheet se otevírá z položky „Nahlásit" v roletce a
+  // doznívající dotyk z ní by ho jinak hned zase zavřel.
+  const R = wRoletka(onClose, { pojistka: 320, zavojIn: 'wFadeIn .2s ease',
+                                panelIn: 'wSheetUp .28s cubic-bezier(.2,.9,.3,1)' });
+  const zavri = R.zavri;
   const duvody = (typeof window !== 'undefined' && window.W_DUVODY_HLASENI) || [];
 
   // Poděkování se smí ukázat, jen když hlášení fakt padlo do databáze — jinak
@@ -1438,11 +1458,11 @@ function WReportSheet({ job, onClose, onReported }) {
   const popisOk = duvod !== 'jine' || poznamka.trim().length >= POPIS_MIN;
 
   async function odesli() {
-    if (!duvod || !popisOk || odesilam) return;
+    if (!duvod || !popisOk || odesilam || !cil) return;
     setOdesilam(true);
     setChyba('');
     let r = { ok: false, reason: 'vyjimka' };
-    try { r = await window.reportContentW('job', job.id, duvod, poznamka); } catch (e) { console.error('odesli:', e); }
+    try { r = await window.reportContentW(druh, cil, duvod, poznamka); } catch (e) { console.error('odesli:', e); }
     setOdesilam(false);
     if (r && r.ok) { setHotovo(true); return; }
     const d = r && r.reason;
@@ -1455,17 +1475,15 @@ function WReportSheet({ job, onClose, onReported }) {
   }
 
   return (
-    <div onClick={e => { e.stopPropagation(); if (pripraven) zavri(); }} style={{
+    <div {...R.zavojProps} style={{
       position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(10,12,26,0.55)',
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      animation: zaviram ? 'wFadeOut .24s ease forwards' : 'wFadeIn .2s ease',
+      animation: R.zavojAnim,
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div {...R.panelProps} style={{
         width: '100%', maxWidth: 520, background: '#fff',
         borderRadius: '22px 22px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
-        animation: zaviram
-          ? 'wSheetDown .25s cubic-bezier(.4,0,1,1) forwards'
-          : 'wSheetUp .28s cubic-bezier(.2,.9,.3,1)',
+        animation: R.panelAnim,
       }}>
         {hotovo ? (
           <div style={{ textAlign: 'center', padding: '10px 4px 4px' }}>
@@ -1474,7 +1492,7 @@ function WReportSheet({ job, onClose, onReported }) {
               Předali jsme to ke kontrole
             </div>
             <div style={{ fontFamily: T.fontUI, fontSize: 14, color: '#6B7192', lineHeight: 1.5, marginTop: 8 }}>
-              Inzerát prověříme a pokud porušuje pravidla, odebereme ho. Do té doby se ti už nebude zobrazovat.
+              {texty.diky}
             </div>
             <button onClick={() => zavri(onReported)} style={{
               width: '100%', marginTop: 20, padding: '14px 0', borderRadius: 14,
@@ -1485,10 +1503,10 @@ function WReportSheet({ job, onClose, onReported }) {
         ) : (
           <React.Fragment>
             <div style={{ fontFamily: T.fontHead, fontSize: 18, fontWeight: 800, color: '#0B1233' }}>
-              Nahlásit inzerát
+              {texty.nadpis}
             </div>
             <div style={{ fontFamily: T.fontUI, fontSize: 13.5, color: '#6B7192', marginTop: 5, marginBottom: 16 }}>
-              Co je s ním v nepořádku?
+              {texty.otazka}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {duvody.map(([kod, popis]) => (

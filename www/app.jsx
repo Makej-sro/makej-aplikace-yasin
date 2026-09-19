@@ -770,4 +770,138 @@ function Stamp({ show, angle, pos, color, label, big, intensity = 1 }) {
   );
 }
 
-Object.assign(window, { JOBS, CHATS, THREAD, T, Icon, fmtKc, JobCard, Stamp });
+// ─────────────────────────────────────────────────────────────
+// DRUHY UPOZORNĚNÍ
+// Jeden vypínač na všechno je málo: kdo nechce mít telefon plný nabídek,
+// vypne dnes i zprávy od firmy, se kterou se domlouvá. Proto se každý druh
+// přepíná zvlášť. Uloženo v prohlížeči (`makej-notif-<klíč>`), výchozí je
+// zapnuto — nová appka má oznámení posílat, ne mlčet.
+// ─────────────────────────────────────────────────────────────
+const W_NOTIF_DRUHY = [
+  { key: 'zpravy',    label: 'Zprávy',                popis: 'Nová zpráva v chatu' },
+  { key: 'smeny',     label: 'Brigády a směny',       popis: 'Přijetí, nabídka směny, pozvánka na pohovor' },
+  { key: 'nabidky',   label: 'Nové brigády v okolí',  popis: 'Když se objeví brigáda, která ti sedí' },
+  { key: 'hodnoceni', label: 'Hodnocení',             popis: 'Připomenutí, ať ohodnotíš dokončenou brigádu' },
+];
+
+// Dřív existoval jediný přepínač `makej-notifs`. Komu byl vypnutý, tomu by po
+// téhle změně zmizelo ovládání a oznámení by mlčela napořád — nová obrazovka
+// ten stav neumí ukázat. Převedeme ho proto jednorázově na všechny druhy.
+(function wNotifMigrace() {
+  try {
+    if (localStorage.getItem('makej-notifs') === 'off') {
+      W_NOTIF_DRUHY.forEach(d => localStorage.setItem('makej-notif-' + d.key, 'off'));
+      localStorage.setItem('makej-notifs', 'on');
+    }
+  } catch (e) { /* soukromé okno / zakázané úložiště — nevadí */ }
+})();
+
+function wNotifPovoleno(druh) {
+  if (!druh) return true;   // neznámý druh raději pustíme, než abychom ho utopili
+  try { return localStorage.getItem('makej-notif-' + druh) !== 'off'; } catch (e) { return true; }
+}
+function wNotifNastav(druh, zap) {
+  try { localStorage.setItem('makej-notif-' + druh, zap ? 'on' : 'off'); } catch (e) {}
+}
+
+// Ze záznamu oznámení určí, pod který přepínač spadá.
+function wNotifDruh(n) {
+  if (!n) return null;
+  const k = n.kind || '';
+  const t = n.type || '';
+  if (k === 'chat')   return 'zpravy';
+  if (k === 'review' || t === 'review') return 'hodnoceni';
+  if (t === 'shift' || t === 'interview' || k === 'shift' || k === 'interview') return 'smeny';
+  if (k === 'job' || t === 'job' || t === 'nabidka') return 'nabidky';
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Otevření odkazu ven z appky (podmínky, ochrana soukromí, nápověda).
+// V nativním obalu přes Capacitor Browser = vestavěný prohlížeč s tlačítkem
+// Hotovo. `window.open` by v obalu otevřelo okno, ze kterého není cesty zpět,
+// protože appka nemá adresní řádek ani tlačítko zpět.
+// ─────────────────────────────────────────────────────────────
+function wOtevriOdkaz(url) {
+  if (!url) return;
+  try {
+    const C = typeof window !== 'undefined' && window.Capacitor;
+    const B = C && C.Plugins && C.Plugins.Browser;
+    if (B && B.open) { B.open({ url, presentationStyle: 'popover' }); return; }
+  } catch (e) { /* není nativní obal — spadneme na window.open */ }
+  try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) {}
+}
+
+// Právní odkazy na jednom místě — kdyby se měnila doména nebo cesty,
+// ať se to nemusí hledat po komponentách.
+const W_ODKAZY = {
+  soukromi: 'https://makej.eu/privacy.html',
+  podminky: 'https://makej.eu/terms.html',
+};
+
+// ─────────────────────────────────────────────────────────────
+// SPODNÍ ROLETKY — jednotné zavírání
+//
+// Roletka se nesmí odpojit hned, jinak zmizí skokem. Proto se zavírá přes stav:
+// nejdřív sjede dolů a závoj vybledne, a teprve po dojetí se zavolá onClose,
+// který ji odpojí. Volá se z těla komponenty jako hook.
+//
+//   const R = wRoletka(onClose, { panelIn: 'wSheetUp .34s ...' });
+//   <div {...R.zavojProps} style={{ …, animation: R.zavojAnim }}>
+//     <div {...R.panelProps} style={{ …, animation: R.panelAnim }}> … </div>
+//
+// Zavírá se i zevnitř (křížek, „Zrušit", hotovo) — přes R.zavri(), ne onClose,
+// jinak by ta cesta pořád skákala. R.zavri(fce) fci spustí až po dojezdu.
+//
+// `otevreno` se předává jen tam, kde roletka NENÍ samostatná komponenta a
+// zůstává připojená i zavřená — bez toho by si nesla `zaviram` z minula.
+// ─────────────────────────────────────────────────────────────
+function wRoletka(onClose, nast) {
+  const o = nast || {};
+  const DOLU = o.dolu || 250;                                  // ms, jak dlouho sjíždí dolů
+  const POJISTKA = o.pojistka == null ? 220 : o.pojistka;      // ms, než začne brát kliky mimo
+  const otevreno = o.otevreno == null ? true : !!o.otevreno;
+
+  const [zaviram, setZaviram] = useState(false);
+  const [pripraven, setPripraven] = useState(false);
+  const [minule, setMinule] = useState(otevreno);
+
+  // Reset ještě během renderu, ne až v efektu: jinak by první snímek po
+  // znovuotevření běžel se starým `zaviram`, tedy s animací dolů.
+  if (otevreno !== minule) {
+    setMinule(otevreno);
+    if (otevreno) { setZaviram(false); setPripraven(false); }
+  }
+
+  // Krátká pojistka po otevření. Prst, kterým se roletka otevřela, umí doklepnout
+  // na závoj a zavřít ji dřív, než si jí uživatel vůbec stihne všimnout.
+  useEffect(() => {
+    if (!otevreno) return;
+    const t = setTimeout(() => setPripraven(true), POJISTKA);
+    return () => clearTimeout(t);
+  }, [otevreno]);
+
+  function zavri(pak) {
+    if (zaviram) return;
+    setZaviram(true);
+    setTimeout(() => {
+      if (typeof pak === 'function') pak();
+      if (onClose) onClose();
+    }, DOLU);
+  }
+
+  return {
+    zaviram, zavri,
+    // stopPropagation je nutný: roletky sedí uvnitř obrazovek, které samy mají
+    // onClick (třeba plný inzerát). Bez něj by klik propadl a zavřel i je.
+    zavojProps: { onClick: e => { e.stopPropagation(); if (pripraven) zavri(); } },
+    zavojAnim: zaviram ? 'wFadeOut .24s ease forwards' : (o.zavojIn || 'wScrimIn .24s ease'),
+    panelProps: { onClick: e => e.stopPropagation() },
+    panelAnim: zaviram
+      ? 'wSheetDown ' + (DOLU / 1000) + 's cubic-bezier(.4,0,1,1) forwards'
+      : (o.panelIn || 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both'),
+  };
+}
+
+Object.assign(window, { JOBS, CHATS, THREAD, T, Icon, fmtKc, JobCard, Stamp, wRoletka, wOtevriOdkaz, W_ODKAZY,
+  W_NOTIF_DRUHY, wNotifPovoleno, wNotifNastav, wNotifDruh });

@@ -8,7 +8,28 @@
 // PŘED OSTRÝM PROVOZEM: přepnout W_DEMO_ON na false (nebo soubor smazat
 // a odebrat <script> z index.html). Viz checklist „před ostrým provozem".
 
-const W_DEMO_ON = true;   // ← před spuštěním na false
+// `?prazdno=1` v adrese demo vypne. Slouží k tomu, aby šlo appku vidět očima
+// někoho, kdo si ji právě stáhnul — zakládat kvůli tomu nový účet nestačí,
+// demo se totiž nasype do každého prázdného účtu.
+// Zapíná se buď adresou (`?prazdno=1`, hodí se v prohlížeči), nebo přepínačem
+// v Nastavení — v nativní appce není adresní řádek, kam parametr napsat.
+const _W_PRAZDNO = (() => {
+  try {
+    if (/(^|[?&])prazdno=1(&|$)/.test(location.search)) return true;
+    return localStorage.getItem('makej-prazdno') === '1';
+  } catch (e) { return false; }
+})();
+const W_DEMO_ON = !_W_PRAZDNO;   // ← před spuštěním natvrdo na false
+
+// Přepnutí se musí projevit načtením znovu: ukázková data se sypou při stahování
+// profilu, ne při vykreslení, takže pouhé překreslení obrazovky nestačí.
+function wNastavPrazdno(zap) {
+  try {
+    if (zap) localStorage.setItem('makej-prazdno', '1');
+    else localStorage.removeItem('makej-prazdno');
+    location.reload();
+  } catch (e) {}
+}
 
 // Ukázkové odpracované brigády (posledních ~6 měsíců). Kompaktní zápis se
 // níž rozbalí do plného tvaru W_HISTORY. Časy s pomlčkou „–" kvůli výpočtu hodin.
@@ -113,7 +134,7 @@ function wSeedDemoProfil() {
     // 2) Rohlík.cz — skladník: fotka provozu + nepřečtené
     vlakna.push({ name: 'Rohlík.cz', role: 'Skladník — expedice', rating: 4.8, verified: true, unread: 2, online: true, msgs: [
       txt('them', 'Dobrý den, sháníme skladníka na expedici 📦', now - 90 * min),
-      M('them', { kind: 'file', file: { typ: 'image', nahled: 'demo-lide/w3.jpg', nazev: 'sklad.jpg' } }, now - 90 * min + 40000),
+      M('them', { kind: 'file', file: { typ: 'image', nahled: 'demo-lide/stehovani-sklad.jpg', nazev: 'sklad.jpg' } }, now - 90 * min + 40000),
       txt('them', 'Takhle to u nás vypadá. Zvládl bys ranní od 6:00?', now - 90 * min + 50000),
     ] });
 
@@ -168,5 +189,5 @@ function wSeedDemoProfil() {
 }
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { W_DEMO_ON, wSeedDemoProfil });
+  Object.assign(window, { W_DEMO_ON, wSeedDemoProfil, _W_PRAZDNO, wNastavPrazdno });
 }
