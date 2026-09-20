@@ -31,6 +31,29 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 
 ## Připravené změny (ještě nespuštěné)
 
+### 2026-09-20 · Jan (appka, Claude) · Karty v Lidech bez limitu
+**Soubor: `supabase/migration_lide_strankovani.sql` — POŘADÍ: už zbývá jen
+`migration_karta_fotky.sql` před ní.** `migration_people_cards.sql`
+i `migration_blocks.sql` doběhly 2026-09-20 (viz historie níž), takže chybí
+poslední předpoklad: `profiles.card_photos`.
+
+⚠️ **Do `migration_karta_fotky.sql` napřed doplnit `card_photo_notes text[]`.**
+Appka kreslí u fotek práce popisky (`person.photoNotes` ve `worker-people.jsx`),
+ale žádná migrace na ně sloupec nemá — bez doplnění by se reálným uživatelům
+zahazovaly. Musí se přidat i do `get_people_cards` / `get_people_cards_page`
+a do ukládání ve `wUlozFotkyKartyW`.
+
+`get_people_cards(exclude_ids)` nemá limit ani stránkování → vrací všechny
+karty naráz; při 10 000 profilech s fotkami jsou to desítky MB. Přidává
+`get_people_cards_page(p_limit, p_offset)` s výlukou (blokovaní, přeskočení)
+v SQL a index `rejections(worker_id, target_id)`. Stará funkce zůstává vedle
+jako overload.
+
+**Zbývá dodělat v appce:** záložka Lidé filtruje kraj/obor až v telefonu, takže
+si teď bere prvních ~180 karet. Než tržiště naroste, přesunout filtr do SQL
+a přidat donačítání při scrollu.
+
+
 ### Fotogalerie inzerátu — víc fotek (čeká na Sama: sloupec + nahrávání na dashboardu)
 Detail inzerátu v appce brigádníka umí od 2026-08-16 **galerii fotek** (swipe +
 tečky). Čte pole `job.photos` (pole URL); když chybí, spadne zpět na jednu hero
@@ -68,6 +91,42 @@ plní jen když i dashboard posílá heartbeat. Appka se napojí, jakmile SQL po
 ---
 
 ## Historie provedených změn
+
+### 2026-09-20 · Jan (appka, Claude) · SPUŠTĚNO: škálování feedu + karty lidí + blokace
+Tři migrace v tomhle pořadí (pořadí bylo nutné, viz past níž):
+
+1. **`migration_feed_skalovani.sql`** — `get_feed_jobs(p_limit, p_offset)`,
+   `get_rejected_jobs(...)`, `count_rejected_jobs()` + indexy
+   `rejections(worker_id, job_id)`, `matches(worker_id, job_id)`,
+   `jobs(status, created_at desc)`.
+
+   **Proč:** appka posílala seznam všeho odswajpovaného zpátky serveru v adrese
+   dotazu. Změřeno proti ostré DB: 500 odmítnutých projde (adresa 18 kB),
+   1000 → HTTP 400, 2000 → HTTP 414. Po ~1000 swajpech se feed přestal načítat
+   úplně (při 20 swajpech denně necelé dva měsíce používání). Teď si výluku
+   dělá server přes `not exists`, z telefonu neodchází žádný výčet.
+   Vedlejší efekt: přihlášení zrychlilo ze 4,0 s na 2,9 s (ubyly dva dotazy).
+
+2. **`migration_people_cards.sql`** — `profiles.card_enabled/card_offer/card_tags`,
+   `matches.kind/worker_b_id`, `rejections.kind/target_id`, `get_people_cards`,
+   `create_people_match`, `create_people_rejection`, 3 RLS politiky.
+
+3. **`migration_blocks.sql`** — tabulka `blocks`, 3 RLS politiky, trigger
+   `messages_kontrola_blokace`.
+
+⚠️ **PAST, na kterou pozor i příště:** `migration_blocks.sql` se NESMÍ spustit
+před `migration_people_cards.sql`. Její trigger na `messages` čte
+`matches.worker_b_id`; protože je to plpgsql, funkce se vytvoří i bez toho
+sloupce a spadne až za běhu — tedy **při první odeslané zprávě** a chat by
+přestal fungovat. Ověřeno po spuštění: tabulka `blocks` čitelná, blokace sebe
+sama odmítnuta (constraint, 400), blokace cizím jménem odmítnuta (RLS, 403),
+`get_feed_jobs()` i `get_people_cards()` dál funkční.
+
+**V appce k tomu:** `worker-supabase.jsx` (v=11) pozná, jestli RPC existuje
+(`42883`/`PGRST202`), a bez migrace jede původní cestou — nasazení appky a DB
+tedy nemusí být synchronní. `worker-main.jsx` (v=47) dotahuje zbytek feedu
+na pozadí přes `dotahniZbytekFeeduW`.
+
 
 ### 2026-09-19 · Jan (appka, Claude) · ČEKÁ NA SPUŠTĚNÍ: fotky ukázek práce na kartě Lidé
 Fotky na kartě Lidé dosud žily **jen v telefonu** (localStorage jako `data:` URL),

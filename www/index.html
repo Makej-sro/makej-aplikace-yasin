@@ -12,7 +12,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="theme-color" content="#f7f8fc" />
+  <!-- Při startu drží modrou (onboarding); po vstupu do appky ji JS přepne na #f7f8fc -->
+  <meta name="theme-color" content="#0020F6" />
   <title>makej. — najdi brigádu</title>
   <link rel="icon" type="image/png" href="favicon.png?v=7" />
   <!-- Ikona a název pro „Přidat na plochu" (iPhone) — appka na ploše, ne screenshot stránky -->
@@ -23,6 +24,8 @@
 
   <!-- Lokální fonty (offline, bez Google CDN) -->
   <link href="fonts.css" rel="stylesheet" />
+  <!-- Wordmark na úvodní obrazovce — stahovat hned, ne až na něj narazí rozvržení -->
+  <link rel="preload" as="font" type="font/woff2" href="fonts/LeagueSpartan-Variable.woff2" crossorigin />
 
   <!-- Lokální knihovny (offline, bez CDN) -->
   <script src="vendor/icons-solar.js"></script>
@@ -51,12 +54,26 @@
   <script src="vendor/heart-pop.js"></script>
 
   <style>
+    /* League Spartan — wordmark „Makej“ v onboardingu, stejný řez jako na webu.
+       Variabilní, osa 100–900. Licence OFL leží ve fonts/OFL.txt. */
+    @font-face {
+      font-family: 'League Spartan';
+      src: url('fonts/LeagueSpartan-Variable.woff2') format('woff2');
+      font-weight: 100 900;
+      font-style: normal;
+      /* block, ne swap: radši chvilku nic než bliknutí náhradním řezem.
+         Wordmark se stejně odkrývá až po načtení fontu (třída 'fonty'). */
+      font-display: block;
+    }
     :root { color-scheme: light; }
     *, *::before, *::after { box-sizing: border-box; }
     html, body, #root { width: 100%; height: 100%; }
+    /* Od nativní úvodní obrazovky až po appku nesmí probliknout jiná barva:
+       dokud je nahoře onboarding, drží celá plocha naši modrou. Třídu
+       `v-appce` nasadí hideGate() ve chvíli, kdy se brána odklidí. */
     html, body {
       margin: 0; padding: 0;
-      background: #f7f8fc;
+      background: #0020F6;
       font-family: "Inter", -apple-system, system-ui, sans-serif;
       color: #14141b;
       -webkit-font-smoothing: antialiased;
@@ -87,6 +104,8 @@
     @keyframes wPop { 0% { transform: scale(0.85) translateY(20px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
     @keyframes wSpin { to { transform: rotate(360deg); } }
     /* Airbnb-styl filtr kategorií — ikonka se při výběru rozhýbe */
+    /* Rozcestník při prvním spuštění — karty přijedou zespoda po sobě. */
+    @keyframes wRozcestIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
     @keyframes wCatSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
     @keyframes wCatSwing { 0%,100% { transform: rotate(0); } 15% { transform: rotate(17deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 78% { transform: rotate(3deg); } }
     @keyframes wCatBounce { 0% { transform: translateY(0) scale(1); } 28% { transform: translateY(-7px) scale(1.14); } 52% { transform: translateY(0) scale(1); } 70% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
@@ -252,9 +271,378 @@
     .wfilter-strip::-webkit-scrollbar { display: none; }
 
     /* ── Auth (registrace / přihlášení) — dle Registrace.html ── */
-    #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto; }
+    html.v-appce, html.v-appce body { background: #f7f8fc; }
+
+    #auth-gate { position: fixed; inset: 0; z-index: 9999; background: #fff; overflow-y: auto;
+                 transition: opacity .32s ease; }
     #auth-gate.hidden { display: none; }
+    /* Odchod do appky prolnutím, ne střihem. Appka je pod bránou už hotová
+       (čeká se na ni na načítací obrazovce), takže se prolíná do hotového
+       obrazu, ne do prázdna. */
+    #auth-gate.odchazi { opacity: 0; pointer-events: none; }
     .au-view { min-height: 100%; display: flex; flex-direction: column; }
+
+    /* ══ ONBOARDING (obrazovka 1 z návrhu) ══
+       Celý první běh je JEDNA obrazovka, ne sada obrazovek: splash se postupně
+       rozevírá do registrace → ověření → volby role → „Je hotovo".
+       Fáze drží jedna stavová třída na .splash (is-form, is-login, is-code,
+       is-role, is-made), takže se nikdy nepotkají a „zpět" jen třídu odebere —
+       všechny přechody se tím přehrají obráceně. Žádná druhá sada animací.
+
+       Prefix is- je nutný: .code i .pick jsou komponentní třídy v témže
+       dokumentu, bez prefixu by je .splash zdědil a rozpadl se.
+
+       Vše je zanořené pod #au-vitej, aby obecné názvy (.mark, .code, .pick,
+       .pri) nekolidovaly se zbytkem appky. */
+    #au-vitej {
+      /* Onboarding je JEDEN pevný screen — nikdy se nesmí posouvat nahoru
+         a dolů. `min-height` z .au-view by obalu dovolilo přerůst obrazovku
+         (spodní navigace pak vyjela o kus níž a brána začala jezdit), proto
+         tady pevná výška a ořez. */
+      height: 100%; overflow: hidden;
+      background: #0020F6; color: #fff; justify-content: flex-start;
+      padding: env(safe-area-inset-top) 0 0;
+      /* Stejné dělení jako na makej.eu: League Spartan nese značku a velké
+         nadpisy (.mark, .phead, .tw2), Inter všechno ostatní. Spartan je
+         displejový řez — na polích a drobném textu je opticky menší a na
+         modré se hůř čte, což by se muselo dorovnávat velikostí. */
+      font-family: "Inter", -apple-system, system-ui, sans-serif;
+    }
+    #au-vitej * { box-sizing: border-box; }
+
+    /* Ukazatel postupu: tři úseky, vyplněné podle fáze. Sedí nahoře MIMO
+       .splash, takže se nehýbe s vycentrovanou skupinou a drží místo i ve
+       fázích bez něj (jinak by obsah při přepnutí poskočil). */
+    #au-vitej .prog { flex: none; display: flex; gap: 6px; padding: 10px 26px 0;
+                      opacity: 0; transition: opacity .34s ease; }
+    #au-vitej.p-on .prog { opacity: 1; }
+    #au-vitej .prog i { flex: 1; height: 3px; border-radius: 999px;
+                        background: rgba(255,255,255,.56); overflow: hidden; }
+    #au-vitej .prog i::after { content: ''; display: block; height: 100%; width: 0;
+                               border-radius: 999px; background: #fff;
+                               transition: width .5s cubic-bezier(.22,1,.3,1); }
+    #au-vitej .prog i.done::after { width: 100%; }
+    /* Už hotový úsek se nastaví skokem — animuje se jen ten právě dosažený */
+    #au-vitej .prog i.instant::after { transition: none; }
+
+    /* ── Splash ──
+       Wordmark s claimem startuje na středu; po dopsání se pod ním rozevře
+       dvojice tlačítek a skupina se ustálí jako jeden vystředěný blok. */
+    #au-vitej .splash { position: relative; flex: 1; min-height: 0;
+                        display: flex; flex-direction: column;
+                        align-items: center; justify-content: center; padding: 0 26px; }
+    #au-vitej .splash__mark { width: 100%; height: 88px; display: flex; flex-direction: column;
+                              align-items: center; text-align: center;
+                              /* posouvá se při každé změně fáze — vlastní vrstva,
+                                 ať to nejede přes překreslování celé plochy */
+                              will-change: transform;
+                              transition: transform 1s cubic-bezier(.22,1,.3,1); }
+    /* Tlačítka nejdřív nezabírají místo, takže nadpis stojí přesně na středu. */
+    #au-vitej .splash__go { width: 100%; display: flex; flex-direction: column; gap: 12px;
+                            height: 0; margin-top: 0; overflow: hidden;
+                            opacity: 0; transform: translateY(12px); pointer-events: none;
+                            transition: height .88s cubic-bezier(.22,1,.3,1),
+                                        margin-top .88s cubic-bezier(.22,1,.3,1),
+                                        opacity .5s ease .26s,
+                                        transform .6s cubic-bezier(.22,1,.3,1) .26s; }
+    #au-vitej .splash.up .splash__go { margin-top: 44px; opacity: 1; transform: none; pointer-events: auto; }
+
+    /* Ve fázi formuláře vyjede nadpis jen o kousek výš a na místě dvojice
+       tlačítek se rozevřou políčka. Wordmark si drží velikost — mění se pozice. */
+    #au-vitej .splash.is-form .splash__mark,
+    #au-vitej .splash.is-login .splash__mark,
+    #au-vitej .splash.is-code .splash__mark { transform: translateY(-52px); }
+    /* Po ověření drží hlavičku sama fáze — wordmark i claim odcházejí.
+       Od role dál je nahoře otázka kroku, ne značka: člověk už je uvnitř.
+       Musí kolabovat i výšku, jinak neviditelný drží 88 px a obsah sedí pod středem. */
+    #au-vitej .splash.is-role .splash__mark,
+    #au-vitej .splash.is-made .splash__mark {
+      height: 0; overflow: hidden; opacity: 0; transform: translateY(-18px); pointer-events: none;
+      transition: height .6s cubic-bezier(.22,1,.3,1), opacity .42s ease,
+                  transform .6s cubic-bezier(.22,1,.3,1); }
+    /* Tlačítka odcházejí prolnutím a výška se zavírá pomaleji, aby se plynule
+       předala formuláři — jinak by obsah poskočil, než se nový rozevře. */
+    #au-vitej .splash.is-form .splash__go, #au-vitej .splash.is-login .splash__go,
+    #au-vitej .splash.is-code .splash__go, #au-vitej .splash.is-role .splash__go,
+    #au-vitej .splash.is-made .splash__go, #au-vitej .splash.is-load .splash__go {
+      height: 0 !important; margin-top: 0; opacity: 0; transform: translateY(-8px); pointer-events: none;
+      transition: height .76s cubic-bezier(.22,1,.3,1),
+                  margin-top .76s cubic-bezier(.22,1,.3,1),
+                  opacity .26s ease,
+                  transform .4s cubic-bezier(.22,1,.3,1); }
+
+    /* ── Panely fází ──
+       Jedno pravidlo pro všechno: animuje se výška, obsah se jen prolne.
+       Panel má height 0 a ve své fázi mu výšku dopočítá JS podle obsahu
+       (pevná čísla z návrhu by neseděla, jakmile se text zalomí jinak). */
+    #au-vitej .reg, #au-vitej .log, #au-vitej .pn {
+      width: 100%; display: flex; flex-direction: column; gap: 11px;
+      height: 0; margin-top: 0; overflow: hidden;
+      transition: height .95s cubic-bezier(.22,1,.3,1) .1s,
+                  margin-top .95s cubic-bezier(.22,1,.3,1) .1s; }
+    /* Políčka nastupují postupně zdola — pohyb pak vypadá jako jedno rozevření,
+       ne jako pět prvků, které se objeví naráz. */
+    #au-vitej .reg > *, #au-vitej .log > *, #au-vitej .pn > * {
+      opacity: 0; transform: translateY(14px);
+      transition: opacity .54s ease, transform .66s cubic-bezier(.22,1,.3,1); }
+    #au-vitej .splash.is-form .reg > *, #au-vitej .splash.is-login .log > *,
+    #au-vitej .splash.is-code .pn--code > *, #au-vitej .splash.is-role .pn--role > *,
+    #au-vitej .splash.is-made .pn--made > * { opacity: 1; transform: none; }
+    #au-vitej .splash.is-form .reg > *:nth-child(1), #au-vitej .splash.is-login .log > *:nth-child(1),
+    #au-vitej .splash.is-code .pn--code > *:nth-child(1), #au-vitej .splash.is-role .pn--role > *:nth-child(1) { transition-delay: .34s; }
+    #au-vitej .splash.is-form .reg > *:nth-child(2), #au-vitej .splash.is-login .log > *:nth-child(2),
+    #au-vitej .splash.is-code .pn--code > *:nth-child(2), #au-vitej .splash.is-role .pn--role > *:nth-child(2) { transition-delay: .54s; }
+    #au-vitej .splash.is-form .reg > *:nth-child(3), #au-vitej .splash.is-login .log > *:nth-child(3),
+    #au-vitej .splash.is-code .pn--code > *:nth-child(3) { transition-delay: .54s; }
+    #au-vitej .splash.is-form .reg > *:nth-child(4), #au-vitej .splash.is-login .log > *:nth-child(4),
+    #au-vitej .splash.is-code .pn--code > *:nth-child(4) { transition-delay: .64s; }
+    #au-vitej .splash.is-form .reg > *:nth-child(5), #au-vitej .splash.is-login .log > *:nth-child(5) { transition-delay: .74s; }
+    #au-vitej .splash.is-form .reg > *:nth-child(6), #au-vitej .splash.is-login .log > *:nth-child(6) { transition-delay: .84s; }
+
+    #au-vitej .splash.is-form .reg, #au-vitej .splash.is-login .log,
+    #au-vitej .splash.is-code .pn--code { margin-top: -8px; pointer-events: auto; }
+    #au-vitej .splash.is-role .pn--role { margin-top: 18px; pointer-events: auto; }
+    /* Panel „Je hotovo" leží přes celou plochu a centruje se sám — proto nemá výšku */
+    #au-vitej .pn--made { position: absolute; left: 26px; right: 26px; top: 0; bottom: 0;
+                          width: auto; height: auto; margin: 0; overflow: visible;
+                          align-items: center; justify-content: center; gap: 0;
+                          opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+    #au-vitej .splash.is-made .pn--made { opacity: 1; pointer-events: auto; }
+
+    /* Nadpis fáze leží v proudu nad panelem a do té doby nezabírá výšku —
+       skupina se tak centruje jako jeden blok, stejně jako wordmark na splashi. */
+    #au-vitej .phead { width: 100%; margin: 0; height: 0; overflow: hidden;
+                       font-family: 'League Spartan', Inter, sans-serif;
+                       font-size: 27px; font-weight: 800; color: #fff; letter-spacing: -.035em;
+                       line-height: 1.12; text-align: center; opacity: 0; transform: translateY(10px);
+                       transition: height .6s cubic-bezier(.22,1,.3,1),
+                                   opacity .48s ease .16s, transform .62s cubic-bezier(.22,1,.3,1) .16s; }
+    /* První řádek je uvození, druhý nese váhu — proto je menší a světlejší */
+    #au-vitej .phead span { display: block; font-family: "Inter", sans-serif;
+                            font-size: 20px; font-weight: 700; color: #C7D0FF;
+                            letter-spacing: -.02em; margin-bottom: 2px; }
+    #au-vitej .phead--role { font-size: 38px; letter-spacing: -.04em; line-height: 1.02; }
+    #au-vitej .splash.is-role .phead--role { opacity: 1; transform: none; }
+
+    /* ── Pole ──
+       Bílý rámeček na modré, po vyplnění zezelená — jako na waitlistu.
+       Nejsvětlejší text je #C7D0FF (5,5 : 1); #A9B7FF (3,7 : 1) na text nesmí.
+       Obrys rgba(255,255,255,.56) = 3,1 : 1, hranice UI prvku potřebuje 3 : 1. */
+    #au-vitej .fld { position: relative; }
+    #au-vitej .fld input { width: 100%; font-family: inherit; font-size: 15.5px; font-weight: 600; color: #fff;
+                           background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.56);
+                           border-radius: 15px; padding: 17px 16px; outline: none;
+                           transition: border-color .2s, background .2s; }
+    #au-vitej .fld input::placeholder { color: #C7D0FF; font-weight: 500; }
+    #au-vitej .fld input:focus { border-color: #fff; background: rgba(255,255,255,.16); }
+    #au-vitej .fld input[data-ok] { border-color: #4FE0A8; }
+    #au-vitej .fld__eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+                          font-family: inherit; font-size: 12.5px; font-weight: 700; color: #C7D0FF;
+                          background: none; border: 0; padding: 10px; cursor: pointer; }
+    #au-vitej .fine { font-size: 12px; color: #C7D0FF; line-height: 1.5; text-align: center; }
+    #au-vitej .fine a { color: #fff; }
+    #au-vitej .fine b { color: #fff; }
+
+    /* Oddělovač „nebo" — vlásková linka s textem uprostřed */
+    #au-vitej .orr { display: flex; align-items: center; gap: 12px; padding: 3px 0 1px; }
+    #au-vitej .orr::before, #au-vitej .orr::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.22); }
+    #au-vitej .orr span { font-size: 12.5px; font-weight: 600; color: #C7D0FF; }
+
+    /* ── Sociální přihlášení ──
+       Apple i Google mají závazné branding guidelines — barvu, text ani logo
+       si tu nevymýšlíme:
+         Apple → na #0020F6 jedině BÍLÁ varianta, černý text i logo. Černý styl
+           HIG zakazuje na tmavém, bílý s obrysem nedoporučuje na sytém pozadí.
+           Minimum 140 × 30 pt, odstup od hrany 1/10 výšky, text „Přihlásit se
+           s Apple" (nikdy „přes").
+         Google → bílé pozadí, plnobarevné G, obrys #747775, text #1f1f1f,
+           „Přihlásit se přes Google".
+       Proto nejsou vedle sebe: zkrácené popisky guidelines nedovolují. */
+    #au-vitej .soc { display: flex; flex-direction: column; gap: 10px; }
+    #au-vitej .soc__b { width: 100%; font-family: "Inter", -apple-system, system-ui, sans-serif;
+                        font-size: 16px; font-weight: 500;
+                        border: 0; border-radius: 14px; padding: 0 5px; height: 48px; cursor: pointer;
+                        display: flex; align-items: center; justify-content: center; gap: 10px;
+                        transition: background .18s, transform .16s; }
+    #au-vitej .soc__b:active { transform: scale(.985); }
+    #au-vitej .soc__b svg { flex: none; }
+    #au-vitej .soc__b--apple { background: #fff; color: #000; }
+    /* Hover krytý #f7f8f8, ne průhledná bílá — ta propouští modrou a tlačítko ustoupí */
+    #au-vitej .soc__b--apple:active { background: #f7f8f8; }
+    #au-vitej .soc__b--google { background: #fff; color: #1f1f1f; box-shadow: inset 0 0 0 1px #747775; }
+    #au-vitej .soc__b--google:active { background: #f7f8f8; }
+
+    #au-vitej .forg { align-self: center; font-family: inherit; font-size: 13.5px; font-weight: 700; color: #C7D0FF;
+                      background: none; border: 0; padding: 4px 0; cursor: pointer;
+                      text-decoration: underline; text-underline-offset: 4px; }
+
+    /* ── Ověřovací kód ──
+       Šest políček, ne čtyři jako v návrhu: Supabase posílá šestimístný kód. */
+    #au-vitej .pstep { font-size: 12.5px; font-weight: 700; color: #C7D0FF; text-align: center; }
+    #au-vitej .code { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    #au-vitej .code input { width: 100%; height: 60px; font-family: inherit; font-size: 24px; font-weight: 800;
+                            text-align: center; color: #fff; letter-spacing: -.02em; padding: 0;
+                            background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.56);
+                            border-radius: 14px; outline: none; -moz-appearance: textfield;
+                            transition: border-color .2s, background .2s; }
+    #au-vitej .code input::-webkit-outer-spin-button,
+    #au-vitej .code input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #au-vitej .code input:focus { border-color: #fff; background: rgba(255,255,255,.16); }
+    #au-vitej .code input[data-ok] { border-color: #4FE0A8; }
+    #au-vitej .code.bad input { border-color: #FF9AA6; animation: obShake .4s ease; }
+    @keyframes obShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    #au-vitej .resend { display: flex; align-items: center; justify-content: center; gap: 7px;
+                        font-size: 13.5px; color: #C7D0FF; }
+    #au-vitej .resend button { font-family: inherit; font-size: 13.5px; font-weight: 700; color: #fff;
+                               background: none; border: 0; padding: 0; cursor: pointer;
+                               text-decoration: underline; text-underline-offset: 4px; }
+    #au-vitej .resend button[disabled] { color: #C7D0FF; text-decoration: none; cursor: default; }
+
+    /* ── Volba role ──
+       Vybraná karta se rozevře s popisem, ostatní zůstávají malé.
+       Popis má max-height, ne height: auto — auto se neanimuje. */
+    #au-vitej .pick3 { display: flex; flex-direction: column; gap: 11px; }
+    #au-vitej .pick { position: relative; width: 100%; text-align: left; font-family: inherit;
+                      background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.56);
+                      border-radius: 20px; padding: 15px 18px; display: flex; align-items: center; gap: 14px;
+                      cursor: pointer; transition: background .18s, border-color .18s,
+                                                   padding .42s cubic-bezier(.22,1,.3,1); }
+    #au-vitej .pick--on { padding: 18px; background: #fff; border-color: #fff; }
+    /* Vše na střed, i rozevřený popis. Fajfka sedí v rohu, aby neujídala šířku textu. */
+    #au-vitej .pick > svg { position: absolute; top: 14px; right: 14px; }
+    #au-vitej .pick__t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+                         align-items: center; text-align: center; }
+    #au-vitej .pick__k { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.025em; }
+    #au-vitej .pick__d { font-size: 12.5px; color: #C7D0FF; line-height: 1.5;
+                         max-height: 0; overflow: hidden; opacity: 0;
+                         transition: max-height .42s cubic-bezier(.22,1,.3,1),
+                                     margin-top .42s cubic-bezier(.22,1,.3,1),
+                                     opacity .3s ease; }
+    #au-vitej .pick--on .pick__d { max-height: 80px; margin-top: 4px; opacity: 1; color: #5B6488; }
+    #au-vitej .pick--on .pick__k { color: #14162b; }
+
+    /* ── „Je hotovo" ──
+       Dopisuje se po znacích jako našeptávač; kurzor bliká dál i po dopsání. */
+    #au-vitej .tw2 { font-family: 'League Spartan', Inter, sans-serif; font-size: 44px; font-weight: 700;
+                     color: #fff; letter-spacing: -.03em; line-height: 1; white-space: nowrap; }
+    #au-vitej .tw2__c { display: inline-block; width: .055em; height: .74em; margin-left: .05em;
+                        background: #fff; vertical-align: -.06em; animation: obBlink 1.06s steps(1) infinite; }
+    @keyframes obBlink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+    /* Tlačítko vyjede teprve po dopsání — dřív nemá co potvrzovat. Celý nástup do 1 s. */
+    #au-vitej .rdy { width: 100%; height: 0; margin-top: 0; overflow: hidden;
+                     opacity: 0; transform: translateY(12px); pointer-events: none;
+                     transition: height .5s cubic-bezier(.22,1,.3,1),
+                                 margin-top .5s cubic-bezier(.22,1,.3,1),
+                                 opacity .34s ease .12s,
+                                 transform .44s cubic-bezier(.22,1,.3,1) .12s; }
+    #au-vitej .rdy.on { margin-top: 26px; opacity: 1; transform: none; pointer-events: auto; }
+
+    /* ── Navigace ──
+       Dvě cihličky se šipkami. „Zpět" jen odebere stavovou třídu, takže se
+       všechny přechody přehrají obráceně. Leží mimo panely, jinak by je
+       pohltilo zavření jejich výšky.
+       U role zpět chybí: vedlo by na už ověřený kód, kam se vracet nemá smysl. */
+    #au-vitej .nav2 { flex: none; display: grid; grid-template-columns: 62px 1fr; gap: 10px;
+                      padding: 0 26px calc(env(safe-area-inset-bottom) + 30px);
+                      opacity: 0; transform: translateY(12px); pointer-events: none;
+                      transition: opacity .42s ease, transform .5s cubic-bezier(.22,1,.3,1); }
+    #au-vitej.nav-on .nav2 { opacity: 1; transform: none; pointer-events: auto; transition-delay: .56s; }
+    #au-vitej.nav-solo .nav2 { grid-template-columns: 1fr; }
+    #au-vitej.nav-solo .nav2__back { display: none; }
+    #au-vitej .nav2__b { font-family: inherit; font-size: 16px; font-weight: 800; border: 0; border-radius: 999px;
+                         padding: 18px; cursor: pointer; display: flex; align-items: center;
+                         justify-content: center; gap: 9px; transition: background .18s, transform .16s; }
+    #au-vitej .nav2__b:active { transform: scale(.985); }
+    #au-vitej .nav2__b:disabled { opacity: .6; }
+    #au-vitej .nav2__back { background: rgba(255,255,255,.14); color: #fff; }
+    #au-vitej .nav2__next { background: #fff; color: #0020F6; }
+
+    /* ── Načítací obrazovka ──
+       Poslední krok před appkou. Člověk počká tady, dokud appka opravdu nemá
+       data — ať nenaskočí dovnitř a nekouká, jak se mu tam ještě něco dopočítává.
+       Wordmark zůstává na středu, pod ním jen pruh a jedna věta. */
+    #au-vitej .pn--load { align-items: center; }
+    #au-vitej .splash.is-load .pn--load { margin-top: 34px; pointer-events: auto; }
+    #au-vitej .splash.is-load .pn--load > * { opacity: 1; transform: none; }
+    #au-vitej .splash.is-load .pn--load > *:nth-child(1) { transition-delay: .10s; }
+    #au-vitej .splash.is-load .pn--load > *:nth-child(2) { transition-delay: .20s; }
+    #au-vitej .load__t { width: 74px; height: 3px; border-radius: 999px;
+                         background: rgba(255,255,255,.24); overflow: hidden; }
+    #au-vitej .load__f { display: block; height: 100%; width: 40%; border-radius: 999px; background: #fff;
+                         animation: obSlide 1.5s cubic-bezier(.5,0,.5,1) infinite; }
+    @keyframes obSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+
+    /* V přihlášení tlačítko nikam nevede dál, rovnou přihlašuje — šipka by lhala. */
+    #au-vitej.nav-bezsipky .nav2__next svg { display: none; }
+
+    /* Chybová hláška — nad navigací, mimo panely, aby neposouvala jejich výšku */
+    #au-vitej .ob-err { flex: none; display: none; margin: 0 26px 12px; padding: 11px 14px;
+                        border-radius: 13px; background: rgba(255,255,255,.14);
+                        border: 1px solid rgba(255,255,255,.4);
+                        font-size: 13px; font-weight: 600; color: #fff; line-height: 1.45; text-align: center; }
+    #au-vitej .ob-err.ok { background: rgba(79,224,168,.18); border-color: rgba(79,224,168,.6); }
+
+    /* ── Wordmark a claim ──
+       Claim se píše po písmenech a poslední slovo se mění — stejná mechanika
+       jako hero na makej.eu, jen bílá na modré. Neviditelná měřicí kopie drží
+       šířku, takže se tečka za větou veze a nepřeskakuje. */
+    /* Dokud není font načtený, wordmark se nekreslí vůbec — v náhradním řezu
+       má jinou šířku i výšku, takže by při výměně viditelně poskočil.
+       Nájezd se proto spouští až třídou 'fonty'. */
+    #au-vitej .mark { font-family: 'League Spartan', Inter, sans-serif; font-size: 62px; font-weight: 700;
+                      color: #fff; letter-spacing: -.035em; line-height: 1; opacity: 0; }
+    #au-vitej.fonty .mark { animation: obMarkIn .72s cubic-bezier(.22,1,.3,1) both; }
+    @keyframes obMarkIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+    #au-vitej .tag { font-size: 16px; font-weight: 600; color: #C7D0FF; letter-spacing: -.015em;
+                     margin-top: 6px; white-space: nowrap; }
+    #au-vitej .hs { white-space: nowrap; }
+    #au-vitej .hp { opacity: 0; transition: opacity .16s ease; }
+    #au-vitej .hp.on { opacity: 1; }
+    #au-vitej .tw { position: relative; display: inline-flex; align-items: baseline; vertical-align: baseline;
+                    white-space: nowrap; font: inherit; opacity: 0;
+                    transition: width .48s cubic-bezier(.22,1,.36,1), opacity .2s ease; }
+    #au-vitej .tw.on { opacity: 1; }
+    #au-vitej .tw__m { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; white-space: nowrap; }
+    #au-vitej .tw__w { font: inherit; display: flex; white-space: nowrap; }
+    #au-vitej .tw__c { display: block; color: #fff; font-weight: 700;
+                       transition: opacity .42s ease, filter .42s ease, transform .42s cubic-bezier(.22,1,.36,1); }
+    #au-vitej .tw__c.in { opacity: 0; filter: blur(6px); transform: translateY(.42em); }
+    #au-vitej .tw__c.out { opacity: 0; filter: blur(6px); transform: translateY(-.42em); transition-duration: .26s; }
+
+    /* Tlačítka na splashi — plná pilulka, obě bílá.
+       „Vytvořit účet" a „Přihlásit se" jsou rovnocenné cesty (nový vs. vracející
+       se člověk), ne hlavní a vedlejší — proto stejná váha, ne bílá vs. obtažená. */
+    #au-vitej .pri { width: 100%; font-family: inherit; font-size: 16px; font-weight: 800; color: #0020F6;
+                     background: #fff; border: 0; border-radius: 999px; padding: 15px; cursor: pointer;
+                     transition: transform .16s; }
+    #au-vitej .pri:active { transform: scale(.985); }
+    #au-vitej .sec { width: 100%; font-family: inherit; font-size: 16px; font-weight: 800; color: #0020F6;
+                     background: #fff; border: 0; border-radius: 999px; padding: 15px; cursor: pointer;
+                     transition: transform .16s; }
+    #au-vitej .sec:active { transform: scale(.985); }
+
+    /* Souhlas nad tlačítky — týká se obou cest, tak patří nad ně, ne až
+       doprostřed registračního formuláře. Člověk ho vidí dřív, než se rozhodne. */
+    #au-vitej .souhlas { font-size: 12.5px; font-weight: 500; line-height: 1.5;
+                         color: #C7D0FF; text-align: center; margin-bottom: 10px; }
+    #au-vitej .souhlas a { color: #fff; font-weight: 700;
+                           text-decoration: underline; text-underline-offset: 3px; }
+
+    /* Pilulka testovacího režimu — aby se nedal přehlédnout a nešel omylem
+       vydat. Klepnutím se vypne. */
+    #au-vitej .ob-test { position: absolute; top: calc(env(safe-area-inset-top) + 8px); right: 16px; z-index: 5;
+                         font-family: inherit; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+                         color: #0020F6; background: #FFD84D; border: 0; border-radius: 999px;
+                         padding: 5px 10px; cursor: pointer; }
+    /* Pilulka sedí v rohu nad ukazatelem — ten se jí proto uhne dolů, jinak
+       by přes sebe ležely. Mimo testovací režim zůstává vše na svém místě. */
+    #au-vitej.test-on .prog { padding-top: 34px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #au-vitej *, #au-vitej *::before, #au-vitej *::after {
+        animation-duration: .01ms !important; transition-duration: .01ms !important;
+      }
+    }
     .au-head {
       position: relative; flex-shrink: 0; background: #fff; text-align: center;
       padding: calc(env(safe-area-inset-top) + 28px) 30px 2px;
@@ -374,8 +762,148 @@
 <!-- Bez úvodní obrazovky: aplikace jede rovnou dovnitř (swipe / přihlášení). -->
 
 <div id="auth-gate">
+  <!-- ONBOARDING — první, co appka ukáže.
+       Celý tok je jedna obrazovka: splash se rozevírá do registrace, ověření
+       a volby role. Fázi drží stavová třída na #ob-splash, řídí ji skript níž. -->
+  <div class="au-view au-vitej" id="au-vitej">
+    <button class="ob-test" id="ob-test-znacka" type="button" hidden>TEST · vypnout</button>
+    <div class="prog" id="ob-prog" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-hidden="true" aria-label="Postup nastavení">
+      <i></i><i></i><i></i>
+    </div>
+
+    <div class="splash" id="ob-splash">
+      <div class="splash__mark">
+        <span class="mark">Makej</span>
+        <span class="tag" id="ob-tag">Práce na jeden <span class="tw" id="ob-tw"><span class="tw__w" id="ob-tww">swajp</span></span>.</span>
+      </div>
+
+      <div class="splash__go" id="ob-go">
+        <p class="souhlas">Klepnutím na ‚Vytvořit účet‘ nebo ‚Přihlásit se‘ vyjadřuješ souhlas s našimi
+          <a href="https://makej.eu/terms.html" target="_blank" rel="noopener">podmínkami</a>.
+          Zjisti, jak zpracováváme tvá data, v našich
+          <a href="https://makej.eu/privacy.html" target="_blank" rel="noopener">zásadách ochrany soukromí</a> a
+          <a href="https://makej.eu/zasady-cookies.html" target="_blank" rel="noopener">zásadách používání souborů cookies</a>.</p>
+        <button class="pri" id="ob-goreg" type="button">Vytvořit účet</button>
+        <button class="sec" id="ob-golog" type="button">Přihlásit se</button>
+      </div>
+
+      <h2 class="phead phead--role" id="ob-phead-role"><span>S čím ti Makej</span>pomůže?</h2>
+
+      <!-- REGISTRACE -->
+      <form class="reg" id="ob-reg" novalidate>
+        <div class="fld"><input type="email" id="ob-reg-email" placeholder="E-mail" aria-label="E-mail" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" /></div>
+        <div class="fld"><input type="text" id="ob-reg-name" placeholder="Jméno a příjmení" aria-label="Jméno a příjmení" autocomplete="name" autocapitalize="words" /></div>
+        <div class="fld">
+          <input type="password" id="ob-reg-pw" placeholder="Heslo" aria-label="Heslo" autocomplete="new-password" data-pw />
+          <button class="fld__eye" type="button" data-eye tabindex="-1">Zobrazit</button>
+        </div>
+        <div class="fld">
+          <input type="password" id="ob-reg-pw2" placeholder="Heslo znovu" aria-label="Heslo znovu" autocomplete="new-password" data-pw2 />
+          <button class="fld__eye" type="button" data-eye tabindex="-1">Zobrazit</button>
+        </div>
+        <!-- Přístupový klíč (pre-launch) — ukáže se jen dokud není brána odemčená -->
+        <div class="fld" id="ob-reg-keyfld" hidden><input type="text" id="ob-reg-key" placeholder="Přístupový klíč" aria-label="Přístupový klíč" inputmode="numeric" autocomplete="off" autocapitalize="none" autocorrect="off" /></div>
+      </form>
+
+      <!-- PŘIHLÁŠENÍ -->
+      <form class="log" id="ob-log" novalidate>
+        <div class="fld"><input type="email" id="ob-log-email" placeholder="E-mail" aria-label="E-mail" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" /></div>
+        <div class="fld">
+          <input type="password" id="ob-log-pw" placeholder="Heslo" aria-label="Heslo" autocomplete="current-password" />
+          <button class="fld__eye" type="button" data-eye tabindex="-1">Zobrazit</button>
+        </div>
+        <div class="fld" id="ob-log-keyfld" hidden><input type="text" id="ob-log-key" placeholder="Přístupový klíč" aria-label="Přístupový klíč" inputmode="numeric" autocomplete="off" autocapitalize="none" autocorrect="off" /></div>
+        <button class="forg" type="button" id="ob-forg">Zapomenuté heslo</button>
+        <span class="orr"><span>nebo</span></span>
+        <div class="soc">
+          <button class="soc__b soc__b--apple" type="button" data-oauth="apple">
+            <svg width="16" height="18" viewBox="0 0 18 21" aria-hidden="true"><path d="M12.4 11c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.8-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.8-.8-1.5 0-2.8.9-3.5 2.2-1.5 2.6-.4 6.5 1.1 8.6.7 1 1.6 2.2 2.7 2.1 1.1 0 1.5-.7 2.8-.7 1.3 0 1.6.7 2.8.7 1.1 0 1.9-1.1 2.6-2.1.5-.7.9-1.5 1.1-2.2-2-.8-2.2-3.3-2.2-3.4Z" fill="#000"></path><path d="M10.6 4.3c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.6.6-1 1.6-.9 2.6 1 .1 2-.5 2.6-1.2Z" fill="#000"></path></svg>
+            Přihlásit se s Apple
+          </button>
+          <button class="soc__b soc__b--google" type="button" data-oauth="google">
+            <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M19.6 10.2c0-.7-.06-1.36-.18-2H10v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.74 3-4.3 3-7.3Z" fill="#4285F4"></path><path d="M10 20c2.7 0 4.96-.9 6.6-2.43l-3.2-2.5c-.9.6-2.05.95-3.4.95a5.98 5.98 0 0 1-5.62-4.14H1.06v2.6A10 10 0 0 0 10 20Z" fill="#34A853"></path><path d="M4.38 11.88a6 6 0 0 1 0-3.82V5.46H1.06a10 10 0 0 0 0 9.02l3.32-2.6Z" fill="#FBBC05"></path><path d="M10 3.94c1.47 0 2.79.5 3.83 1.5l2.84-2.84A9.98 9.98 0 0 0 10 0 10 10 0 0 0 1.06 5.46l3.32 2.6A5.98 5.98 0 0 1 10 3.94Z" fill="#EA4335"></path></svg>
+            Přihlásit se přes Google
+          </button>
+        </div>
+      </form>
+
+      <!-- OVĚŘENÍ E-MAILU KÓDEM -->
+      <div class="pn pn--code" id="ob-code-pn">
+        <span class="pstep">Ověření e-mailu</span>
+        <p class="fine" style="margin:0">Poslali jsme šestimístný kód na <b id="ob-code-email">tvůj e-mail</b>.</p>
+        <div class="code" id="ob-code">
+          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="1. číslice kódu" />
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="2. číslice kódu" />
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="3. číslice kódu" />
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="4. číslice kódu" />
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="5. číslice kódu" />
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="6. číslice kódu" />
+        </div>
+        <span class="resend">Nepřišel? <button type="button" id="ob-resend">Poslat znovu</button></span>
+      </div>
+
+      <!-- HOTOVO -->
+      <div class="pn pn--made">
+        <span class="tw2" id="ob-tw2" aria-live="polite"><span id="ob-tw2t"></span><span class="tw2__c" aria-hidden="true"></span></span>
+        <div class="rdy" id="ob-rdy">
+          <button class="pri" id="ob-rdy-btn" type="button">Jsem připravený</button>
+        </div>
+      </div>
+
+      <!-- NAČÍTÁNÍ — poslední krok před appkou -->
+      <div class="pn pn--load" id="ob-load-pn">
+        <span class="load__t" aria-hidden="true"><i class="load__f"></i></span>
+        <span class="fine" role="status">Připravuju appku…</span>
+      </div>
+
+      <!-- VOLBA ROLE -->
+      <div class="pn pn--role" id="ob-role-pn">
+        <div class="pick3" id="ob-roles">
+          <button class="pick pick--on" type="button" data-role="prace">
+            <span class="pick__t">
+              <span class="pick__k">Hledat práci</span>
+              <span class="pick__d">Brigády v okolí ve swipe feedu, odměna za směnu dopředu, rychlá odpověď firmy a výdělky na jednom místě.</span>
+            </span>
+            <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#0020F6"></circle><path d="M6 10.3L8.6 12.9 14 6.9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <button class="pick" type="button" data-role="karta">
+            <span class="pick__t">
+              <span class="pick__k">Nabízet práci</span>
+              <span class="pick__d">Vypíšeš směnu, vidíš hodnocení a spolehlivost přihlášených a vybereš si. Dashboard hlídá termíny i výplaty.</span>
+            </span>
+          </button>
+          <button class="pick" type="button" data-role="prace">
+            <span class="pick__t">
+              <span class="pick__k">Oboje</span>
+              <span class="pick__d">Obojí v jedné appce: hledáš brigády a zároveň nabízíš v Lidech, co umíš. Přepínáš jedním klepnutím.</span>
+            </span>
+          </button>
+          <button class="pick" type="button" data-role="prace">
+            <span class="pick__t">
+              <span class="pick__k">Ještě nevím</span>
+              <span class="pick__d">Necháme ti základní nastavení a nic nebudeme tlačit. Rozkoukáš se a doplníš to, až budeš chtít.</span>
+            </span>
+          </button>
+        </div>
+        <span class="fine" style="margin-top:2px">V aplikaci budeš následně moct své rozhodnutí kdykoli změnit.</span>
+      </div>
+    </div>
+
+    <div class="ob-err" id="ob-err" role="alert"></div>
+
+    <div class="nav2">
+      <button class="nav2__b nav2__back" id="ob-back" type="button" aria-label="Zpět">
+        <svg width="11" height="18" viewBox="0 0 12 20" aria-hidden="true"><path d="M9.4 2L2.6 10l6.8 8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+      <button class="nav2__b nav2__next" id="ob-next" type="button">
+        <span id="ob-next-txt">Pokračovat</span>
+        <svg width="11" height="18" viewBox="0 0 12 20" aria-hidden="true"><path d="M2.6 2l6.8 8-6.8 8" fill="none" stroke="#0020F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+    </div>
+  </div>
+
   <!-- REGISTRACE -->
-  <div class="au-view" id="au-register">
+  <div class="au-view" id="au-register" style="display:none">
     <div class="au-head">
       <div class="au-logo">Makej</div>
       <div class="au-h1">Vytvoř si účet</div>
@@ -579,18 +1107,852 @@
   }
   function markGateOk() { try { localStorage.setItem('makej-gate-ok', ACCESS_KEY); } catch (e) {} }
 
+  /* ─── Testovací režim onboardingu ──────────────────────────────────────────
+     Aby se dal tok projet pořád dokola se stejnými údaji a nezakládaly se
+     přitom nové účty. Když je zapnutý:
+       • pole jsou předvyplněná testovacím účtem včetně přístupového klíče,
+       • testovací účet se založí JEN POPRVÉ, podruhé se pod ním přihlásíme
+         (v Supabase tedy zůstane jeden jediný řádek),
+       • ověřovací kód se nezadává (potvrzení e-mailu je vypnuté; kdyby se
+         zapnulo, u testovacího účtu projde jakýchkoli šest číslic),
+       • při každém načtení se odhlásí a zapomene volba role, takže tok
+         začíná vždycky od splashe.
+     Jiný e-mail než testovací se chová úplně normálně — režim nic nepředstírá.
+
+     ⇒ VYPNOUT: klepni na pilulku „TEST" v rohu, nebo otevři appku s ?test=0.
+     ⇒ PŘED RELEASEM: OB_TEST_VYCHOZI = false (a testovací účet smazat). */
+  const OB_TEST_VYCHOZI = true;
+  const OB_TEST_UCET = { email: 'test@makej.eu', heslo: 'makej1234', jmeno: 'Test Makej' };
+  // Přepínač si appka pamatuje stejně jako „Náhled prázdné appky": adresa ho
+  // přestaví, localStorage ho drží. Na telefonu se tak dá vypnout bez editace.
+  const OB_TEST = (() => {
+    try {
+      const p = new URLSearchParams(location.search).get('test');
+      if (p === '1' || p === '0') localStorage.setItem('makej-ob-test', p);
+      const v = localStorage.getItem('makej-ob-test');
+      if (v === '1') return true;
+      if (v === '0') return false;
+    } catch (e) {}
+    return OB_TEST_VYCHOZI;
+  })();
+
   const gate = document.getElementById('auth-gate');
-  function showGate() { gate.classList.remove('hidden'); }
-  function hideGate() { gate.classList.add('hidden'); }
+
+
+  // Na modré musí být ikonky status baru bílé. Capacitor to má obráceně:
+  // Style DARK = bílý text (viz komentář u wStatusBar v app.jsx). Tenhle
+  // kousek nemůže čekat na app.jsx — ten se překládá až po úvodní animaci.
+  function wObStatusBar(bila) {
+    try {
+      const C = window.Capacitor, S = C && C.Plugins && C.Plugins.StatusBar;
+      if (S && S.setStyle) S.setStyle({ style: bila ? 'DARK' : 'LIGHT' });
+    } catch (e) { /* prohlížeč, ne nativní obal */ }
+  }
+  wObStatusBar(true);
+
+  /* ── Podmínky, soukromí, cookies ──
+     V nativním obalu se otevřou UVNITŘ appky — panel vyjede zespoda a zavře
+     se „Hotovo", stejně jako to má Tinder. Odejít kvůli přečtení podmínek do
+     systémového prohlížeče je zbytečně tvrdý skok a člověk se pak musí vracet
+     ručně; navíc by se v půlce registrace ztratil kontext.
+
+     Platí jen pro onboarding. V appce jsou odkazy, které ven odejít MAJÍ
+     (adresa v mapách), proto se to nevěší na celý dokument.
+     V prohlížeči (vývoj, PWA) zůstává obyčejné otevření v novém panelu. */
+  gate.addEventListener('click', async (e) => {
+    const odkaz = e.target && e.target.closest && e.target.closest('a[href^="http"]');
+    if (!odkaz) return;
+
+    const C = window.Capacitor;
+    const nativni = !!(C && (C.isNativePlatform ? C.isNativePlatform() : C.isNative));
+    if (!nativni) return;   // obyčejný prohlížeč → ať se otevře normálně
+
+    // V appce se ven NEODCHÁZÍ. I kdyby se otevření nepovedlo, radši hláška
+    // než vyhození do systémového prohlížeče — z toho se člověk vrací ručně
+    // a uprostřed registrace ztratí, co měl rozepsané.
+    e.preventDefault();
+
+    const B = C.Plugins && C.Plugins.Browser;
+    if (!B || !B.open) {
+      obChyba('Stránku zatím neumím otevřít uvnitř appky. Zkus to na makej.eu.');
+      return;
+    }
+    try {
+      await B.open({ url: odkaz.href, presentationStyle: 'popover' });
+    } catch (err) {
+      obChyba('Stránku se nepodařilo otevřít: ' + ((err && err.message) || err));
+    }
+  });
+
+  function showGate() {
+    gate.classList.remove('hidden', 'odchazi');
+    document.documentElement.classList.remove('v-appce');
+    wObStatusBar(true);
+  }
+
+  // Odchod do appky: prolnutí, přehození barvy plochy a status baru.
+  function hideGate() {
+    wSpustAppku();
+    if (gate.classList.contains('hidden') || gate.classList.contains('odchazi')) return;
+    document.documentElement.classList.add('v-appce');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', '#f7f8fc');
+    gate.classList.add('odchazi');
+    setTimeout(() => {
+      gate.classList.add('hidden');
+      gate.classList.remove('odchazi');
+      wObStatusBar(false);
+    }, 340);
+  }
+
+  /* ─── Odložené sestavení appky ───────────────────────────────────────────
+     JSX se překládá Babelem až tady v prohlížeči — je toho skoro 900 kB a
+     hlavní vlákno to zaměstná na několik vteřin. Když to běželo hned při
+     startu, spadlo to doprostřed úvodní animace a ta sekala.
+
+     Úvodní obrazovka je přesně ten čas, kdy se má appka na pozadí připravit,
+     takže překlad začíná teprve po dopsání nadpisu. Soubory navíc nejedou
+     jedním zátahem: mezi každým se pustí snímek, takže se splash překresluje
+     a měnící se slovo se nezastaví.
+
+     Skripty proto v HTML čekají jako "text/babel-pozdeji" — Babel zpracovává
+     jen text/babel a text/jsx, takže si jich do té doby nevšimne. Pořadí
+     spouštění zůstává takové, v jakém jsou v dokumentu. */
+  let appkaSlib = null;
+  let appkaHotova = false;
+  // Dokud běží přechod mezi fázemi, hlavní vlákno patří animaci. Překlad
+  // dalšího souboru počká — jinak se do pohybu vloží stovky milisekund ticha.
+  let obKlidDo = 0;
+  function obKlid(ms) { obKlidDo = Math.max(obKlidDo, Date.now() + ms); }
+  function wSpustAppku() {
+    if (appkaSlib) return appkaSlib;
+    appkaSlib = wSestavAppku().then(() => { appkaHotova = true; });
+    return appkaSlib;
+  }
+  async function wSestavAppku() {
+    // Skripty appky stojí v dokumentu POD tímhle blokem. Když se sem dostaneme
+    // dřív, než je parser stihne přečíst, querySelectorAll nenajde nic, funkce
+    // skončí naprázdno — a protože se výsledek pamatuje, appka by se už nikdy
+    // nesestavila. (Stane se to, když je font v cache a čekání na něj dojede
+    // ještě uvnitř téhle úlohy, tedy typicky při druhém otevření appky.)
+    if (document.readyState === 'loading') {
+      await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
+    }
+    const tagy = [...document.querySelectorAll('script[type="text/babel-pozdeji"]')];
+    if (!tagy.length) return;
+    // Jeden snímek navíc: requestAnimationFrame pustí vykreslení, setTimeout
+    // pak vrátí řízení až po něm — jinak by se překlad slepil s kreslením.
+    const snimek = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+    try {
+      // Stahování visí na síti, ne na hlavním vlákně — může běžet naráz.
+      const zdroje = await Promise.all(tagy.map(t => fetch(t.src).then(r => r.text())));
+      for (let i = 0; i < tagy.length; i++) {
+        await snimek();
+        while (Date.now() < obKlidDo) await new Promise(r => setTimeout(r, 120));
+        const nazev = tagy[i].src.split('/').pop().split('?')[0];
+        const kod = Babel.transform(zdroje[i], { presets: ['react'], filename: nazev }).code;
+        const el = document.createElement('script');
+        // sourceURL → v konzoli i ve stopách chyb zůstane jméno souboru
+        el.textContent = kod + '\n//# sourceURL=' + nazev;
+        document.body.appendChild(el);
+        tagy[i].remove();
+      }
+    } catch (e) {
+      console.error('[appka] sestavení selhalo', e);
+    }
+  }
+  // Pojistka, kdyby se úvodní obrazovka vůbec neukázala nebo někde uvízla.
+  window.addEventListener('load', () => setTimeout(wSpustAppku, 3000));
 
   const regView = document.getElementById('au-register');
   const loginView = document.getElementById('au-login');
   const verifyView = document.getElementById('au-verify');
+  const vitejView = document.getElementById('au-vitej');
   function showView(v) {
+    vitejView.style.display = v === 'vitej' ? '' : 'none';
     regView.style.display = v === 'register' ? '' : 'none';
     loginView.style.display = v === 'login' ? '' : 'none';
     verifyView.style.display = v === 'verify' ? '' : 'none';
     gate.scrollTop = 0;
+    // Brána je bílá, onboarding modrý přes celou plochu — jinak při přetažení prosvítá bílý okraj.
+    gate.style.background = v === 'vitej' ? '#0020F6' : '#fff';
+    gate.style.overflowY = v === 'vitej' ? 'hidden' : 'auto';
+    if (v === 'vitej') spustUvitani();
+  }
+
+  /* ══ ONBOARDING ══
+     Celý první běh je jeden stavový automat, ne sada obrazovek. Fázi drží
+     jedna třída na #ob-splash (is-form → is-code → is-role → is-made);
+     „zpět" ji jen odebere a všechny CSS přechody se přehrají obráceně.
+
+     Výšky panelů se NEpíšou natvrdo jako v návrhu — dopočítá je JS ze
+     scrollHeight. Text se na jiné šířce telefonu zalomí jinak a pevná
+     čísla by obsah ořízla nebo nechala díru.
+
+     Proti prototypu je reálné jen tohle: kód má šest políček (tolik posílá
+     Supabase, ne čtyři), přihlášení nekončí ověřením (účet už ověřený je)
+     a dokud běží předstartovní brána, přibude políčko na přístupový klíč. */
+  const obVitej = document.getElementById('au-vitej');
+  const obSplash = document.getElementById('ob-splash');
+  const obGo = document.getElementById('ob-go');
+  const obRegPanel = document.getElementById('ob-reg');
+  const obLogPanel = document.getElementById('ob-log');
+  const obCodePn = document.getElementById('ob-code-pn');
+  const obRolePn = document.getElementById('ob-role-pn');
+  const obPheadRole = document.getElementById('ob-phead-role');
+  const obProg = document.getElementById('ob-prog');
+  const obErr = document.getElementById('ob-err');
+  const obNext = document.getElementById('ob-next');
+  const obNextTxt = document.getElementById('ob-next-txt');
+  const obBack = document.getElementById('ob-back');
+  const obCodeBox = document.getElementById('ob-code');
+  const obCodePole = [...obCodeBox.querySelectorAll('input')];
+  const obRdy = document.getElementById('ob-rdy');
+  const obLoadPn = document.getElementById('ob-load-pn');
+
+  const OB_FAZE = ['is-form', 'is-code', 'is-role', 'is-made'];
+  // Boolean, ne název třídy — hromadná náhrada tříd ho tak nemůže zasáhnout.
+  let obJeLogin = false;
+  let obEmail = '';
+  let obVolba = 'prace';
+  let obPracuje = false;
+  let obResendTimer = null;
+  let obStartLogin = false;      // existující session bez klíče → rovnou na přihlášení
+  let obRovnouDovnitr = false;   // platná session → jen značka, proužek a dovnitř
+
+  function obChyba(zprava, ok) {
+    obErr.textContent = zprava || '';
+    obErr.style.display = zprava ? 'block' : 'none';
+    obErr.classList.toggle('ok', !!ok);
+  }
+
+  // Panel má height 0; ve své fázi dostane výšku podle obsahu. Prázdný
+  // řetězec vrací řízení CSS, takže se zavření animuje stejně jako otevření.
+  function obVyska(el, otevreno) {
+    if (!el) return;
+    el.style.height = otevreno ? el.scrollHeight + 'px' : '';
+  }
+
+  // Výšky panelů se měří DOPŘEDU, ve chvíli klidu — ne až při klepnutí.
+  // Čtení scrollHeight nutí prohlížeč hned přepočítat rozvržení, a když to
+  // padne doprostřed klepnutí, začátek přechodu se viditelně zadrhne
+  // (naměřeno 87 ms). Obsah panelů se mění jen minimálně (políčko na klíč),
+  // takže se přeměří po každé takové změně a při otočení/změně velikosti.
+  const obVysky = new Map();
+  function obZmerPanely() {
+    [obGo, obRegPanel, obLogPanel, obCodePn, obRolePn, obPheadRole, obLoadPn]
+      .forEach(el => { if (el) obVysky.set(el, el.scrollHeight); });
+  }
+  window.addEventListener('resize', () => { obVysky.clear(); });
+
+  function obVyskyDavkou(pary) {
+    // Co není předměřené, změří se teď — ale to je výjimka, ne pravidlo.
+    const zmereno = pary.map(([el, otevreno]) => {
+      if (!el || !otevreno) return [el, null];
+      const ulozena = obVysky.get(el);
+      return [el, (typeof ulozena === 'number' && ulozena > 0) ? ulozena : el.scrollHeight];
+    });
+    zmereno.forEach(([el, v]) => { if (el) el.style.height = v === null ? '' : v + 'px'; });
+  }
+
+  // Ukazatel: registrace 1 → 2 → 3. Přihlášení má jediný krok, tam se schová
+  // (ale drží místo, jinak by obsah při přepnutí poskočil).
+  const OB_KROK = { 'is-form': 1, 'is-code': 2, 'is-role': 3 };
+  function obUkazatel(stav) {
+    const n = obJeLogin ? 0 : (OB_KROK[stav] || 0);
+    obVitej.classList.toggle('p-on', n > 0);
+    [...obProg.children].forEach((el, i) => {
+      const hotovy = i < n;
+      // Už hotové úseky se nastaví skokem — plní se jen ten právě dosažený.
+      el.classList.toggle('instant', hotovy && i < n - 1);
+      el.classList.toggle('done', hotovy);
+    });
+    if (n > 0) { obProg.setAttribute('aria-valuenow', n); obProg.removeAttribute('aria-hidden'); }
+    // Skrytý jen opticky by čtečce hlásil progressbar se starou hodnotou.
+    else { obProg.removeAttribute('aria-valuenow'); obProg.setAttribute('aria-hidden', 'true'); }
+  }
+
+  function obFaze(stav) {
+    obKlid(1500);   // po dobu přechodu má přednost obraz, ne překlad
+    OB_FAZE.concat(['is-login', 'is-load']).forEach(f => obSplash.classList.remove(f));
+    if (stav) obSplash.classList.add(stav);
+    // Jen na úvodní obrazovce jde nápis nahoru a tlačítka dolů; ve fázích
+    // se skupina zase centruje jako jeden blok.
+    obSplash.classList.toggle('je-uvod', !stav);
+    obChyba('');
+    obUkazatel(stav);
+
+    obVyskyDavkou([
+      [obGo,        !stav && obSplash.classList.contains('up')],
+      [obRegPanel,  stav === 'is-form'],
+      [obLogPanel,  stav === 'is-login'],
+      [obCodePn,    stav === 'is-code'],
+      [obRolePn,    stav === 'is-role'],
+      [obPheadRole, stav === 'is-role'],
+      [obLoadPn,    stav === 'is-load'],
+    ]);
+
+    // Navigace je ve všech fázích kromě splashe a závěru. U role zpět chybí:
+    // vedlo by na už ověřený kód, kam se vracet nemá smysl.
+    obVitej.classList.toggle('nav-on', !!stav && stav !== 'is-made' && stav !== 'is-load');
+    obVitej.classList.toggle('nav-solo', stav === 'is-role');
+    obVitej.classList.toggle('nav-bezsipky', stav === 'is-login');
+    obTlacitko(false, obPopisek());
+
+    if (stav === 'is-made') setTimeout(obPisHotovo, 420);
+
+    // Do polí se kurzor sám nestaví. Klávesnice, která vyskočí hned po
+    // přepnutí fáze, zakryje půl obrazovky dřív, než si ji člověk stihne
+    // přečíst — do pole klepne sám, až bude chtít psát.
+    // Rozepsané pole se naopak opouští: přechod na další fázi klávesnici zavře.
+    const akt = document.activeElement;
+    if (akt && akt.blur) akt.blur();
+  }
+
+  function obKteraFaze() {
+    for (let i = 0; i < OB_FAZE.length; i++) if (obSplash.classList.contains(OB_FAZE[i])) return i;
+    return -1;
+  }
+
+  // V přihlášení nedává „Pokračovat" smysl — to tlačítko rovnou přihlašuje.
+  function obPopisek() {
+    return obSplash.classList.contains('is-login') ? 'Přihlásit se' : 'Pokračovat';
+  }
+
+  function obTlacitko(zamek, text) {
+    obPracuje = zamek;
+    obNext.disabled = zamek;
+    obNextTxt.textContent = text;
+  }
+
+  /* ── Přístupový klíč (pre-launch) ──
+     Dokud brána platí, nejde se dostat dovnitř bez klíče. Políčko se proto
+     ukáže rovnou ve formuláři — jinak by tok skončil slepou uličkou na
+     „Jsem připravený". Po odemčení (ACCESS_KEY = '') zmizí samo. */
+  function obPripravKlic() {
+    const treba = !accessKeyOk();
+    let zmena = false;
+    ['ob-reg-keyfld', 'ob-log-keyfld'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.hidden === treba) { el.hidden = !treba; zmena = true; }
+    });
+    if (zmena) obVysky.clear();   // formulář je o pole vyšší/nižší
+  }
+  function obKlicOk(id) {
+    if (accessKeyOk()) return true;
+    const el = document.getElementById(id);
+    if (el && el.value.trim() === ACCESS_KEY) { markGateOk(); return true; }
+    return false;
+  }
+
+  /* ── Testovací režim ──
+     Platí jen pro testovací e-mail; jakákoli jiná adresa jede ostrou cestou. */
+  function obJeTestUcet(email) {
+    return OB_TEST && (email || '').trim().toLowerCase() === OB_TEST_UCET.email;
+  }
+
+  // Přihlásí pod testovacím účtem; když ještě neexistuje, jednou ho založí.
+  // Vrací chybu, nebo null. Díky tomu nepřibývá s každým průchodem nový účet.
+  async function obTestUcet(email, heslo, jmeno) {
+    let { error } = await sb.auth.signInWithPassword({ email, password: heslo });
+    if (!error) return null;
+    if (!/Invalid login credentials/i.test(error.message || '')) return error;
+    const r = await sb.auth.signUp({ email, password: heslo, options: { data: { name: jmeno || OB_TEST_UCET.jmeno, role: 'worker' } } });
+    if (r.error) return r.error;
+    if (r.data.session) return null;
+    return (await sb.auth.signInWithPassword({ email, password: heslo })).error;
+  }
+
+  // Předvyplní obě větve, ať se při opakovaném průchodu nic nepřepisuje ručně.
+  // Událost 'input' je tu kvůli zeleným rámečkům — ty visí na kontrole polí.
+  function obTestPredvypln() {
+    if (!OB_TEST) return;
+    const znacka = document.getElementById('ob-test-znacka');
+    if (znacka) znacka.hidden = false;
+    obVitej.classList.add('test-on');
+    const vloz = (id, v) => {
+      const el = document.getElementById(id);
+      if (!el || el.value) return;
+      el.value = v;
+      el.dispatchEvent(new Event('input'));
+    };
+    vloz('ob-reg-email', OB_TEST_UCET.email);
+    vloz('ob-reg-name', OB_TEST_UCET.jmeno);
+    vloz('ob-reg-pw', OB_TEST_UCET.heslo);
+    vloz('ob-reg-pw2', OB_TEST_UCET.heslo);
+    vloz('ob-log-email', OB_TEST_UCET.email);
+    vloz('ob-log-pw', OB_TEST_UCET.heslo);
+    vloz('ob-reg-key', ACCESS_KEY);
+    vloz('ob-log-key', ACCESS_KEY);
+  }
+
+  document.getElementById('ob-test-znacka').addEventListener('click', () => {
+    try { localStorage.setItem('makej-ob-test', '0'); } catch (e) {}
+    location.reload();
+  });
+
+  /* ── Registrace ── */
+  async function obRegistruj() {
+    if (obPracuje) return;
+    const email = document.getElementById('ob-reg-email').value.trim();
+    const jmeno = document.getElementById('ob-reg-name').value.trim();
+    const heslo = document.getElementById('ob-reg-pw').value;
+    const heslo2 = document.getElementById('ob-reg-pw2').value;
+    if (!email || !jmeno || !heslo) return obChyba('Vyplň e-mail, jméno a heslo.');
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) return obChyba('Zkontroluj tvar e-mailu.');
+    if (heslo.length < 6) return obChyba('Heslo musí mít alespoň 6 znaků.');
+    if (heslo !== heslo2) return obChyba('Hesla se neshodují.');
+    // Jméno jde do metadat účtu (signUp), tedy MIMO updateProfileW, kde filtr
+    // sedí. Bez téhle kontroly by šlo se sprostým jménem rovnou zaregistrovat.
+    if (window.MkjFiltr) {
+      const kontrola = window.MkjFiltr.zkontroluj(jmeno);
+      if (!kontrola.ok) return obChyba('Tohle jako jméno nejde. ' + kontrola.hlaska);
+    }
+    if (!obKlicOk('ob-reg-key')) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+
+    // V testu se pod testovacím účtem rovnou přihlásíme — nezakládá se nový.
+    if (obJeTestUcet(email)) {
+      obTlacitko(true, 'Přihlašuji test…');
+      const chyba = await obTestUcet(email, heslo, jmeno);
+      obTlacitko(false, obPopisek());
+      if (chyba) return obChyba(translateErr(chyba.message));
+      obEmail = email;
+      obFaze('is-role');
+      return;
+    }
+
+    obTlacitko(true, 'Vytvářím účet…');
+    const { data, error } = await sb.auth.signUp({ email, password: heslo, options: { data: { name: jmeno, role: 'worker' } } });
+    obTlacitko(false, obPopisek());
+    if (error) return obChyba(translateErr(error.message));
+    obEmail = email;
+    // Potvrzení e-mailu je zatím vypnuté → session vznikne rovnou a ověřovací
+    // kód by nikdy nepřišel. Ptát se na něj by byla slepá ulička.
+    if (data.session) { obFaze('is-role'); return; }
+    document.getElementById('ob-code-email').textContent = email;
+    obFaze('is-code');
+    obOdpocet(45);
+  }
+
+  /* ── Přihlášení ──
+     Kratší větev: účet existuje, takže se role neopakuje. Ověření kódem se
+     řeší jen tehdy, když e-mail potvrzený není. */
+  async function obPrihlas() {
+    if (obPracuje) return;
+    const email = document.getElementById('ob-log-email').value.trim();
+    const heslo = document.getElementById('ob-log-pw').value;
+    if (!email || !heslo) return obChyba('Vyplň e-mail a heslo.');
+    if (!obKlicOk('ob-log-key')) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+
+    // Testovací účet se při prvním použití založí, jinak se pod ním přihlásí.
+    if (obJeTestUcet(email)) {
+      obTlacitko(true, 'Přihlašuji test…');
+      const chyba = await obTestUcet(email, heslo);
+      obTlacitko(false, obPopisek());
+      if (chyba) return obChyba(translateErr(chyba.message));
+      markGateOk();
+      return obDovnitr();
+    }
+
+    obTlacitko(true, 'Přihlašuji…');
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: heslo });
+    obTlacitko(false, obPopisek());
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        obEmail = email;
+        document.getElementById('ob-code-email').textContent = email;
+        obFaze('is-code');
+        sb.auth.resend({ type: 'signup', email });
+        obOdpocet(45);
+        obChyba('Nejdřív potvrď e-mail — poslali jsme ti nový kód.', true);
+        return;
+      }
+      return obChyba(translateErr(error.message));
+    }
+    if (data.user?.user_metadata?.role === 'employer') {
+      await sb.auth.signOut();
+      return obChyba('Tento účet je zaměstnavatelský. Přihlaš se jako brigádník.');
+    }
+    markGateOk();
+    obDovnitr();
+  }
+
+  /* ── Ověření kódem ── */
+  function obKod() { return obCodePole.map(p => p.value).join(''); }
+  function obOdpocet(sekund) {
+    clearInterval(obResendTimer);
+    const btn = document.getElementById('ob-resend');
+    let zbyva = sekund;
+    btn.disabled = true;
+    const tik = () => {
+      btn.textContent = zbyva > 0 ? 'Poslat znovu (' + zbyva + ' s)' : 'Poslat znovu';
+      if (zbyva <= 0) { btn.disabled = false; clearInterval(obResendTimer); }
+      zbyva--;
+    };
+    tik();
+    obResendTimer = setInterval(tik, 1000);
+  }
+
+  async function obOver() {
+    const kod = obKod();
+    if (kod.length !== 6 || obPracuje || !obEmail) {
+      if (kod.length !== 6) obChyba('Zadej celý šestimístný kód.');
+      return;
+    }
+    // U testovacího účtu se kód neověřuje — jinak by se tok nedal projet dokola.
+    if (obJeTestUcet(obEmail)) {
+      clearInterval(obResendTimer);
+      if (obJeLogin) obDovnitr(); else obFaze('is-role');
+      return;
+    }
+    obTlacitko(true, 'Ověřuji…');
+    const { error } = await sb.auth.verifyOtp({ email: obEmail, token: kod, type: 'signup' });
+    obTlacitko(false, obPopisek());
+    if (error) {
+      const m = error.message || '';
+      obChyba(/expired/i.test(m) ? 'Kód vypršel — nech si poslat nový.'
+        : /invalid/i.test(m) ? 'Nesprávný kód. Zkontroluj ho a zkus to znovu.'
+        : 'Ověření se nepovedlo. Zkus to prosím znovu.');
+      obCodeBox.classList.add('bad');
+      setTimeout(() => obCodeBox.classList.remove('bad'), 500);
+      obCodePole.forEach(p => { p.value = ''; p.removeAttribute('data-ok'); });
+      obCodePole[0].focus();
+      return;
+    }
+    clearInterval(obResendTimer);
+    if (!accessKeyOk()) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+    markGateOk();
+    if (obJeLogin) obDovnitr(); else obFaze('is-role');
+  }
+
+  obCodePole.forEach((el, i) => {
+    el.addEventListener('input', () => {
+      el.value = el.value.replace(/\D/g, '').slice(0, 1);
+      if (el.value) { el.setAttribute('data-ok', ''); if (obCodePole[i + 1]) obCodePole[i + 1].focus(); }
+      else el.removeAttribute('data-ok');
+      if (obKod().length === 6) obOver();          // hotovo → ověř rovnou
+    });
+    // Backspace v prázdném poli vrací o jedno zpět, jinak se člověk zasekne.
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !el.value && obCodePole[i - 1]) obCodePole[i - 1].focus();
+    });
+    // Vložení celého kódu ze schránky rozdělí číslice mezi políčka.
+    el.addEventListener('paste', e => {
+      e.preventDefault();
+      const cis = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '').slice(0, 6).split('');
+      obCodePole.forEach((p, k) => { if (cis[k]) { p.value = cis[k]; p.setAttribute('data-ok', ''); } });
+      const posledni = Math.min(cis.length, obCodePole.length) - 1;
+      if (posledni >= 0) obCodePole[Math.min(posledni + 1, obCodePole.length - 1)].focus();
+      if (obKod().length === 6) obOver();
+    });
+  });
+
+  document.getElementById('ob-resend').addEventListener('click', async () => {
+    const btn = document.getElementById('ob-resend');
+    if (btn.disabled || !obEmail) return;
+    obOdpocet(45);
+    const { error } = await sb.auth.resend({ type: 'signup', email: obEmail });
+    if (error) {
+      const t = translateErr(error.message);
+      obChyba(t === (error.message || '') ? 'Nový kód se nepodařilo poslat. Zkus to za chvíli.' : t);
+      return;
+    }
+    obChyba('Poslali jsme ti nový kód.', true);
+    obCodePole.forEach(p => { p.value = ''; p.removeAttribute('data-ok'); });
+    obCodePole[0].focus();
+  });
+
+  /* ── Volba role ──
+     Vybraná karta se rozevře s popisem, ostatní zůstávají malé. Panel proto
+     po každém kliknutí přeměří výšku, jinak by se rozevřený popis ořízl. */
+  document.querySelectorAll('#ob-roles .pick').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#ob-roles .pick').forEach(o => {
+        o.classList.remove('pick--on');
+        const s = o.querySelector(':scope > svg');
+        if (s) s.remove();
+      });
+      b.classList.add('pick--on');
+      if (!b.querySelector(':scope > svg')) b.insertAdjacentHTML('beforeend',
+        '<svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#0020F6"></circle><path d="M6 10.3L8.6 12.9 14 6.9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>');
+      obVolba = b.getAttribute('data-role') || 'prace';
+      // Popis se rozevírá .42 s — přeměřit až potom, jinak vyjde stará výška.
+      setTimeout(() => { obVysky.delete(obRolePn); obVyska(obRolePn, true); obVysky.set(obRolePn, obRolePn.scrollHeight); }, 440);
+    });
+  });
+
+  /* ── „Je hotovo" ──
+     Dopisuje se po znacích, kurzor bliká dál i po dopsání. Tlačítko vyjede
+     až potom — dřív nemá co potvrzovat. */
+  const OB_HOTOVO = 'Je hotovo.';
+  let obPisTimer = null;
+  function obPisHotovo() {
+    const cil = document.getElementById('ob-tw2t');
+    clearTimeout(obPisTimer);
+    cil.textContent = '';
+    obRdy.classList.remove('on');
+    obVyska(obRdy, false);
+    const otevriTlacitko = () => { obRdy.classList.add('on'); obVyska(obRdy, true); };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cil.textContent = OB_HOTOVO;
+      otevriTlacitko();
+      return;
+    }
+    let i = 0;
+    (function krok() {
+      cil.textContent = OB_HOTOVO.slice(0, ++i);
+      if (i < OB_HOTOVO.length) obPisTimer = setTimeout(krok, 78);
+      else obPisTimer = setTimeout(otevriTlacitko, 200);
+    })();
+  }
+
+  // Konec toku — rozhodnutí si pamatuje telefon, aby se na ně rozcestník
+  // uvnitř appky neptal podruhé. Pak už jen dovnitř.
+  // Konec toku. Registrace sem chodí přes „Je hotovo", přihlášení rovnou —
+  // kdo účet má, nepotřebuje gratulaci, chce být uvnitř.
+  // Appka je připravená, teprve když je přeložená A má stažená data — do té
+  // doby by se za bránou kreslily jen šedé obdélníky.
+  function obPripravena() { return appkaHotova && window.__makejPripravena === true; }
+  function obPockejNaAppku() {
+    return wSpustAppku().then(() => new Promise(splnit => {
+      if (window.__makejPripravena) return splnit();
+      window.addEventListener('makej-appka-pripravena', () => splnit(), { once: true });
+    }));
+  }
+
+  const OB_NACITANI_MIN = 700;    // ať obrazovka jen neproblikne
+  const OB_NACITANI_MAX = 10000;  // když se data nestáhnou, pustit dál i tak
+
+  let obOdchazi = false;
+  async function obDovnitr() {
+    if (obOdchazi) return;
+    // Klíč se odemyká při registraci i přihlášení, tady se jen ověří — aby
+    // sem nevedla zkratka, která by předstartovní bránu obešla.
+    if (!accessKeyOk()) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+    obOdchazi = true;
+    if (!obJeLogin) { try { localStorage.setItem('makej-rozcestnik', obVolba); } catch (e) {} }
+    // Appka je namountovaná už pod bránou — musí se o volbě dozvědět, jinak
+    // ukáže svůj vlastní rozcestník se stejnou otázkou.
+    window.dispatchEvent(new Event('makej-onboarding-hotovo'));
+
+    // Čeká se na načítací obrazovce, ne uvnitř appky. Když je všechno hotové
+    // (běžný případ), tahle část se přeskočí a přechod je okamžitý.
+    if (!obPripravena()) {
+      obFaze('is-load');
+      const zacatek = Date.now();
+      await Promise.race([obPockejNaAppku(), new Promise(r => setTimeout(r, OB_NACITANI_MAX))]);
+      const zbyva = OB_NACITANI_MIN - (Date.now() - zacatek);
+      if (zbyva > 0) await new Promise(r => setTimeout(r, zbyva));
+    }
+    hideGate();
+    obOdchazi = false;
+  }
+  document.getElementById('ob-rdy-btn').addEventListener('click', obDovnitr);
+
+  /* ── Navigace ── */
+  obNext.addEventListener('click', () => {
+    if (obPracuje) return;
+    if (obSplash.classList.contains('is-login')) return obPrihlas();
+    if (obSplash.classList.contains('is-form')) return obRegistruj();
+    if (obSplash.classList.contains('is-code')) return obOver();
+    if (obSplash.classList.contains('is-role')) return obFaze('is-made');
+  });
+
+  // Zpět jen vrátí předchozí fázi — všechny přechody se tím přehrají obráceně.
+  obBack.addEventListener('click', () => {
+    if (obPracuje) return;
+    if (obSplash.classList.contains('is-login') || obSplash.classList.contains('is-form')) return obFaze(null);
+    if (obSplash.classList.contains('is-code')) return obFaze(obJeLogin ? 'is-login' : 'is-form');
+    const i = obKteraFaze();
+    obFaze(i <= 0 ? null : OB_FAZE[i - 1]);
+  });
+
+  // Sestavení se spustí i tady, kdyby někdo klepl dřív, než na něj dojde řada
+  // — ale až po rozevření panelu, ať se ta animace nezadrhne.
+  document.getElementById('ob-goreg').addEventListener('click', () => { obJeLogin = false; obPripravKlic(); obFaze('is-form'); setTimeout(wSpustAppku, 900); });
+  document.getElementById('ob-golog').addEventListener('click', () => { obJeLogin = true; obPripravKlic(); obFaze('is-login'); setTimeout(wSpustAppku, 900); });
+
+  // Zapomenuté heslo — Supabase pošle odkaz na obnovu na zadaný e-mail.
+  document.getElementById('ob-forg').addEventListener('click', async () => {
+    const email = document.getElementById('ob-log-email').value.trim();
+    if (!email) return obChyba('Nejdřív vyplň e-mail, kam odkaz poslat.');
+    const { error } = await sb.auth.resetPasswordForEmail(email);
+    obChyba(error ? translateErr(error.message) : 'Poslali jsme ti odkaz na obnovu hesla.', !error);
+  });
+
+  // Vyplněné pole zezelená; potvrzení hesla se ověřuje proti prvnímu, ne na délku.
+  [obRegPanel, obLogPanel].forEach(form => {
+    if (!form) return;
+    form.addEventListener('submit', e => e.preventDefault());
+    const pw = form.querySelector('[data-pw]'), pw2 = form.querySelector('[data-pw2]');
+    form.querySelectorAll('input').forEach(el => {
+      const zkontroluj = () => {
+        const v = el.value;
+        let ok;
+        if (el.type === 'email') ok = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v.trim());
+        else if (el === pw2) ok = v.length >= 6 && v === (pw ? pw.value : '');
+        else if (el.type === 'password') ok = v.length >= 6;
+        else ok = v.trim().length >= 3;
+        if (ok) el.setAttribute('data-ok', ''); else el.removeAttribute('data-ok');
+        if (el === pw && pw2) pw2.dispatchEvent(new Event('input'));   // změna hesla mění i platnost potvrzení
+      };
+      el.addEventListener('input', zkontroluj);
+      el.addEventListener('blur', zkontroluj);
+    });
+    form.querySelectorAll('[data-eye]').forEach(b => {
+      b.addEventListener('click', () => {
+        const pole = b.previousElementSibling;
+        const ukaz = pole.type === 'password';
+        pole.type = ukaz ? 'text' : 'password';
+        b.textContent = ukaz ? 'Skrýt' : 'Zobrazit';
+      });
+    });
+  });
+
+  /* ── Splash ──
+     Claim se píše po písmenech a poslední slovo se pak cyklí (swajp → klik →
+     dotek) — stejná mechanika jako hero na makej.eu, jen bílá na modré.
+     Neviditelná měřicí kopie drží šířku, takže se tečka za větou veze
+     a nepřeskakuje. */
+  const OB_SLOVA = ['swajp', 'klik', 'dotek'];
+  const OB_KROK_ZNAK = 28;   // ms mezi písmeny měnícího se slova
+  const OB_PISMENO = 30;     // ms mezi písmeny úvodního psaní
+  const OB_ODCHOD = 260, OB_PRICHOD = 420, OB_DRZENI = 2000;
+
+  let uvitaniBezi = false;
+  function spustUvitani() {
+    if (uvitaniBezi) return;
+    uvitaniBezi = true;
+    obSplash.classList.add('je-uvod');
+    obPripravKlic();
+    obTestPredvypln();
+    // Změřit panely, dokud je klid — při klepnutí už na to nebude čas.
+    setTimeout(obZmerPanely, 0);
+
+    const tag = document.getElementById('ob-tag');
+    const box = document.getElementById('ob-tw');
+    const slot = document.getElementById('ob-tww');
+    if (!tag || !box || !slot) return;
+    const tiche = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Textové uzly kolem slotu rozložíme na písmena; tečka za slotem se
+    // objeví až po slově, jinak chvíli visí sama za „jeden".
+    const pred = [], za = [];
+    let zaSlotem = false;
+    [...tag.childNodes].forEach(uzel => {
+      if (uzel === box) { zaSlotem = true; return; }
+      if (uzel.nodeType !== 3) return;
+      const frag = document.createDocumentFragment();
+      uzel.nodeValue.split(/(\s+)/).forEach(kus => {
+        if (!kus) return;
+        if (/^\s+$/.test(kus)) { frag.appendChild(document.createTextNode(kus)); return; }
+        const slovo = document.createElement('span');
+        slovo.className = 'hs';
+        kus.split('').forEach(znak => {
+          const s = document.createElement('span');
+          s.className = 'hp';
+          s.textContent = znak;
+          slovo.appendChild(s);
+          (zaSlotem ? za : pred).push(s);
+        });
+        frag.appendChild(slovo);
+      });
+      tag.replaceChild(frag, uzel);
+    });
+
+    const mer = document.createElement('span');
+    mer.className = 'tw__m';
+    mer.setAttribute('aria-hidden', 'true');
+    box.appendChild(mer);
+
+    let i = 0;
+
+    // Měřák skládá slovo ze stejných boxů jako ostrá verze — jeden text by
+    // započítal kerning, který se rozpadem na spany ztrácí, a šířka by vyšla jinak.
+    function sirka(text) {
+      mer.textContent = '';
+      const radka = document.createElement('span');
+      radka.className = 'tw__w';
+      text.split('').forEach(znak => {
+        const s = document.createElement('span');
+        s.className = 'tw__c';
+        s.textContent = znak;
+        radka.appendChild(s);
+      });
+      mer.appendChild(radka);
+      box.style.width = radka.getBoundingClientRect().width + 'px';
+    }
+
+    function vykresli(text, animovat) {
+      slot.textContent = '';
+      text.split('').forEach((znak, idx) => {
+        const s = document.createElement('span');
+        s.className = 'tw__c' + (animovat ? ' in' : '');
+        s.textContent = znak;
+        s.style.transitionDelay = animovat ? idx * OB_KROK_ZNAK + 'ms' : '0ms';
+        slot.appendChild(s);
+      });
+      // Dva rámce: první uloží počáteční stav, druhý ho pustí.
+      if (animovat) requestAnimationFrame(() => requestAnimationFrame(() => {
+        slot.querySelectorAll('.tw__c').forEach(s => s.classList.remove('in'));
+      }));
+    }
+
+    function vymen(dalsi) {
+      const znaky = [...slot.querySelectorAll('.tw__c')];
+      znaky.forEach((s, idx) => { s.style.transitionDelay = idx * OB_KROK_ZNAK + 'ms'; s.classList.add('out'); });
+      sirka(dalsi);                      // šířka jede souběžně s odchodem
+      const az = OB_ODCHOD + znaky.length * OB_KROK_ZNAK * 0.5;
+      setTimeout(() => vykresli(dalsi, true), az);
+      return az;
+    }
+
+    function cyklus() {
+      setTimeout(() => {
+        i = (i + 1) % OB_SLOVA.length;
+        const az = vymen(OB_SLOVA[i]);
+        setTimeout(cyklus, az + OB_PRICHOD * 0.4);
+      }, OB_DRZENI);
+    }
+
+    // Vše najednou — pro tichý režim a pro návrat s existující session,
+    // kde by čekání na dopsání claimu jen zdržovalo.
+    function rovnou(sTlacitky) {
+      pred.concat(za).forEach(s => s.classList.add('on'));
+      box.classList.add('on');
+      sirka(OB_SLOVA[0]);
+      vykresli(OB_SLOVA[0], false);
+      if (sTlacitky !== false) { obSplash.classList.add('up'); obVyska(obGo, true); }
+      setTimeout(wSpustAppku, 400);
+    }
+
+    // Z wordmarku se měří šířka měnícího se slova, takže se musí počkat, až
+    // je League Spartan opravdu k dispozici. Pojistka 1,5 s, ať splash nevisí,
+    // kdyby se font nenačetl.
+    const pismo = (document.fonts && document.fonts.load)
+      ? document.fonts.load("700 62px 'League Spartan'").catch(() => {})
+      : Promise.resolve();
+    const pojistka = new Promise(r => setTimeout(r, 1500));
+    Promise.race([pismo, pojistka]).then(() => {
+      obVitej.classList.add('fonty');
+      // Kdo je přihlášený, nemá co číst — značka, proužek a dovnitř, jakmile
+      // jsou data. Žádné psaní po písmenech ani nabídka účtu.
+      if (obRovnouDovnitr) { rovnou(false); obJeLogin = true; obDovnitr(); return; }
+      if (obStartLogin) { rovnou(); obJeLogin = true; obPripravKlic(); obFaze('is-login'); return; }
+      if (tiche) { rovnou(); return; }
+      // Wordmark naskočí první (obMarkIn .72 s), claim se píše za ním.
+      const START = 620;
+      pred.forEach((s, idx) => setTimeout(() => s.classList.add('on'), START + idx * OB_PISMENO));
+      const konec = START + pred.length * OB_PISMENO;
+      setTimeout(() => { box.classList.add('on'); sirka(OB_SLOVA[0]); vykresli(OB_SLOVA[0], true); }, konec);
+      setTimeout(() => za.forEach(s => s.classList.add('on')), konec + 320);
+      setTimeout(cyklus, konec + 600);
+      // Věta chvíli stojí sama na středu, pak se pod ní rozevře dvojice tlačítek.
+      setTimeout(() => { obSplash.classList.add('up'); obVyska(obGo, true); }, konec + 900);
+      setTimeout(obZmerPanely, konec + 1200);   // po ustálení přeměřit
+      // Teprve až doanimují obě cihličky — do té doby má přednost obraz.
+      setTimeout(wSpustAppku, konec + 1800);
+    });
   }
   document.getElementById('go-login').addEventListener('click', () => showView('login'));
   document.getElementById('go-register').addEventListener('click', () => showView('register'));
@@ -678,6 +2040,8 @@
   function setErr(el, msg, ok) {
     el.textContent = msg || '';
     el.style.display = msg ? 'block' : 'none';
+    // Pruh onboardingu je bílý na modré a řídí se třídou — inline barvy níž by ho znečitelnily.
+    if (el.id === 'ob-err') { el.classList.toggle('ok', !!ok); return; }
     el.style.background = ok ? 'rgba(22,163,74,0.1)' : 'rgba(244,63,94,0.1)';
     el.style.borderColor = ok ? 'rgba(22,163,74,0.3)' : 'rgba(244,63,94,0.28)';
     el.style.color = ok ? '#16a34a' : '#e11d48';
@@ -901,12 +2265,16 @@
   document.querySelectorAll('[data-oauth]').forEach(b => b.addEventListener('click', async () => {
     const provider = b.getAttribute('data-oauth');
     const nazev = provider === 'google' ? 'Google' : 'Apple';
-    const el = loginView.style.display === 'none' ? regErr : loginErr;
+    // Hláška patří do pruhu, který je právě vidět — dnes je to onboarding,
+    // staré pohledy zůstávají jen jako záloha.
+    const el = vitejView.style.display !== 'none' ? obErr
+             : (loginView.style.display === 'none' ? regErr : loginErr);
     setErr(el, '');
 
-    if (!accessKeyOk()) {
+    // V onboardingu se klíč zadává do vlastního políčka, ne do starého pohledu.
+    if (!(el === obErr ? obKlicOk('ob-log-key') : accessKeyOk())) {
       setErr(el, 'Spouštíme 1. 10. — přihlášení jen s přístupovým klíčem. 🔧');
-      if (loginView.style.display !== 'none') oznacPole(['login-key']);
+      if (el !== obErr && loginView.style.display !== 'none') oznacPole(['login-key']);
       return;
     }
     markGateOk();   // klíč platí i přes odchod do prohlížeče → poznač předem
@@ -1083,34 +2451,50 @@
     showView('register');
   });
 
+  // V testovacím režimu začíná každé načtení nanečisto: odhlásit a zapomenout
+  // volbu role, ať se tok dá projet pořád dokola od splashe. Bez toho by ho
+  // po prvním dokončení schovala existující session.
+  const obReset = (OB_TEST
+    ? sb.auth.signOut().catch(() => {}).then(() => { try { localStorage.removeItem('makej-rozcestnik'); } catch (e) {} })
+    : Promise.resolve());
+
   // Existující session — dovnitř jen když je brána ověřená klíčem.
   // Session bez ověřené brány (nebo firemní) → odhlásit, ať appka za bránou nikdy neběží bez klíče.
-  sb.auth.getSession().then(async ({ data: { session } }) => {
+  obReset.then(() => sb.auth.getSession()).then(async ({ data: { session } }) => {
     const role = session?.user?.user_metadata?.role;
-    if (session && role !== 'employer' && accessKeyOk()) { hideGate(); return; }
+    if (session && role !== 'employer' && accessKeyOk()) {
+      // Dřív se brána sundala hned — jenže appka se překládá až po startu,
+      // takže by na okamžik probliklo prázdné plátno. Teď se počká na
+      // načítací obrazovce a dovnitř se prolne až hotová appka.
+      obRovnouDovnitr = true;
+      showView('vitej');
+      return;
+    }
     const hadSession = !!session;
     if (session) await sb.auth.signOut();
     showGate();
-    showView(hadSession ? 'login' : 'register');
+    // V testu se na přihlášení neskáče — chceme vidět splash pokaždé.
+    obStartLogin = hadSession && !OB_TEST;   // už přihlášený člověk nemá co číst na splashi
+    showView('vitej');
   });
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel" src="app.jsx?v=19"></script>
-<script type="text/babel" src="makej-badge.jsx?v=1"></script>
+<script type="text/babel-pozdeji" src="app.jsx?v=21"></script>
+<script type="text/babel-pozdeji" src="makej-badge.jsx?v=1"></script>
 <script src="text-filtr.js?v=1"></script>
 <script src="cz-mesta.js?v=1"></script>
 <script src="cz-profese.js?v=2"></script>
-<script type="text/babel" src="worker-theme.jsx"></script>
-<script type="text/babel" src="worker-supabase.jsx?v=10"></script>
-<script type="text/babel" src="worker-demo.jsx?v=6"></script>
-<script type="text/babel" src="worker-swipe.jsx?v=113"></script>
-<script type="text/babel" src="worker-people.jsx?v=193"></script>
-<script type="text/babel" src="worker-messages.jsx?v=23"></script>
-<script type="text/babel" src="worker-profile.jsx?v=43"></script>
-<script type="text/babel" src="worker-history.jsx?v=2"></script>
-<script type="text/babel" src="worker-calendar.jsx?v=3"></script>
-<script type="text/babel" src="worker-main.jsx?v=42"></script>
+<script type="text/babel-pozdeji" src="worker-theme.jsx"></script>
+<script type="text/babel-pozdeji" src="worker-supabase.jsx?v=11"></script>
+<script type="text/babel-pozdeji" src="worker-demo.jsx?v=6"></script>
+<script type="text/babel-pozdeji" src="worker-swipe.jsx?v=113"></script>
+<script type="text/babel-pozdeji" src="worker-people.jsx?v=194"></script>
+<script type="text/babel-pozdeji" src="worker-messages.jsx?v=23"></script>
+<script type="text/babel-pozdeji" src="worker-profile.jsx?v=43"></script>
+<script type="text/babel-pozdeji" src="worker-history.jsx?v=2"></script>
+<script type="text/babel-pozdeji" src="worker-calendar.jsx?v=3"></script>
+<script type="text/babel-pozdeji" src="worker-main.jsx?v=47"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
 <script>

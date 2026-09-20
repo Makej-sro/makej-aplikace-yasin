@@ -8,6 +8,57 @@ const useRefW    = React.useRef;
 // ── Globals (mutated in-place, React reads via tick) ───────────
 const W_PROFILE  = {};
 const W_JOBS     = [];   // active jobs not yet swiped
+
+/* ─── Feed inzerátů: stránkování a výluka na serveru ───────────────────────
+   Dřív si appka stáhla VŠECHNA id, která člověk odswajpoval, a poslala je
+   serveru zpátky v adrese dotazu („tyhle mi nedávej"). Výčet rostl donekonečna:
+   změřeno na ostré databázi — 500 odmítnutých ještě projde, u 1000 vrací server
+   HTTP 400 a u 2000 rovnou 414 (adresa je moc dlouhá). Feed by se tedy někdy
+   kolem tisícovky swajpů přestal načítat úplně.
+
+   Teď se výčet neposílá vůbec: RPC get_feed_jobs si sáhne do `rejections`
+   a `matches` samo a vrátí rovnou stránku toho, co člověk ještě neviděl.
+
+   Dokud migrace supabase/migration_feed_skalovani.sql neběží, RPC neexistuje
+   a jede se postaru — appka se tím nerozbije, jen zůstává ten starý strop. */
+const W_FEED_STRANKA = 100;     // kolik inzerátů na jedno kolo
+let _wFeedRpcChybi  = false;    // RPC zatím není nasazené → záložní cesta
+let _wFeedDalsi     = 0;        // odkud brát další stránku
+let _wFeedDocteno   = true;     // došli jsme na konec seznamu?
+
+// Vrátí pole inzerátů, nebo null = „RPC nešlo, použij záložní cestu".
+async function _wFeedStranka(offset, limit) {
+  if (_wFeedRpcChybi) return null;
+  const { data, error } = await sb.rpc('get_feed_jobs', { p_limit: limit, p_offset: offset });
+  if (!error) return data || [];
+  // 42883 / PGRST202 = funkce v databázi není. Jiné chyby můžou být dočasné,
+  // ty záložní cestu nezapínají natrvalo.
+  const kod = error.code || '';
+  if (kod === '42883' || kod === 'PGRST202' || /does not exist|could not find/i.test(error.message || '')) {
+    _wFeedRpcChybi = true;
+  } else {
+    console.error('_wFeedStranka:', error);
+  }
+  return null;
+}
+
+/* Zbytek feedu se dotahuje na pozadí, až když appka běží. Proč vůbec:
+   kraje i profese se filtrují až v telefonu, takže na to appka potřebuje vidět
+   všechny inzeráty — ale čekat na ně při přihlášení by bylo zbytečné zdržení.
+   První stránka tedy appku nastartuje, zbytek přiteče za ní. */
+async function dotahniZbytekFeeduW(onNove) {
+  if (_wFeedDocteno || _wFeedRpcChybi) return;
+  for (let kolo = 0; kolo < 50; kolo++) {      // strop, ať se to nezacyklí
+    const dalsi = await _wFeedStranka(_wFeedDalsi, W_FEED_STRANKA);
+    if (!dalsi || !dalsi.length) { _wFeedDocteno = true; return; }
+    const znam = new Set(W_JOBS.map(j => j.id));
+    dalsi.forEach(j => { if (!znam.has(j.id)) W_JOBS.push(j); });
+    _wFeedDalsi += dalsi.length;
+    if (dalsi.length < W_FEED_STRANKA) _wFeedDocteno = true;
+    if (typeof onNove === 'function') onNove();
+    if (_wFeedDocteno) return;
+  }
+}
 const W_THREADS  = [];   // one per accepted match
 const W_HISTORY  = [];   // all matches (pending/upcoming/completed) for "Moje brigády"
 const W_REVIEWS  = [];   // recenze, které dostal brigádník (o něm)
@@ -542,31 +593,46 @@ async function fetchWorkerData(workerId) {
     // Blokace načíst dřív než vlákna — sestavení konverzací je podle nich filtruje.
     await fetchBlockedW();
 
-    // IDs to exclude (already swiped)
-    const [rejRes, matchRes] = await Promise.all([
-      sb.from('rejections').select('job_id').eq('worker_id', workerId),
-      sb.from('matches').select('job_id').eq('worker_id', workerId),
-    ]);
-    const excludeIds = [
-      ...(rejRes.data  || []).map(r => r.job_id),
-      ...(matchRes.data || []).map(m => m.job_id),
-    ].filter(Boolean);   // 'people' řádky mají job_id null — do IN-listu nepatří
+    // Feed inzerátů. Server si sám odfiltruje, co člověk už odswajpoval,
+    // a vrátí první stránku — zbytek si appka dotáhne na pozadí (viz
+    // dotahniZbytekFeeduW). Řazení (vyzdvižené nahoru, pak od nejnovějších)
+    // i skrytí naplánovaných dělá SQL.
+    _wFeedDalsi = 0;
+    _wFeedDocteno = false;
+    let visible = await _wFeedStranka(0, W_FEED_STRANKA);
 
-    // Active jobs (s profilem firmy pro reálné hodnocení)
-    let q = sb.from('jobs')
-      .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
-      .eq('status', 'active').order('created_at', { ascending: false });
-    if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
-    const { data: jobs } = await q;
-    const nowMs = Date.now();
-    // skryj naplánované (publish_at v budoucnu); boostnuté (top_until v budoucnu) nahoru
-    const visible = (jobs || [])
-      .filter(j => !j.publish_at || new Date(j.publish_at).getTime() <= nowMs)
-      .sort((a, b) => {
-        const ab = a.top_until && new Date(a.top_until).getTime() > nowMs ? 1 : 0;
-        const bb = b.top_until && new Date(b.top_until).getTime() > nowMs ? 1 : 0;
-        return bb - ab;
-      });
+    if (visible) {
+      _wFeedDalsi = visible.length;
+      if (visible.length < W_FEED_STRANKA) _wFeedDocteno = true;
+    } else {
+      // ── Záložní cesta, dokud migrace neběží ──
+      // Výčet odswajpovaných v adrese dotazu. Funguje jen do ~500 swajpů,
+      // pak server dotaz odmítne — proto ta migrace existuje.
+      const [rejRes, matchRes] = await Promise.all([
+        sb.from('rejections').select('job_id').eq('worker_id', workerId),
+        sb.from('matches').select('job_id').eq('worker_id', workerId),
+      ]);
+      const excludeIds = [
+        ...(rejRes.data  || []).map(r => r.job_id),
+        ...(matchRes.data || []).map(m => m.job_id),
+      ].filter(Boolean);   // 'people' řádky mají job_id null — do IN-listu nepatří
+
+      let q = sb.from('jobs')
+        .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
+        .eq('status', 'active').order('created_at', { ascending: false });
+      if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+      const { data: jobs } = await q;
+      const nowMs = Date.now();
+      // skryj naplánované (publish_at v budoucnu); boostnuté (top_until v budoucnu) nahoru
+      visible = (jobs || [])
+        .filter(j => !j.publish_at || new Date(j.publish_at).getTime() <= nowMs)
+        .sort((a, b) => {
+          const ab = a.top_until && new Date(a.top_until).getTime() > nowMs ? 1 : 0;
+          const bb = b.top_until && new Date(b.top_until).getTime() > nowMs ? 1 : 0;
+          return bb - ab;
+        });
+      _wFeedDocteno = true;   // stará cesta stahuje všechno naráz
+    }
     W_JOBS.length = 0;
     visible.forEach(j => W_JOBS.push(j));
 
@@ -754,7 +820,30 @@ async function fetchWorkerData(workerId) {
 // ── Lidé (karty brigádníků, peer-to-peer) ───────────────────────
 // Bezpečné procházení — jde přes RPC, ne přímo tabulka profiles
 // (ta má email/telefon/datum narození, to cizím lidem nepatří).
+// Kolik karet se do tržiště natáhne najednou. Strop je schválně: záložka
+// filtruje až v telefonu, takže bez něj by si při deseti tisících profilech
+// stáhla všechny naráz (desítky MB). Nekonečné donačítání při scrollu je
+// samostatná práce — viz poznámka v DATABASE.md.
+const W_KARTY_STRANKA = 60;
+const W_KARTY_STROP   = 180;
+
 async function fetchPeopleCardsW(excludeIds) {
+  // Nová cesta: server stránkuje a výluku (blokovaní, přeskočení) řeší sám.
+  const postupne = [];
+  for (let offset = 0; offset < W_KARTY_STROP; offset += W_KARTY_STRANKA) {
+    const { data, error } = await sb.rpc('get_people_cards_page',
+      { p_limit: W_KARTY_STRANKA, p_offset: offset });
+    if (error) { postupne.length = 0; break; }        // RPC není → záložní cesta
+    postupne.push(...(data || []));
+    if ((data || []).length < W_KARTY_STRANKA) break;  // konec seznamu
+  }
+  if (postupne.length) {
+    return postupne
+      .filter(c => !W_BLOCKED.has(c.id))
+      .map(c => ({ ...c, photos: Array.isArray(c.card_photos) ? c.card_photos : [] }));
+  }
+
+  // ── Záložní cesta, dokud migrace neběží ──
   // Zablokované posíláme rovnou do výluky, ať je server ani nevrací. Filtrovat
   // je až po návratu by znamenalo, že se občas vrátí prázdná stránka výsledků.
   const vyluka = [...(excludeIds || []), ...W_BLOCKED];
@@ -1053,6 +1142,21 @@ async function reportContentW(targetType, targetId, duvod, poznamka) {
 // Odmítnuté nabídky pro "projít znovu" — jen čtení, historie odmítnutí zůstává.
 // Vrací pouze ty, které jsou pořád aktivní, aby počet na tlačítku odpovídal realitě.
 async function fetchRejectedJobsW(workerId) {
+  // Server si odmítnuté spojí s inzeráty sám — bez výčtu ID v adrese dotazu.
+  if (!_wFeedRpcChybi) {
+    const { data, error } = await sb.rpc('get_rejected_jobs', { p_limit: 200, p_offset: 0 });
+    if (!error) {
+      const { data: pocet } = await sb.rpc('count_rejected_jobs');
+      const jobs = data || [];
+      return { jobs, celkem: typeof pocet === 'number' ? pocet : jobs.length };
+    }
+    const kod = error.code || '';
+    if (!(kod === '42883' || kod === 'PGRST202' || /does not exist|could not find/i.test(error.message || ''))) {
+      console.error('fetchRejectedJobsW (rpc):', error);
+    }
+  }
+
+  // ── Záložní cesta, dokud migrace neběží ──
   const { data: rej, error: rejErr } = await sb.from('rejections')
     .select('job_id').eq('worker_id', workerId);
   if (rejErr) { console.error('fetchRejectedJobsW (rejections):', rejErr); return { jobs: [], celkem: 0 }; }
@@ -1178,7 +1282,7 @@ async function updateProfileW(workerId, updates) {
 Object.assign(window, {
   W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS, W_TRUST, W_TIERS,
   fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
-  fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW,
+  fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW, dotahniZbytekFeeduW,
   wNahrajFotkuKartyW, wSmazFotkyKartyW, wUlozFotkyKartyW, W_BUCKET_KARTA,
   fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
   fetchReviewRepliesW, postReviewReplyW, _wFiltrOk, reportContentW, W_DUVODY_HLASENI,

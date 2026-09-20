@@ -3400,7 +3400,7 @@ function WMyCard({ onClose }) {
 }
 
 // ── Hlavní záložka Lidé — tržiště ──────────────────────────────────
-function WPeople({ tick }) {
+function WPeople({ tick, otevritKartu, onKartaOtevrena }) {
   const [people, setPeople] = useStateW([]);
   const [loading, setLoading] = useStateW(true);
   const [search, setSearch] = useStateW('');
@@ -3431,6 +3431,12 @@ function WPeople({ tick }) {
   function prepniStyl(v) { setStyl(v); try { localStorage.setItem('makej-karta-styl', v); } catch (e) {} }
   const [info, setInfo] = useStateW(null);               // { title, text }
   const [showCard, setShowCard] = useStateW(false);      // editor „Moje karta"
+  // Rozcestník při prvním spuštění umí pustit rovnou do editoru karty.
+  useEffectW(() => {
+    if (!otevritKartu) return;
+    setShowCard(true);
+    if (onKartaOtevrena) onKartaOtevrena();
+  }, [otevritKartu]);
   const scrollRef = useRefW(null);
   const lastY = useRefW(0);
   const headRef = useRefW(null);

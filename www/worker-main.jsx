@@ -1018,8 +1018,90 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
   );
 }
 
+// ── Rozcestník při prvním spuštění ────────────────────────────────────────
+// Appka umí dvě věci a z feedu brigád není poznat, že jde i nabízet vlastní
+// dovednosti. Při prvním otevření se proto zeptáme, proč člověk přišel, a
+// pustíme ho rovnou tam. Volba nic nezamyká — jen určí, kde začne.
+// Rozhodnutí si pamatuje telefon; naostro patří i do profilu (sloupec zatím
+// není, viz DATABASE.md).
+const _W_ROZCESTNIK = 'makej-rozcestnik';
+function _wRozcestnikHotovo() {
+  try { return !!localStorage.getItem(_W_ROZCESTNIK); } catch (e) { return true; }
+}
+function _wRozcestnikUloz(volba) {
+  try { localStorage.setItem(_W_ROZCESTNIK, volba); } catch (e) {}
+}
+
+function WRozcestnikKarta({ barva, plocha, ikona, titul, popis, cta, onClick, zpozdeni }) {
+  return (
+    <button onClick={onClick} style={{
+      display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
+      background: '#fff', border: '1px solid ' + T.border, borderRadius: 26,
+      padding: '22px 22px 20px', WebkitTapHighlightColor: 'transparent',
+      boxShadow: '0 18px 40px -26px rgba(11,18,51,0.45)',
+      animation: 'wRozcestIn .5s cubic-bezier(.2,.9,.3,1) ' + zpozdeni + 's both',
+    }}>
+      <span style={{ display: 'inline-flex', width: 52, height: 52, borderRadius: 18, background: plocha, alignItems: 'center', justifyContent: 'center' }}>{ikona}</span>
+      <span style={{ display: 'block', marginTop: 14, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: T.ink, letterSpacing: -0.4 }}>{titul}</span>
+      <span style={{ display: 'block', marginTop: 6, fontFamily: T.fontUI, fontSize: 14, color: T.muted, lineHeight: 1.5 }}>{popis}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 14, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, color: barva }}>
+        {cta}
+        <svg width="16" height="13" viewBox="0 0 18 14" aria-hidden="true"><path d="M1 7h15M10.5 1.5 16.5 7l-6 5.5" fill="none" stroke={barva} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </span>
+    </button>
+  );
+}
+
+function WRozcestnik({ onVyber }) {
+  const jmeno = (W_PROFILE.name || '').trim().split(/\s+/)[0] || '';
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 8000, background: T.bg,
+      display: 'flex', flexDirection: 'column', overflowY: 'auto',
+      padding: 'calc(28px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))',
+    }}>
+      <div style={{ margin: 'auto 0', width: '100%' }}>
+        <div style={{ animation: 'wRozcestIn .5s cubic-bezier(.2,.9,.3,1) both' }}>
+          <div style={{ fontFamily: T.fontHead, fontSize: 28, fontWeight: 800, color: T.ink, letterSpacing: -0.8, lineHeight: 1.1 }}>
+            {jmeno ? 'Ahoj ' + jmeno + ',' : 'Vítej na Makej,'}
+          </div>
+          <div style={{ marginTop: 6, fontFamily: T.fontUI, fontSize: 15.5, color: T.muted, lineHeight: 1.55 }}>
+            co tě sem přivedlo? Podle toho tě pustím rovnou na správné místo.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 26 }}>
+          <WRozcestnikKarta
+            zpozdeni={0.08}
+            barva={T.primary} plocha={T.tint}
+            ikona={<Icon name="case-round-bold" size={26} color={T.primary} />}
+            titul="Hledám brigádu"
+            popis="Projížděj nabídky ve svém okolí, swajpni, co tě zajme, a s firmou se domluv v chatu."
+            cta="Ukaž mi nabídky"
+            onClick={() => onVyber('prace')} />
+          <WRozcestnikKarta
+            zpozdeni={0.16}
+            barva="#1E7A46" plocha="#E4F6EA"
+            ikona={<Icon name="users-group-rounded-bold" size={26} color="#1E9E52" />}
+            titul="Nabízím, co umím"
+            popis="Založ si kartu a lidi v okolí si tě najdou sami — hlídání, doučování, řemeslo, cokoli."
+            cta="Založit kartu"
+            onClick={() => onVyber('karta')} />
+        </div>
+
+        <div style={{ marginTop: 20, textAlign: 'center', fontFamily: T.fontUI, fontSize: 13, color: T.mutedSoft, lineHeight: 1.5, animation: 'wRozcestIn .5s cubic-bezier(.2,.9,.3,1) .24s both' }}>
+          Můžeš obojí — tohle jen určí, kde začneš.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WorkerApp() {
   const [tab,    setTab]    = useStateW('swipe');
+  // Rozcestník při prvním spuštění — dokud si člověk nevybere, appka se nekreslí.
+  const [rozcestnik, setRozcestnik] = useStateW(() => !_wRozcestnikHotovo());
+  const [otevritKartu, setOtevritKartu] = useStateW(false);   // „Nabízím" pustí rovnou editor karty
   const [loaded, setLoaded] = useStateW(false);
   const [tick,   setTick]   = useStateW(0);
   const [toasts, setToasts] = useStateW([]);
@@ -1188,6 +1270,16 @@ function WorkerApp() {
       fetchWorkerData(session.user.id).then(async () => {
         setLoaded(true);
         setTick(1);
+        // Signál pro načítací obrazovku onboardingu: teprve teď má appka data
+        // a dá se ukázat. Dokud tohle nepřijde, brána zůstává nahoře.
+        window.__makejPripravena = true;
+        window.dispatchEvent(new Event('makej-appka-pripravena'));
+
+        // Feed přišel po stránkách — první stačí na nastartování, zbytek se
+        // dotáhne teď na pozadí. Filtr krajů a profesí pracuje až v telefonu,
+        // takže na to appka potřebuje vidět všechny inzeráty; čekat na ně už
+        // při přihlášení by ale bylo zbytečné zdržení.
+        dotahniZbytekFeeduW(() => setTick(t => t + 1));
         // Výzva k hodnocení dokončených brigád
         const toReview = W_HISTORY.filter(h => h.needsReview).length;
         if (toReview > 0) {
@@ -1210,6 +1302,27 @@ function WorkerApp() {
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') loadFor(session);
     });
     return () => { try { authSub.subscription.unsubscribe(); } catch (e) {} };
+  }, []);
+
+  // Onboarding před přihlášením se na roli ptá sám. Jakmile ji uloží, převezmeme
+  // jeho volbu a rozcestník uvnitř appky už nenakreslíme — jinak by ta samá
+  // otázka přišla dvakrát za sebou. Appka je namountovaná dřív, než člověk
+  // onboardingem projde, takže počáteční stav rozcestníku je v tu chvíli starý.
+  useEffectW(() => {
+    const prevzit = () => {
+      if (!_wRozcestnikHotovo()) return;
+      let volba = '';
+      try { volba = localStorage.getItem(_W_ROZCESTNIK) || ''; } catch (e) {}
+      if (volba === 'karta') { setTab('people'); setOtevritKartu(true); }
+      else setTab('swipe');
+      setRozcestnik(false);
+    };
+    // Appka se teď sestavuje až po úvodní animaci, takže může naskočit i potom,
+    // co onboarding skončil — pak by událost už nikdo nezachytil. Proto se
+    // volba přebírá i rovnou při namountování.
+    prevzit();
+    window.addEventListener('makej-onboarding-hotovo', prevzit);
+    return () => window.removeEventListener('makej-onboarding-hotovo', prevzit);
   }, []);
 
   async function refreshWorker() {
@@ -1418,11 +1531,22 @@ function WorkerApp() {
   } else if (tab === 'swipe') {
     body = <WSwipe tick={tick} />;
   } else if (tab === 'people') {
-    body = <WPeople tick={tick} />;
+    body = <WPeople tick={tick} otevritKartu={otevritKartu} onKartaOtevrena={() => setOtevritKartu(false)} />;
   } else if (tab === 'messages') {
     body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={onThreadRead} />;
   } else if (tab === 'profile') {
     body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
+  }
+
+  // Rozcestník kreslíme místo celé appky — včetně spodního navbaru, ať první
+  // obrazovka nenabízí čtyři záložky dřív, než je jasné, co člověk chce.
+  if (rozcestnik) {
+    return <WRozcestnik onVyber={volba => {
+      _wRozcestnikUloz(volba);
+      if (volba === 'karta') { setTab('people'); setOtevritKartu(true); }
+      else { setTab('swipe'); }
+      setRozcestnik(false);
+    }} />;
   }
 
   return (
