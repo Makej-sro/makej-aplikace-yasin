@@ -206,7 +206,7 @@ const _wPrepinacKnob = on => ({
   background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s',
 });
 
-function WDatumPicker({ value, onChange, row }) {
+function WDatumPicker({ value, onChange, row, siroky }) {
   const [open, setOpen] = useStateW(false);
   const [dmy, setDmy]   = useStateW(() => _wRozlozDatum(value));
   const ref = useRefW(null);
@@ -233,7 +233,10 @@ function WDatumPicker({ value, onChange, row }) {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    // `siroky` (běží návod): obal je bez pozice, takže se panel vztáhne
+    // k celému řádku a roztáhne se přes jeho šířku. Rozmazání pak kolem něj
+    // nemá kudy prosvítat — okýnko obepne řádek i panel a nic cizího nezbyde.
+    <div ref={ref} style={{ position: siroky ? 'static' : 'relative' }}>
       {row ? (
         <button onClick={() => setOpen(o => !o)} style={{
           display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
@@ -252,9 +255,14 @@ function WDatumPicker({ value, onChange, row }) {
         </button>
       )}
       {open && (
-        <div style={{
-          position: 'absolute', top: '100%', zIndex: 61, marginTop: 10, padding: '10px 0 12px',
-          ...(row ? { right: 0, left: 'auto', width: 'min(300px, 80vw)' } : { left: 0, right: 0 }),
+        // data-navod-rozsir: když nad polem běží návod, okýnko v rozmazání se
+        // o tenhle panel roztáhne, ať jde datum opravdu vybrat.
+        <div data-navod-rozsir style={{
+          position: 'absolute', top: '100%', zIndex: 61, padding: '10px 0 12px',
+          // Za běhu návodu bez mezery: v ní prosvítal řádek pod polem
+          // (e-mail) a okýnko pak nebylo čisté.
+          marginTop: siroky ? 0 : 10,
+          ...(row && !siroky ? { right: 0, left: 'auto', width: 'min(300px, 80vw)' } : { left: 0, right: 0 }),
           background: '#fff', border: '1px solid ' + T.border, borderRadius: 18,
           boxShadow: '0 18px 40px -14px rgba(20,22,40,0.28)',
           animation: 'wPop .18s cubic-bezier(.2,.8,.2,1)', overflow: 'hidden',
@@ -265,6 +273,18 @@ function WDatumPicker({ value, onChange, row }) {
           <WWheel items={_W_MESICE} index={dmy.m} itemW={116} onIndex={i => zmen({ m: i })} />
           <div style={{ height: 1, background: T.border, margin: '8px 14px' }} />
           <WWheel items={_W_ROKY} index={Math.max(0, _W_ROKY.indexOf(dmy.y))} itemW={86} onIndex={i => zmen({ y: _W_ROKY[i] })} />
+          {/* Výběr se zavíral jen klepnutím na řádek nad ním — vypadalo to, jako
+              že člověk datum ruší, ne potvrzuje. Vlastní tlačítko to říká nahlas
+              a zároveň rovnou zapíše datum, i když s kolečky nikdo nehnul. */}
+          <div style={{ height: 1, background: T.border, margin: '10px 14px 12px' }} />
+          <div style={{ padding: '0 14px' }}>
+            <button onClick={() => { zmen({}); setOpen(false); }} style={{
+              width: '100%', padding: '13px 0', border: 'none', borderRadius: 14,
+              background: T.primary, color: '#fff', cursor: 'pointer',
+              fontFamily: T.fontHead, fontWeight: 800, fontSize: 15.5,
+              WebkitTapHighlightColor: 'transparent',
+            }}>Potvrdit</button>
+          </div>
         </div>
       )}
     </div>
@@ -503,10 +523,46 @@ function WBlokovaniList({ onClose }) {
   );
 }
 
-function WProfile({ tick, onSignOut, onGoTab, onClose }) {
+function WProfile({ tick, onSignOut, onGoTab, onClose, navodVek, onNavodHotov }) {
   const [editing, setEditing] = useStateW(false);
+  // Navedení k datu narození — přichází z feedu, když člověk projevil zájem
+  // o brigádu a my neznáme jeho věk. Otevře editaci, odscrolluje na pole
+  // a rozmaže zbytek obrazovky, aby bylo jasné CO se po něm chce.
+  const datumRef = useRefW(null);
+  const [navodBezi, setNavodBezi] = useStateW(false);
+  useEffectW(() => {
+    if (!navodVek) return;
+    setEditing(true);
+    // Editace se musí stihnout vykreslit, než se na pole odscrolluje.
+    const t = setTimeout(() => {
+      const el = datumRef.current;
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // A ještě chvíli, než scroll dojede — jinak by se okýnko vystřihlo jinde.
+      setTimeout(() => setNavodBezi(true), 420);
+    }, 260);
+    return () => clearTimeout(t);
+  }, [navodVek]);
+  function ukonciNavod() {
+    setNavodBezi(false);
+    if (onNavodHotov) onNavodHotov();
+  }
+
   const [saving,  setSaving]  = useStateW(false);
   const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], stupen: '', obor: '', cv_url: '' });
+
+  // Návod skončí, až je datum vyplněné A výběr zavřený. Dřív končil na první
+  // změnu hodnoty — jenže kolečko hlásí změnu při každém posunu, takže
+  // rozmazání zmizelo ve chvíli, kdy si člověk teprve listoval roky.
+  // (Musí stát AŽ ZA `form` — jinak se na něj sahá dřív, než vznikne, a profil spadne.)
+  useEffectW(() => {
+    if (!navodBezi) return;
+    const t = setInterval(() => {
+      const el = datumRef.current;
+      if (!el) return;
+      if (!el.querySelector('[data-navod-rozsir]') && form.datum) ukonciNavod();
+    }, 350);
+    return () => clearInterval(t);
+  }, [navodBezi, form.datum]);
   const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
   const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
@@ -865,9 +921,13 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
                   <span style={radekLabel}>Příjmení</span>
                   <input value={form.prijmeni} onChange={e => { setForm(f => ({ ...f, prijmeni: e.target.value })); hlidejPole('prijmeni', e.target.value); }} placeholder="Zadej příjmení" style={zvyrazniSpatne('prijmeni', radekInput)} />
                 </div>
-                <div style={{ ...radek, borderTop: '1px solid ' + T.border, justifyContent: 'space-between' }}>
+                <div ref={datumRef} style={{ ...radek, borderTop: '1px solid ' + T.border,
+                     justifyContent: 'space-between', position: 'relative' }}>
                   <span style={radekLabel}>Datum narození</span>
-                  <WDatumPicker row value={form.datum} onChange={v => setForm(f => ({ ...f, datum: v }))} />
+                  {/* Návod NEkončí při každém posunu kolečka — jinak by zmizel
+                      hned, jak člověk začne datum hledat. Konec řeší efekt výš. */}
+                  <WDatumPicker row siroky={navodBezi} value={form.datum}
+                    onChange={v => setForm(f => ({ ...f, datum: v }))} />
                 </div>
               </div>
               <div style={poznamka}>Firmy vidí jméno a první písmeno příjmení. Datum narození potřebujeme kvůli věkovému limitu u některých směn.</div>
@@ -1452,6 +1512,16 @@ function WProfile({ tick, onSignOut, onGoTab, onClose }) {
         </div>
         );
       })()}
+
+      {/* Navedení k datu narození — rozmaže vše kromě toho jednoho pole. */}
+      {navodBezi && (
+        <WNavod
+          cil={datumRef}
+          titul="Doplň datum narození"
+          text="Potřebujeme ho kvůli věkovému limitu u některých směn a do smlouvy. Ostatní údaje můžeš doplnit později."
+          onPreskocit={ukonciNavod}
+        />
+      )}
     </div>
   );
 }

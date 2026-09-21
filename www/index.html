@@ -33,7 +33,10 @@
   <script src="vendor/supabase.min.js"></script>
   <script src="vendor/react.production.min.js"></script>
   <script src="vendor/react-dom.production.min.js"></script>
-  <script src="vendor/babel.min.js"></script>
+  <!-- Babel (3 MB) se NENAČÍTÁ tady. Načtený v hlavičce blokoval hlavní vlákno
+       na čtvrt vteřiny hned po startu, takže nájezd wordmarku zahodil první
+       snímky a značka pak do obrazu skočila. Stahuje ho až wSestavAppku, tedy
+       ve chvíli, kdy úvod dávno stojí. Viz nactiBabel(). -->
   <script src="vendor/globe-icon.js"></script>
   <script src="vendor/drill-vibrate.js"></script>
   <script src="vendor/broom-sweep.js"></script>
@@ -337,15 +340,40 @@
                                  ať to nejede přes překreslování celé plochy */
                               will-change: transform;
                               transition: transform 1s cubic-bezier(.22,1,.3,1); }
-    /* Tlačítka nejdřív nezabírají místo, takže nadpis stojí přesně na středu. */
+    /* Tlačítka nejdřív nezabírají místo, takže nadpis stojí přesně na středu.
+       Obal řeší JEN rozevření (výška a odstup) a odchod do další fáze. Nástup
+       si hlídá každý řádek zvlášť — viz níž. Dřív se celý blok prolnul naráz,
+       což vedle rozepisovaného claimu působilo tvrdě. */
     #au-vitej .splash__go { width: 100%; display: flex; flex-direction: column; gap: 12px;
-                            height: 0; margin-top: 0; overflow: hidden;
-                            opacity: 0; transform: translateY(12px); pointer-events: none;
+                            height: 0; margin-top: 0; overflow: hidden; pointer-events: none;
                             transition: height .88s cubic-bezier(.22,1,.3,1),
                                         margin-top .88s cubic-bezier(.22,1,.3,1),
-                                        opacity .5s ease .26s,
-                                        transform .6s cubic-bezier(.22,1,.3,1) .26s; }
-    #au-vitej .splash.up .splash__go { margin-top: 44px; opacity: 1; transform: none; pointer-events: auto; }
+                                        opacity .26s ease,
+                                        transform .4s cubic-bezier(.22,1,.3,1); }
+    #au-vitej .splash.up .splash__go { margin-top: 44px; pointer-events: auto; }
+    /* Souhlas → Vytvořit účet → Přihlásit se, jedno po druhém zespoda.
+       Časy jsou volené tak, aby poslední řádek dosedl DŘÍV, než se dovře výška
+       obalu (.30 + .56 = .86 s proti .88 s) — jinak by mu obal ořízl patičku.
+
+       Proč `animation` a ne `transition`: tlačítka mají vlastní
+       `transition: transform .16s` kvůli stisku, a ta je v souboru níž, takže
+       moji přepsala — krytí pak naskočilo skokem. Animace na tenhle souboj
+       nenaráží. `backwards` (ne `both`) je schválně: po dojetí po sobě nic
+       nenechá, takže `:active` může s tlačítkem dál hýbat. */
+    #au-vitej .splash__go > * { opacity: 0; }
+    #au-vitej .splash.up .splash__go > * { opacity: 1;
+                            animation: obGoIn .56s cubic-bezier(.22,1,.3,1) backwards; }
+    #au-vitej .splash.up .splash__go > *:nth-child(1) { animation-delay: .12s; }
+    #au-vitej .splash.up .splash__go > *:nth-child(2) { animation-delay: .22s; }
+    #au-vitej .splash.up .splash__go > *:nth-child(3) { animation-delay: .30s; }
+    @keyframes obGoIn {
+      from { opacity: 0; transform: translateY(16px) scale(.985); }
+      to   { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #au-vitej .splash.up .splash__go > * { animation-name: obGoInTiche; }
+      @keyframes obGoInTiche { from { opacity: 0; } to { opacity: 1; } }
+    }
 
     /* Ve fázi formuláře vyjede nadpis jen o kousek výš a na místě dvojice
        tlačítek se rozevřou políčka. Wordmark si drží velikost — mění se pozice. */
@@ -398,6 +426,9 @@
     #au-vitej .splash.is-code .pn--code > *:nth-child(4) { transition-delay: .64s; }
     #au-vitej .splash.is-form .reg > *:nth-child(5), #au-vitej .splash.is-login .log > *:nth-child(5) { transition-delay: .74s; }
     #au-vitej .splash.is-form .reg > *:nth-child(6), #au-vitej .splash.is-login .log > *:nth-child(6) { transition-delay: .84s; }
+    /* Registrace má o řádek víc než přihlášení (pole „Heslo znovu"), takže
+       dvojice Apple + Google padá až na sedmou pozici. */
+    #au-vitej .splash.is-form .reg > *:nth-child(7) { transition-delay: .92s; }
 
     #au-vitej .splash.is-form .reg, #au-vitej .splash.is-login .log,
     #au-vitej .splash.is-code .pn--code { margin-top: -8px; pointer-events: auto; }
@@ -562,15 +593,38 @@
        data — ať nenaskočí dovnitř a nekouká, jak se mu tam ještě něco dopočítává.
        Wordmark zůstává na středu, pod ním jen pruh a jedna věta. */
     #au-vitej .pn--load { align-items: center; }
-    #au-vitej .splash.is-load .pn--load { margin-top: 34px; pointer-events: auto; }
+    /* Odstup od wordmarku: při 34 px se tečky lepily na „Makej". */
+    #au-vitej .splash.is-load .pn--load { margin-top: 62px; pointer-events: auto; }
     #au-vitej .splash.is-load .pn--load > * { opacity: 1; transform: none; }
     #au-vitej .splash.is-load .pn--load > *:nth-child(1) { transition-delay: .10s; }
-    #au-vitej .splash.is-load .pn--load > *:nth-child(2) { transition-delay: .20s; }
-    #au-vitej .load__t { width: 74px; height: 3px; border-radius: 999px;
-                         background: rgba(255,255,255,.24); overflow: hidden; }
-    #au-vitej .load__f { display: block; height: 100%; width: 40%; border-radius: 999px; background: #fff;
-                         animation: obSlide 1.5s cubic-bezier(.5,0,.5,1) infinite; }
-    @keyframes obSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+    #au-vitej .splash.is-load .pn--load > *:nth-child(2) { transition-delay: .17s; }
+    #au-vitej .splash.is-load .pn--load > *:nth-child(3) { transition-delay: .24s; }
+    /* Tři skákající tečky. Neříkají, jak daleko načítání je — jen že se
+       pracuje. Běží tak dlouho, jak je potřeba; nic se neprodlužuje ani
+       nezkracuje. Na modré je všechno bílé. */
+    #au-vitej .pn--load { gap: 20px; }
+    /* Výška 20 px a tečky usazené dole: skok o 9 px se tak vejde DOVNITŘ.
+       Panel kolem má overflow: hidden a výšku spočítanou z obsahu, takže
+       bez téhle rezervy se tečkám v nejvyšším bodě uřízne vršek. */
+    #au-vitej .load__d { display: flex; flex: none; gap: 10px; height: 20px; align-items: flex-end; }
+    #au-vitej .load__d i { display: block; width: 11px; height: 11px; border-radius: 50%;
+                         background: #fff; animation: obTecky 1.25s infinite ease-in-out; }
+    #au-vitej .load__d i:nth-child(2) { animation-delay: .16s; }
+    #au-vitej .load__d i:nth-child(3) { animation-delay: .32s; }
+    @keyframes obTecky {
+      0%, 80%, 100% { transform: translateY(0);    opacity: .35; }
+      40%           { transform: translateY(-9px); opacity: 1; }
+    }
+    #au-vitej .load__t1 { font-size: 17px; font-weight: 500; color: #fff; letter-spacing: -.01em; }
+    #au-vitej .load__t2 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,.58);
+                         text-align: center; max-width: 26ch; line-height: 1.45; }
+    /* Bez pohybu: tečky se nehoupou, jen drží odstupňované krytí, ať je pořád
+       poznat, že jde o trojici a ne o tři náhodné body. */
+    @media (prefers-reduced-motion: reduce) {
+      #au-vitej .load__d i { animation: none; opacity: .35; }
+      #au-vitej .load__d i:nth-child(2) { opacity: .62; }
+      #au-vitej .load__d i:nth-child(3) { opacity: 1; }
+    }
 
     /* V přihlášení tlačítko nikam nevede dál, rovnou přihlašuje — šipka by lhala. */
     #au-vitej.nav-bezsipky .nav2__next svg { display: none; }
@@ -590,11 +644,19 @@
        má jinou šířku i výšku, takže by při výměně viditelně poskočil.
        Nájezd se proto spouští až třídou 'fonty'. */
     #au-vitej .mark { font-family: 'League Spartan', Inter, sans-serif; font-size: 62px; font-weight: 700;
-                      color: #fff; letter-spacing: -.035em; line-height: 1; opacity: 0; }
+                      color: #fff; letter-spacing: -.035em; line-height: 1; opacity: 0;
+                      /* Vlastní vrstva: nájezd pak jede mimo hlavní vlákno a nerozseká
+                         ho práce, která na startu appky běží vedle. */
+                      will-change: opacity, transform; }
     #au-vitej.fonty .mark { animation: obMarkIn .72s cubic-bezier(.22,1,.3,1) both; }
     @keyframes obMarkIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+    /* Věta je v HTML obyčejný text a JS ji teprve rozseká na písmena, která se
+       rozsvěcí jedno po druhém. Do té doby byla CELÁ vidět — takže při každém
+       otevření appky problikla, zmizela (rozsekáním) a teprve pak se dopsala.
+       Drží se proto schovaná, dokud ji JS nepřipraví. */
     #au-vitej .tag { font-size: 16px; font-weight: 600; color: #C7D0FF; letter-spacing: -.015em;
-                     margin-top: 6px; white-space: nowrap; }
+                     margin-top: 6px; white-space: nowrap; opacity: 0; }
+    #au-vitej .tag.pripraven { opacity: 1; }
     #au-vitej .hs { white-space: nowrap; }
     #au-vitej .hp { opacity: 0; transition: opacity .16s ease; }
     #au-vitej .hp.on { opacity: 1; }
@@ -629,11 +691,17 @@
                            text-decoration: underline; text-underline-offset: 3px; }
 
     /* Pilulka testovacího režimu — aby se nedal přehlédnout a nešel omylem
-       vydat. Klepnutím se vypne. */
+       vydat. Ukazuje se ve VÝVOJOVÉM sestavení pořád, i když je režim vypnutý —
+       jinak by se zpátky dal zapnout jen adresou s ?test=1, která v nativní
+       appce není kam napsat. Po vydání (OB_TEST_VYCHOZI = false) zmizí docela. */
     #au-vitej .ob-test { position: absolute; top: calc(env(safe-area-inset-top) + 8px); right: 16px; z-index: 5;
                          font-family: inherit; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
                          color: #0020F6; background: #FFD84D; border: 0; border-radius: 999px;
                          padding: 5px 10px; cursor: pointer; }
+    /* Vypnutý režim: nenápadně, ať to nevypadá jako zapnutý test. */
+    #au-vitej .ob-test.je-vyp { color: rgba(255,255,255,.62); background: rgba(255,255,255,.12); }
+    /* Natažený k vypnutí — druhé klepnutí to teprve provede. */
+    #au-vitej .ob-test.natazeno { background: #fff; }
     /* Pilulka sedí v rohu nad ukazatelem — ten se jí proto uhne dolů, jinak
        by přes sebe ležely. Mimo testovací režim zůstává vše na svém místě. */
     #au-vitej.test-on .prog { padding-top: 34px; }
@@ -803,6 +871,19 @@
         </div>
         <!-- Přístupový klíč (pre-launch) — ukáže se jen dokud není brána odemčená -->
         <div class="fld" id="ob-reg-keyfld" hidden><input type="text" id="ob-reg-key" placeholder="Přístupový klíč" aria-label="Přístupový klíč" inputmode="numeric" autocomplete="off" autocapitalize="none" autocorrect="off" /></div>
+        <span class="orr"><span>nebo</span></span>
+        <!-- Stejná dvojice jako v přihlášení. Apple musí být vedle Googlu, jinak
+             appku App Store nepustí. Obsluhu si tlačítka nesou v data-oauth. -->
+        <div class="soc">
+          <button class="soc__b soc__b--apple" type="button" data-oauth="apple">
+            <svg width="16" height="18" viewBox="0 0 18 21" aria-hidden="true"><path d="M12.4 11c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.8-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.8-.8-1.5 0-2.8.9-3.5 2.2-1.5 2.6-.4 6.5 1.1 8.6.7 1 1.6 2.2 2.7 2.1 1.1 0 1.5-.7 2.8-.7 1.3 0 1.6.7 2.8.7 1.1 0 1.9-1.1 2.6-2.1.5-.7.9-1.5 1.1-2.2-2-.8-2.2-3.3-2.2-3.4Z" fill="#000"></path><path d="M10.6 4.3c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.6.6-1 1.6-.9 2.6 1 .1 2-.5 2.6-1.2Z" fill="#000"></path></svg>
+            Registrovat se s Apple
+          </button>
+          <button class="soc__b soc__b--google" type="button" data-oauth="google">
+            <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M19.6 10.2c0-.7-.06-1.36-.18-2H10v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.74 3-4.3 3-7.3Z" fill="#4285F4"></path><path d="M10 20c2.7 0 4.96-.9 6.6-2.43l-3.2-2.5c-.9.6-2.05.95-3.4.95a5.98 5.98 0 0 1-5.62-4.14H1.06v2.6A10 10 0 0 0 10 20Z" fill="#34A853"></path><path d="M4.38 11.88a6 6 0 0 1 0-3.82V5.46H1.06a10 10 0 0 0 0 9.02l3.32-2.6Z" fill="#FBBC05"></path><path d="M10 3.94c1.47 0 2.79.5 3.83 1.5l2.84-2.84A9.98 9.98 0 0 0 10 0 10 10 0 0 0 1.06 5.46l3.32 2.6A5.98 5.98 0 0 1 10 3.94Z" fill="#EA4335"></path></svg>
+            Registrovat se přes Google
+          </button>
+        </div>
       </form>
 
       <!-- PŘIHLÁŠENÍ -->
@@ -846,14 +927,16 @@
       <div class="pn pn--made">
         <span class="tw2" id="ob-tw2" aria-live="polite"><span id="ob-tw2t"></span><span class="tw2__c" aria-hidden="true"></span></span>
         <div class="rdy" id="ob-rdy">
-          <button class="pri" id="ob-rdy-btn" type="button">Jsem připravený</button>
+          <button class="pri" id="ob-rdy-btn" type="button">Chci makat</button>
         </div>
       </div>
 
       <!-- NAČÍTÁNÍ — poslední krok před appkou -->
       <div class="pn pn--load" id="ob-load-pn">
-        <span class="load__t" aria-hidden="true"><i class="load__f"></i></span>
-        <span class="fine" role="status">Připravuju appku…</span>
+        <span class="load__d" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="load__t1" role="status">Vytváříme váš účet</span>
+        <span class="load__t2">Zabere to jen chvilku. Nezavírejte prosím okno.</span>
+        <span class="load__t2" id="ob-load-dlouho" hidden>Ještě to chvíli potrvá…</span>
       </div>
 
       <!-- VOLBA ROLE -->
@@ -1122,7 +1205,19 @@
      ⇒ VYPNOUT: klepni na pilulku „TEST" v rohu, nebo otevři appku s ?test=0.
      ⇒ PŘED RELEASEM: OB_TEST_VYCHOZI = false (a testovací účet smazat). */
   const OB_TEST_VYCHOZI = true;
-  const OB_TEST_UCET = { email: 'test@makej.eu', heslo: 'makej1234', jmeno: 'Test Makej' };
+  /* Testovací účty. Vždycky se do nich chodí přes „Vytvořit účet" — poprvé
+     se účet založí, podruhé se pod ním jen přihlásí, takže v Supabase
+     nepřibývají další řádky.
+       cisty: true  → po každém vstupu se uvede do stavu „nikdy tu nebyl"
+                      (vymaže se paměť telefonu i jeho data v databázi)
+       cisty: false → pamatuje si všechno, na zkoušení běžného provozu
+     První v seznamu se předvyplní do formuláře; druhý funguje po přepsání. */
+  const OB_TEST_UCTY = [
+    { email: 'clovek@makej.eu', heslo: 'clovek123', jmeno: 'clovek',     cisty: true  },
+    { email: 'test@makej.eu',   heslo: 'makej1234', jmeno: 'Test Makej', cisty: false },
+  ];
+  const OB_TEST_UCET = OB_TEST_UCTY[0];
+  const OB_TEST_KOD = '1111';   // e-mail nikam nechodí, kód je vždycky tenhle
   // Přepínač si appka pamatuje stejně jako „Náhled prázdné appky": adresa ho
   // přestaví, localStorage ho drží. Na telefonu se tak dá vypnout bez editace.
   const OB_TEST = (() => {
@@ -1198,6 +1293,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', '#f7f8fc');
     gate.classList.add('odchazi');
+    obDlouhoStop();   // brána mizí, řádek „ještě to potrvá" už nemá komu naskočit
     setTimeout(() => {
       gate.classList.add('hidden');
       gate.classList.remove('odchazi');
@@ -1229,6 +1325,21 @@
     appkaSlib = wSestavAppku().then(() => { appkaHotova = true; });
     return appkaSlib;
   }
+  // Babel se stahuje až když je opravdu potřeba — do té doby úvod nic nebrzdí.
+  let babelSlib = null;
+  function nactiBabel() {
+    if (window.Babel) return Promise.resolve();
+    if (babelSlib) return babelSlib;
+    babelSlib = new Promise((hotovo, chyba) => {
+      const s = document.createElement('script');
+      s.src = 'vendor/babel.min.js';
+      s.onload = hotovo;
+      s.onerror = () => chyba(new Error('Babel se nenačetl'));
+      document.head.appendChild(s);
+    });
+    return babelSlib;
+  }
+
   async function wSestavAppku() {
     // Skripty appky stojí v dokumentu POD tímhle blokem. Když se sem dostaneme
     // dřív, než je parser stihne přečíst, querySelectorAll nenajde nic, funkce
@@ -1240,6 +1351,7 @@
     }
     const tagy = [...document.querySelectorAll('script[type="text/babel-pozdeji"]')];
     if (!tagy.length) return;
+    await nactiBabel();
     // Jeden snímek navíc: requestAnimationFrame pustí vykreslení, setTimeout
     // pak vrátí řízení až po něm — jinak by se překlad slepil s kreslením.
     const snimek = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -1309,6 +1421,32 @@
   const obCodePole = [...obCodeBox.querySelectorAll('input')];
   const obRdy = document.getElementById('ob-rdy');
   const obLoadPn = document.getElementById('ob-load-pn');
+  const obLoadDlouho = document.getElementById('ob-load-dlouho');
+
+  /* Dlouhé čekání. Založení účtu u nového člověka není otázka půl vteřiny —
+     Supabase ho zapíše, trigger mu založí profil, appka se teprve staví a síť
+     může být slabá. Po deseti vteřinách se proto přidá třetí řádek, ať člověk
+     neusoudí, že to zamrzlo. Nic jiného se nemění. */
+  const OB_DLOUHO_PO = 10000;
+  let obDlouhoTimer = null;
+  function obDlouhoStart() {
+    if (obDlouhoTimer) return;   // běží už z předchozí fáze — čas se nepřetáčí
+    obDlouhoTimer = setTimeout(() => {
+      obDlouhoTimer = null;
+      // Druhá pojistka: kdyby se sem přece jen doklepal po odchodu z načítačky,
+      // nesmí sahat na výšku panelu, který je zrovna zavřený.
+      if (!obLoadDlouho || !obSplash.classList.contains('is-load')) return;
+      obLoadDlouho.hidden = false;
+      // Panel má výšku spočítanou natvrdo a overflow: hidden, takže by se
+      // nový řádek jinak oříznul. Přeměří se, výška se dorovná s animací.
+      if (obLoadPn) obLoadPn.style.height = obLoadPn.scrollHeight + 'px';
+    }, OB_DLOUHO_PO);
+  }
+  function obDlouhoStop() {
+    clearTimeout(obDlouhoTimer);
+    obDlouhoTimer = null;
+    if (obLoadDlouho) obLoadDlouho.hidden = true;
+  }
 
   const OB_FAZE = ['is-form', 'is-code', 'is-role', 'is-made'];
   // Boolean, ne název třídy — hromadná náhrada tříd ho tak nemůže zasáhnout.
@@ -1316,6 +1454,13 @@
   let obEmail = '';
   let obVolba = 'prace';
   let obPracuje = false;
+  // Čekání na síť (viz obCekej níž). Deklarace patří sem, ne k helperu —
+  // obFaze i obUkazatel je čtou a jsou o kus výš.
+  // Načítačka se ukazuje přesně tak dlouho, jak je potřeba — nic se uměle
+  // neprodlužuje ani nezkracuje. Kolečko neslibuje, kdy bude hotovo.
+  let obCekaniFaze = null;
+  let obCekaniOd = 0;
+  let obKrokDrz = 0;     // ukazatel kroků drží během čekání poslední hodnotu
   let obResendTimer = null;
   let obStartLogin = false;      // existující session bez klíče → rovnou na přihlášení
   let obRovnouDovnitr = false;   // platná session → jen značka, proužek a dovnitř
@@ -1359,7 +1504,9 @@
   // (ale drží místo, jinak by obsah při přepnutí poskočil).
   const OB_KROK = { 'is-form': 1, 'is-code': 2, 'is-role': 3 };
   function obUkazatel(stav) {
-    const n = obJeLogin ? 0 : (OB_KROK[stav] || 0);
+    // Během čekání se ukazatel nesmí vynulovat — pruhy by zmizely a po
+    // návratu zase naskočily, což vypadá jako chyba.
+    const n = obJeLogin ? 0 : (stav === 'is-load' ? obKrokDrz : (OB_KROK[stav] || 0));
     obVitej.classList.toggle('p-on', n > 0);
     [...obProg.children].forEach((el, i) => {
       const hotovy = i < n;
@@ -1374,6 +1521,13 @@
 
   function obFaze(stav) {
     obKlid(1500);   // po dobu přechodu má přednost obraz, ne překlad
+    if (stav !== 'is-load') {
+      obCekaniFaze = null;
+      // Musí zhasnout i odpočet dlouhého čekání. Jinak doběhne na pozadí už
+      // po přepnutí fáze a nastaví výšku zavřenému načítacímu panelu — ten
+      // leží mezi nadpisem a obsahem, takže se obrazovka roztrhne vejpůl.
+      obDlouhoStop();
+    }
     OB_FAZE.concat(['is-login', 'is-load']).forEach(f => obSplash.classList.remove(f));
     if (stav) obSplash.classList.add(stav);
     // Jen na úvodní obrazovce jde nápis nahoru a tlačítka dolů; ve fázích
@@ -1425,10 +1579,36 @@
     obNextTxt.textContent = text;
   }
 
+  /* ── Čekání na síť ──
+     Přepsat jen popisek tlačítka bylo málo: člověk koukal na nehybný formulář
+     a vypadalo to, že se appka sekla. Místo toho vyjede stejná načítací
+     obrazovka jako před vstupem dovnitř — pruh se hýbe, takže je vidět, že se
+     něco děje. Po chybě se vrátí přesně ta fáze, ze které se odcházelo.
+
+     OB_CEKANI_MIN: když síť odpoví hned, obrazovka by jen probliknula, což je
+     horší než nic. Drží se proto chvíli i po dojetí dotazu. */
+  // `text` se schválně nepoužívá: popisek na načítačce je pevný a mezi fázemi
+  // se nemění. Parametr zůstává, ať je z volání čitelné, na co se zrovna čeká.
+  function obCekej(text) {
+    obCekaniFaze = obSplash.classList.contains('is-login') ? 'is-login'
+                 : (OB_FAZE.find(f => obSplash.classList.contains(f)) || 'is-form');
+    obKrokDrz = OB_KROK[obCekaniFaze] || 0;
+    obCekaniOd = Date.now();
+    obFaze('is-load');
+    obDlouhoStart();
+    obPracuje = true;   // až PO obFaze — ta zámek shazuje
+  }
+  function obCekejKonec() {
+    obDlouhoStop();
+    if (!obSplash.classList.contains('is-load')) { obTlacitko(false, obPopisek()); return; }
+    const zpet = obCekaniFaze || 'is-form';
+    obFaze(zpet);
+  }
+
   /* ── Přístupový klíč (pre-launch) ──
      Dokud brána platí, nejde se dostat dovnitř bez klíče. Políčko se proto
      ukáže rovnou ve formuláři — jinak by tok skončil slepou uličkou na
-     „Jsem připravený". Po odemčení (ACCESS_KEY = '') zmizí samo. */
+     „Chci makat". Po odemčení (ACCESS_KEY = '') zmizí samo. */
   function obPripravKlic() {
     const treba = !accessKeyOk();
     let zmena = false;
@@ -1447,29 +1627,76 @@
 
   /* ── Testovací režim ──
      Platí jen pro testovací e-mail; jakákoli jiná adresa jede ostrou cestou. */
-  function obJeTestUcet(email) {
-    return OB_TEST && (email || '').trim().toLowerCase() === OB_TEST_UCET.email;
+  function obTestUcetPodle(email) {
+    const e = (email || '').trim().toLowerCase();
+    return OB_TEST_UCTY.filter(u => u.email === e)[0] || null;
+  }
+  function obJeTestUcet(email) { return OB_TEST && !!obTestUcetPodle(email); }
+
+  /* ── Vyčištění testovacího člověka ──
+     Aby se appka chovala, jako by tam ten člověk nikdy nebyl. Maže se obojí:
+     paměť telefonu (co si pamatuje prohlížeč) i jeho řádky v databázi.
+     Nechávají se jen přepínače, bez kterých by se člověk zamkl venku
+     (přístupový klíč) nebo by si vypnul testovací režim.
+     RLS to dovolí — účet smí mazat vlastní řádky a přepsat vlastní profil,
+     takže na tohle není potřeba žádná migrace. */
+  const OB_NECHAT = ['makej-gate-ok', 'makej-ob-test', 'makej-prazdno'];
+  async function obVycistiUcet(uid) {
+    if (!uid) return;
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.indexOf('makej-') === 0 && OB_NECHAT.indexOf(k) < 0
+                  // POZOR: pod 'makej-auth*' leží přihlášení (storageKey klienta
+                  // Supabase). Smazat ho = okamžité odhlášení uprostřed vstupu.
+                  && k.indexOf('makej-auth') !== 0)
+        .forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+
+    // Řádky v databázi maže funkce reset_test_account (migration_reset_testovaciho_uctu.sql).
+    // Z appky to nejde: RLS mazání vlastních řádků nedovolí — DELETE vrátí 200,
+    // ale smaže nula řádků. Dokud migrace neběží, uklidí se aspoň profil.
+    const tise = p => Promise.resolve(p).then(() => {}, () => {});
+    const { error: chybaRpc } = await sb.rpc('reset_test_account');
+    if (chybaRpc) {
+      console.warn('[test] reset_test_account nedostupné, uklízím jen profil:', chybaRpc.message);
+      await tise(sb.from('profiles').update({
+        birth_date: null, city: null, kraj: null, address: null, bio: null,
+        education: null, skills: null, avatar_url: null, cv_url: null, phone: null,
+        card_enabled: false, card_offer: null, card_tags: null,
+      }).eq('id', uid));
+    }
+
+    // Appka už může mít stará data načtená — ať si je stáhne znovu.
+    window.dispatchEvent(new Event('makej-test-reset'));
   }
 
   // Přihlásí pod testovacím účtem; když ještě neexistuje, jednou ho založí.
   // Vrací chybu, nebo null. Díky tomu nepřibývá s každým průchodem nový účet.
   async function obTestUcet(email, heslo, jmeno) {
+    const ucet = obTestUcetPodle(email);
+    const hotovo = async () => {
+      // „Čistý" účet se po každém vstupu uvede do výchozího stavu.
+      if (ucet && ucet.cisty) {
+        const { data } = await sb.auth.getUser();
+        await obVycistiUcet(data && data.user && data.user.id);
+      }
+      return null;
+    };
     let { error } = await sb.auth.signInWithPassword({ email, password: heslo });
-    if (!error) return null;
+    if (!error) return hotovo();
     if (!/Invalid login credentials/i.test(error.message || '')) return error;
-    const r = await sb.auth.signUp({ email, password: heslo, options: { data: { name: jmeno || OB_TEST_UCET.jmeno, role: 'worker' } } });
+    const r = await sb.auth.signUp({ email, password: heslo, options: { data: { name: jmeno || (ucet && ucet.jmeno) || 'Test', role: 'worker' } } });
     if (r.error) return r.error;
-    if (r.data.session) return null;
-    return (await sb.auth.signInWithPassword({ email, password: heslo })).error;
+    if (r.data.session) return hotovo();
+    const druhy = await sb.auth.signInWithPassword({ email, password: heslo });
+    return druhy.error ? druhy.error : hotovo();
   }
 
   // Předvyplní obě větve, ať se při opakovaném průchodu nic nepřepisuje ručně.
   // Událost 'input' je tu kvůli zeleným rámečkům — ty visí na kontrole polí.
   function obTestPredvypln() {
     if (!OB_TEST) return;
-    const znacka = document.getElementById('ob-test-znacka');
-    if (znacka) znacka.hidden = false;
-    obVitej.classList.add('test-on');
+    obVitej.classList.add('test-on');   // pilulku odkrývá přepínač níž
     const vloz = (id, v) => {
       const el = document.getElementById(id);
       if (!el || el.value) return;
@@ -1484,12 +1711,47 @@
     vloz('ob-log-pw', OB_TEST_UCET.heslo);
     vloz('ob-reg-key', ACCESS_KEY);
     vloz('ob-log-key', ACCESS_KEY);
+    // E-mail nikam nechodí, takže ať je kód rovnou vidět.
+    obCodePole.forEach((el, i) => { if (!el.value) { el.value = OB_TEST_KOD[i] || ''; el.setAttribute('data-ok', ''); } });
   }
 
-  document.getElementById('ob-test-znacka').addEventListener('click', () => {
-    try { localStorage.setItem('makej-ob-test', '0'); } catch (e) {}
-    location.reload();
-  });
+  /* ── Přepínač testovacího režimu ──
+     Vypnutí chce DVĚ klepnutí: pilulka sedí v pravém horním rohu, kde se dá
+     trefit omylem, a jedním minutím se člověk připravil o předvyplněné údaje
+     bez cesty zpátky. První klepnutí se jen natáhne, druhé do tří vteřin to
+     provede. Zapnutí zpátky je neškodné, to jde napoprvé. */
+  (() => {
+    const znacka = document.getElementById('ob-test-znacka');
+    if (!znacka) return;
+    // Ve vývojovém sestavení je vidět vždycky; po vydání se OB_TEST_VYCHOZI
+    // přehodí na false a pilulka se neukáže vůbec.
+    if (OB_TEST_VYCHOZI) {
+      znacka.hidden = false;
+      // Pilulka sedí nad ukazatelem kroků — ten se jí musí uhnout vždycky, když
+      // je vidět, ne jen v zapnutém testu. Jinak by přes sebe ležely.
+      obVitej.classList.add('test-on');
+    }
+    if (!OB_TEST) {
+      znacka.classList.add('je-vyp');
+      znacka.textContent = 'TEST · zapnout';
+    }
+    let natazeno = null;
+    znacka.addEventListener('click', () => {
+      const prepni = hodnota => {
+        try { localStorage.setItem('makej-ob-test', hodnota); } catch (e) {}
+        location.reload();
+      };
+      if (!OB_TEST) return prepni('1');
+      if (natazeno) { clearTimeout(natazeno); return prepni('0'); }
+      znacka.classList.add('natazeno');
+      znacka.textContent = 'Opravdu vypnout?';
+      natazeno = setTimeout(() => {
+        natazeno = null;
+        znacka.classList.remove('natazeno');
+        znacka.textContent = 'TEST · vypnout';
+      }, 3000);
+    });
+  })();
 
   /* ── Registrace ── */
   async function obRegistruj() {
@@ -1512,19 +1774,17 @@
 
     // V testu se pod testovacím účtem rovnou přihlásíme — nezakládá se nový.
     if (obJeTestUcet(email)) {
-      obTlacitko(true, 'Přihlašuji test…');
+      obCekej('Přihlašuji testovací účet…');
       const chyba = await obTestUcet(email, heslo, jmeno);
-      obTlacitko(false, obPopisek());
-      if (chyba) return obChyba(translateErr(chyba.message));
+      if (chyba) { obCekejKonec(); return obChyba(translateErr(chyba.message)); }
       obEmail = email;
       obFaze('is-role');
       return;
     }
 
-    obTlacitko(true, 'Vytvářím účet…');
+    obCekej('Zakládám účet…');
     const { data, error } = await sb.auth.signUp({ email, password: heslo, options: { data: { name: jmeno, role: 'worker' } } });
-    obTlacitko(false, obPopisek());
-    if (error) return obChyba(translateErr(error.message));
+    if (error) { obCekejKonec(); return obChyba(translateErr(error.message)); }
     obEmail = email;
     // Potvrzení e-mailu je zatím vypnuté → session vznikne rovnou a ověřovací
     // kód by nikdy nepřišel. Ptát se na něj by byla slepá ulička.
@@ -1546,18 +1806,19 @@
 
     // Testovací účet se při prvním použití založí, jinak se pod ním přihlásí.
     if (obJeTestUcet(email)) {
-      obTlacitko(true, 'Přihlašuji test…');
+      obCekej('Přihlašuji testovací účet…');
       const chyba = await obTestUcet(email, heslo);
-      obTlacitko(false, obPopisek());
-      if (chyba) return obChyba(translateErr(chyba.message));
+      if (chyba) { obCekejKonec(); return obChyba(translateErr(chyba.message)); }
       markGateOk();
+      // Bez obCekejKonec: načítací obrazovka plynule pokračuje do obDovnitr,
+      // kde se dočká dostavěné appky. Formulář se pod ní už neukáže.
       return obDovnitr();
     }
 
-    obTlacitko(true, 'Přihlašuji…');
+    obCekej('Přihlašuji…');
     const { data, error } = await sb.auth.signInWithPassword({ email, password: heslo });
-    obTlacitko(false, obPopisek());
     if (error) {
+      obCekejKonec();
       if (error.message.includes('Email not confirmed')) {
         obEmail = email;
         document.getElementById('ob-code-email').textContent = email;
@@ -1571,6 +1832,7 @@
     }
     if (data.user?.user_metadata?.role === 'employer') {
       await sb.auth.signOut();
+      obCekejKonec();
       return obChyba('Tento účet je zaměstnavatelský. Přihlaš se jako brigádník.');
     }
     markGateOk();
@@ -1605,10 +1867,10 @@
       if (obJeLogin) obDovnitr(); else obFaze('is-role');
       return;
     }
-    obTlacitko(true, 'Ověřuji…');
+    obCekej('Ověřuji kód…');
     const { error } = await sb.auth.verifyOtp({ email: obEmail, token: kod, type: 'signup' });
-    obTlacitko(false, obPopisek());
     if (error) {
+      obCekejKonec();
       const m = error.message || '';
       obChyba(/expired/i.test(m) ? 'Kód vypršel — nech si poslat nový.'
         : /invalid/i.test(m) ? 'Nesprávný kód. Zkontroluj ho a zkus to znovu.'
@@ -1620,7 +1882,7 @@
       return;
     }
     clearInterval(obResendTimer);
-    if (!accessKeyOk()) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+    if (!accessKeyOk()) { obCekejKonec(); return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧'); }
     markGateOk();
     if (obJeLogin) obDovnitr(); else obFaze('is-role');
   }
@@ -1716,11 +1978,10 @@
   function obPockejNaAppku() {
     return wSpustAppku().then(() => new Promise(splnit => {
       if (window.__makejPripravena) return splnit();
-      window.addEventListener('makej-appka-pripravena', () => splnit(), { once: true });
+      window.addEventListener('makej-appka-pripravena', splnit, { once: true });
     }));
   }
 
-  const OB_NACITANI_MIN = 700;    // ať obrazovka jen neproblikne
   const OB_NACITANI_MAX = 10000;  // když se data nestáhnou, pustit dál i tak
 
   let obOdchazi = false;
@@ -1728,24 +1989,35 @@
     if (obOdchazi) return;
     // Klíč se odemyká při registraci i přihlášení, tady se jen ověří — aby
     // sem nevedla zkratka, která by předstartovní bránu obešla.
-    if (!accessKeyOk()) return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧');
+    if (!accessKeyOk()) { obCekejKonec(); return obChyba('Spouštíme 1. 10. — zatím jen s přístupovým klíčem. 🔧'); }
     obOdchazi = true;
-    if (!obJeLogin) { try { localStorage.setItem('makej-rozcestnik', obVolba); } catch (e) {} }
-    // Appka je namountovaná už pod bránou — musí se o volbě dozvědět, jinak
-    // ukáže svůj vlastní rozcestník se stejnou otázkou.
-    window.dispatchEvent(new Event('makej-onboarding-hotovo'));
 
-    // Čeká se na načítací obrazovce, ne uvnitř appky. Když je všechno hotové
-    // (běžný případ), tahle část se přeskočí a přechod je okamžitý.
-    if (!obPripravena()) {
-      obFaze('is-load');
-      const zacatek = Date.now();
-      await Promise.race([obPockejNaAppku(), new Promise(r => setTimeout(r, OB_NACITANI_MAX))]);
-      const zbyva = OB_NACITANI_MIN - (Date.now() - zacatek);
-      if (zbyva > 0) await new Promise(r => setTimeout(r, zbyva));
+    // try/finally schválně: kdyby cokoli níž selhalo, příznak „odcházím" by
+    // zůstal zapnutý a tlačítko by od té chvíle nedělalo NIC. Radši ať se
+    // člověk dostane dovnitř i po chybě, než aby uvízl na „Je hotovo".
+    try {
+      if (!obJeLogin) { try { localStorage.setItem('makej-rozcestnik', obVolba); } catch (e) {} }
+      // Appka je namountovaná už pod bránou — musí se o volbě dozvědět, jinak
+      // ukáže svůj vlastní rozcestník se stejnou otázkou.
+      window.dispatchEvent(new Event('makej-onboarding-hotovo'));
+
+      // Čeká se na načítací obrazovce, ne uvnitř appky.
+      if (!obPripravena()) {
+        // Sem se dá přijít rovnou z přihlášení, kde už načítačka běží s vlastním
+        // popiskem. Ten se přepíše, ať odpovídá tomu, na co se teď čeká.
+        obFaze('is-load');
+        obDlouhoStart();
+        await Promise.race([
+          obPockejNaAppku().catch(() => {}),
+          new Promise(r => setTimeout(r, OB_NACITANI_MAX)),
+        ]);
+      }
+    } catch (e) {
+      console.error('[onboarding] vstup do appky:', e);
+    } finally {
+      hideGate();
+      obOdchazi = false;
     }
-    hideGate();
-    obOdchazi = false;
   }
   document.getElementById('ob-rdy-btn').addEventListener('click', obDovnitr);
 
@@ -1832,7 +2104,7 @@
     const tag = document.getElementById('ob-tag');
     const box = document.getElementById('ob-tw');
     const slot = document.getElementById('ob-tww');
-    if (!tag || !box || !slot) return;
+    if (!tag || !box || !slot) { if (tag) tag.classList.add('pripraven'); return; }
     const tiche = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     // Textové uzly kolem slotu rozložíme na písmena; tečka za slotem se
@@ -1859,6 +2131,9 @@
       });
       tag.replaceChild(frag, uzel);
     });
+    // Písmena jsou teď všechna neviditelná (.hp bez .on), takže odkrytí
+    // obalu nic neukáže — jen sundá pojistku proti probliknutí.
+    tag.classList.add('pripraven');
 
     const mer = document.createElement('span');
     mer.className = 'tw__m';
@@ -1899,6 +2174,10 @@
     }
 
     function vymen(dalsi) {
+      // Překlad appky běží na pozadí a jedna dávka umí zabrat i 400 ms. Kdyby
+      // padla sem, výměna slova by se viditelně zasekla. obKlid ji na dobu
+      // přesmyku odloží — stejná pojistka, jakou mají přechody mezi fázemi.
+      obKlid(OB_ODCHOD + OB_PRICHOD + 200);
       const znaky = [...slot.querySelectorAll('.tw__c')];
       znaky.forEach((s, idx) => { s.style.transitionDelay = idx * OB_KROK_ZNAK + 'ms'; s.classList.add('out'); });
       sirka(dalsi);                      // šířka jede souběžně s odchodem
@@ -1933,15 +2212,23 @@
       ? document.fonts.load("700 62px 'League Spartan'").catch(() => {})
       : Promise.resolve();
     const pojistka = new Promise(r => setTimeout(r, 1500));
-    Promise.race([pismo, pojistka]).then(() => {
+    // Dva snímky navíc: font může dojet uprostřed dlouhé úlohy a nájezd by se
+    // rozjel do vlákna, které ještě pracuje. Tohle počká, až prohlížeč jeden
+    // snímek opravdu vykreslí, a teprve pak animaci pustí — proto začíná
+    // plynule a ne skokem.
+    const cistySnimek = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    Promise.race([pismo, pojistka]).then(cistySnimek).then(() => {
       obVitej.classList.add('fonty');
       // Kdo je přihlášený, nemá co číst — značka, proužek a dovnitř, jakmile
       // jsou data. Žádné psaní po písmenech ani nabídka účtu.
       if (obRovnouDovnitr) { rovnou(false); obJeLogin = true; obDovnitr(); return; }
       if (obStartLogin) { rovnou(); obJeLogin = true; obPripravKlic(); obFaze('is-login'); return; }
       if (tiche) { rovnou(); return; }
-      // Wordmark naskočí první (obMarkIn .72 s), claim se píše za ním.
-      const START = 620;
+      // Wordmark naskočí první (obMarkIn .72 s) a pak chvíli STOJÍ SÁM — teprve
+      // potom se pod ním dopisuje věta a nakonec celá skupina odjede nahoru
+      // k tlačítkům. Dřív se věta rozjížděla už v 620 ms, tedy ještě během
+      // nájezdu značky, a obojí se překrývalo do jedné šmouhy.
+      const START = 1220;   // 720 ms nájezd + půl vteřiny čistého „Makej".
       pred.forEach((s, idx) => setTimeout(() => s.classList.add('on'), START + idx * OB_PISMENO));
       const konec = START + pred.length * OB_PISMENO;
       setTimeout(() => { box.classList.add('on'); sirka(OB_SLOVA[0]); vykresli(OB_SLOVA[0], true); }, konec);
@@ -2480,21 +2767,21 @@
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel-pozdeji" src="app.jsx?v=21"></script>
+<script type="text/babel-pozdeji" src="app.jsx?v=30"></script>
 <script type="text/babel-pozdeji" src="makej-badge.jsx?v=1"></script>
 <script src="text-filtr.js?v=1"></script>
 <script src="cz-mesta.js?v=1"></script>
 <script src="cz-profese.js?v=2"></script>
 <script type="text/babel-pozdeji" src="worker-theme.jsx"></script>
-<script type="text/babel-pozdeji" src="worker-supabase.jsx?v=11"></script>
+<script type="text/babel-pozdeji" src="worker-supabase.jsx?v=13"></script>
 <script type="text/babel-pozdeji" src="worker-demo.jsx?v=6"></script>
-<script type="text/babel-pozdeji" src="worker-swipe.jsx?v=113"></script>
+<script type="text/babel-pozdeji" src="worker-swipe.jsx?v=115"></script>
 <script type="text/babel-pozdeji" src="worker-people.jsx?v=194"></script>
 <script type="text/babel-pozdeji" src="worker-messages.jsx?v=23"></script>
-<script type="text/babel-pozdeji" src="worker-profile.jsx?v=43"></script>
+<script type="text/babel-pozdeji" src="worker-profile.jsx?v=49"></script>
 <script type="text/babel-pozdeji" src="worker-history.jsx?v=2"></script>
 <script type="text/babel-pozdeji" src="worker-calendar.jsx?v=3"></script>
-<script type="text/babel-pozdeji" src="worker-main.jsx?v=47"></script>
+<script type="text/babel-pozdeji" src="worker-main.jsx?v=49"></script>
 
 <!-- DEV ONLY: automatické obnovení při změně souborů. Před buildem smazat. -->
 <script>

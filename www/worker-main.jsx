@@ -1024,6 +1024,48 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
 // pustíme ho rovnou tam. Volba nic nezamyká — jen určí, kde začne.
 // Rozhodnutí si pamatuje telefon; naostro patří i do profilu (sloupec zatím
 // není, viz DATABASE.md).
+// Víme, kolik je člověku let? Bez data narození ho nepustíme k zájmu o
+// brigádu — u části směn je zákonný věkový limit a do smlouvy to patří taky.
+function _wZnameVek() {
+  return !!(W_PROFILE && W_PROFILE.birth_date);
+}
+
+// Roletka u prvního zájmu. Neptá se tady na datum — jen řekne, co chybí,
+// a pošle do profilu, kde ho návod dovede k poli. Vyplňovat důležitý údaj
+// v roletce nad feedem by znamenalo mít dvě místa, kde se to samé edituje.
+function WVekRoletka({ onDoplnit, onClose }) {
+  const R = wRoletka(onClose, { panelIn: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' });
+  return (
+    <div {...R.zavojProps} style={{
+      position: 'fixed', inset: 0, zIndex: 9100, background: 'rgba(12,16,52,.44)',
+      display: 'flex', alignItems: 'flex-end', animation: R.zavojAnim,
+    }}>
+      <div {...R.panelProps} style={{
+        width: '100%', background: T.bg, borderRadius: '22px 22px 0 0',
+        padding: '10px 22px calc(22px + env(safe-area-inset-bottom))',
+        animation: R.panelAnim,
+      }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: T.border, margin: '0 auto 18px' }} />
+        <div style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4, lineHeight: 1.25 }}>
+          Ještě pár informací
+        </div>
+        <div style={{ marginTop: 8, fontFamily: T.fontUI, fontSize: 14.5, color: T.muted, lineHeight: 1.6 }}>
+          Předtím než začneš makat, potřebujeme od tebe ještě pár informací.
+        </div>
+        <button onClick={() => R.zavri(onDoplnit)} style={{
+          width: '100%', marginTop: 20, border: 'none', borderRadius: 16, padding: 17,
+          background: T.primary, color: '#fff', fontFamily: T.fontUI, fontSize: 15.5, fontWeight: 800,
+          cursor: 'pointer',
+        }}>Doplnit údaje</button>
+        <button onClick={() => R.zavri()} style={{
+          width: '100%', marginTop: 8, border: 'none', background: 'transparent', color: T.muted,
+          fontFamily: T.fontUI, fontSize: 14, fontWeight: 700, padding: 12, cursor: 'pointer',
+        }}>Zatím ne</button>
+      </div>
+    </div>
+  );
+}
+
 const _W_ROZCESTNIK = 'makej-rozcestnik';
 function _wRozcestnikHotovo() {
   try { return !!localStorage.getItem(_W_ROZCESTNIK); } catch (e) { return true; }
@@ -1102,6 +1144,9 @@ function WorkerApp() {
   // Rozcestník při prvním spuštění — dokud si člověk nevybere, appka se nekreslí.
   const [rozcestnik, setRozcestnik] = useStateW(() => !_wRozcestnikHotovo());
   const [otevritKartu, setOtevritKartu] = useStateW(false);   // „Nabízím" pustí rovnou editor karty
+  // Chybějící datum narození: roletka u prvního zájmu → návod v profilu.
+  const [vekRoletka, setVekRoletka] = useStateW(false);
+  const [navodVek, setNavodVek] = useStateW(false);
   const [loaded, setLoaded] = useStateW(false);
   const [tick,   setTick]   = useStateW(0);
   const [toasts, setToasts] = useStateW([]);
@@ -1321,8 +1366,20 @@ function WorkerApp() {
     // co onboarding skončil — pak by událost už nikdo nezachytil. Proto se
     // volba přebírá i rovnou při namountování.
     prevzit();
+    // Testovací „čistý" člověk se při každém vstupu vymaže i v databázi.
+    // Appka už v tu chvíli může mít stará data načtená, tak si je stáhne znovu.
+    const poVycisteni = () => {
+      setTab('swipe');
+      setOtevritKartu(false);
+      setRozcestnik(!_wRozcestnikHotovo());
+      if (userId.current) refreshWorker();
+    };
     window.addEventListener('makej-onboarding-hotovo', prevzit);
-    return () => window.removeEventListener('makej-onboarding-hotovo', prevzit);
+    window.addEventListener('makej-test-reset', poVycisteni);
+    return () => {
+      window.removeEventListener('makej-onboarding-hotovo', prevzit);
+      window.removeEventListener('makej-test-reset', poVycisteni);
+    };
   }, []);
 
   async function refreshWorker() {
@@ -1529,13 +1586,18 @@ function WorkerApp() {
       </div>
     );
   } else if (tab === 'swipe') {
-    body = <WSwipe tick={tick} />;
+    body = <WSwipe tick={tick} onChybiVek={() => {
+      if (_wZnameVek()) return false;      // víme věk → nic nebrzdíme
+      setVekRoletka(true);
+      return true;                         // zastav zájem, karta zůstane
+    }} />;
   } else if (tab === 'people') {
     body = <WPeople tick={tick} otevritKartu={otevritKartu} onKartaOtevrena={() => setOtevritKartu(false)} />;
   } else if (tab === 'messages') {
     body = <WMessages tick={tick} chatTarget={chatTarget} onChatOpened={() => setChatTarget(null)} onGoJobs={() => setTab('swipe')} onThreadOpen={setChatOpen} onRead={onThreadRead} />;
   } else if (tab === 'profile') {
-    body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab} />;
+    body = <WProfile tick={tick} onSignOut={handleSignOut} onGoTab={setTab}
+             navodVek={navodVek} onNavodHotov={() => setNavodVek(false)} />;
   }
 
   // Rozcestník kreslíme místo celé appky — včetně spodního navbaru, ať první
@@ -1793,6 +1855,15 @@ function WorkerApp() {
             );
           })}
         </nav>
+      )}
+
+      {/* Chybí datum narození a člověk právě projevil zájem o brigádu.
+          Roletka jen vysvětlí a pošle do profilu, kde ho návod dovede k poli. */}
+      {vekRoletka && (
+        <WVekRoletka
+          onClose={() => setVekRoletka(false)}
+          onDoplnit={() => { setVekRoletka(false); setTab('profile'); setNavodVek(true); }}
+        />
       )}
     </div>
   );

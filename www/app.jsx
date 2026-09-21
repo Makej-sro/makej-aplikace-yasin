@@ -903,5 +903,204 @@ function wRoletka(onClose, nast) {
   };
 }
 
-Object.assign(window, { JOBS, CHATS, THREAD, T, Icon, fmtKc, JobCard, Stamp, wRoletka, wOtevriOdkaz, W_ODKAZY,
+// ─────────────────────────────────────────────────────────────
+// WNavod — vizuální navedení „udělej tohle"
+//
+// Přes obrazovku lehne SVĚTLÝ matný závoj a v něm zůstanou čistá okýnka
+// u toho, co má člověk vyplnit. Popis se dopisuje po znacích a na konci
+// bliká kurzor.
+//
+// Proč světlý, a ne tmavý: tmavá modrá přes appku vypadala jako chybová
+// vrstva. Matné bílo s tmavým písmem je klidnější a nerve to s obsahem.
+//
+// Okýnek může být VÍC. Když se rozbalí výběr data, nevyřízne se jeden velký
+// obdélník od řádku k panelu — mezi nimi je totiž obsah, který s datem
+// nesouvisí (e-mail, popisky), a ten pak prosvítal a dělal nepořádek.
+// Místo toho dostane každý kus vlastní kulaté okýnko.
+//
+// Rohy jsou kulaté díky masce (SVG, evenodd). Maska ale nehlídá klepání,
+// proto je pod ní druhá, neviditelná vrstva s ostrými dírami.
+//
+//   const ref = useRefW(null);
+//   <div ref={ref}> … pole … </div>
+//   {navod && <WNavod cil={ref} titul="…" text="…" onPreskocit={…} />}
+// ─────────────────────────────────────────────────────────────
+const _W_NAVOD_ZNAK_TITUL = 26;   // ms na znak — rychleji než běžný typewriter
+const _W_NAVOD_ZNAK_TEXT  = 13;
+
+function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
+  const [okna, setOkna] = useState(null);
+  const [napsano, setNapsano] = useState({ t: '', x: '' });
+  const drzena = useRef(null);
+  // Bez lemu: okýnko sedne přesně na řádek, takže uvnitř je jen jeho text
+  // a nic z okolní karty. S lemem kolem prosvítalo pozadí a oválek vypadal
+  // jako bílý obdélník uvnitř oválu.
+  const pad = mezera == null ? 0 : mezera;
+  // Pořádně kulaté rohy. Malý poloměr se na vysokém okýnku (rozbalený výběr
+  // data) ztratí a hrany vypadají ostré. Clamp na polovinu kratší strany níž
+  // z toho u nízkého řádku udělá skoro pilulku.
+  const rr = radius == null ? 30 : radius;
+
+  // ── Poloha okýnek ──
+  useEffect(() => {
+    let bezi = true;
+    const dojed = (a, b) => a ? {
+      x1: a.x1 + (b.x1 - a.x1) * 0.22, y1: a.y1 + (b.y1 - a.y1) * 0.22,
+      x2: a.x2 + (b.x2 - a.x2) * 0.22, y2: a.y2 + (b.y2 - a.y2) * 0.22,
+    } : b;
+    function tik() {
+      if (!bezi) return;
+      const el = cil && cil.current;
+      if (el) {
+        // JEDNO okýnko přes všechno — řádek i rozbalený výběr data. Roste
+        // plynule dolů, jak se panel objeví (viz dojed() níž), místo aby
+        // naskočilo druhé okno vedle.
+        const b = el.getBoundingClientRect();
+        let x1 = b.left, y1 = b.top, x2 = b.right, y2 = b.bottom;
+        el.querySelectorAll('[data-navod-rozsir]').forEach(p2 => {
+          const q = p2.getBoundingClientRect();
+          if (q.width < 2 || q.height < 2) return;
+          x1 = Math.min(x1, q.left); y1 = Math.min(y1, q.top);
+          x2 = Math.max(x2, q.right); y2 = Math.max(y2, q.bottom);
+        });
+        const cile = [{ x1: x1 - pad, y1: y1 - pad, x2: x2 + pad, y2: y2 + pad }];
+        const stara = drzena.current || [];
+        const nova = cile.map((c, i) => dojed(stara[i], c));
+        drzena.current = nova;
+        const zmena = !okna || okna.length !== nova.length || nova.some((n, i) =>
+          Math.abs(n.x1 - okna[i].x1) > 0.4 || Math.abs(n.y1 - okna[i].y1) > 0.4 ||
+          Math.abs(n.x2 - okna[i].x2) > 0.4 || Math.abs(n.y2 - okna[i].y2) > 0.4);
+        if (zmena) setOkna(nova);
+      }
+      requestAnimationFrame(tik);
+    }
+    tik();
+    return () => { bezi = false; };
+  });
+
+  // ── Dopisování ──
+  useEffect(() => {
+    let bezi = true, casovac = null;
+    const T1 = titul || '', T2 = text || '';
+    let i = 0, j = 0;
+    function krokTitul() {
+      if (!bezi) return;
+      i++; setNapsano({ t: T1.slice(0, i), x: '' });
+      if (i < T1.length) casovac = setTimeout(krokTitul, _W_NAVOD_ZNAK_TITUL);
+      else casovac = setTimeout(krokText, 130);
+    }
+    function krokText() {
+      if (!bezi) return;
+      j++; setNapsano({ t: T1, x: T2.slice(0, j) });
+      if (j < T2.length) casovac = setTimeout(krokText, _W_NAVOD_ZNAK_TEXT);
+    }
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) setNapsano({ t: T1, x: T2 });
+    else casovac = setTimeout(krokTitul, 220);
+    return () => { bezi = false; clearTimeout(casovac); };
+  }, [titul, text]);
+
+  if (!okna || !okna.length) return null;
+  const W = window.innerWidth, H = window.innerHeight;
+
+  function kulatyObdelnik(o) {
+    const x1 = Math.max(0, o.x1), y1 = Math.max(0, o.y1), x2 = o.x2, y2 = o.y2;
+    const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+    const a = Math.min(rr, w / 2, h / 2);
+    return 'M' + (x1 + a) + ' ' + y1 + 'H' + (x2 - a) + 'A' + a + ' ' + a + ' 0 0 1 ' + x2 + ' ' + (y1 + a) +
+      'V' + (y2 - a) + 'A' + a + ' ' + a + ' 0 0 1 ' + (x2 - a) + ' ' + y2 +
+      'H' + (x1 + a) + 'A' + a + ' ' + a + ' 0 0 1 ' + x1 + ' ' + (y2 - a) +
+      'V' + (y1 + a) + 'A' + a + ' ' + a + ' 0 0 1 ' + (x1 + a) + ' ' + y1 + 'Z';
+  }
+  const cesta = 'M0 0H' + W + 'V' + H + 'H0Z ' + okna.map(kulatyObdelnik).join(' ');
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + W + "' height='" + H + "'>" +
+              "<path fill='#fff' fill-rule='evenodd' d='" + cesta + "'/></svg>";
+  const maska = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
+
+  // Zábrana proti klepání mimo okýnko: ČTYŘI PRUHY kolem díry, ne jedna vrstva
+  // přes celou obrazovku s vyříznutým otvorem.
+  //
+  // Proč: `clip-path` platí jen pro klepání (elementFromPoint). Posouvání prstem
+  // ale na iOSu řeší kompozitor, a ten clip-path neřeší — vrstva si gesto vezme,
+  // i když je v tom místě „vyříznutá". Projevilo se to přesně takhle: na datum
+  // šlo klepnout, ale kolečky se nedalo jezdit. Pruhy se díry nedotýkají, takže
+  // nad ní nic neleží a gesto má volnou cestu.
+  const o0 = okna.reduce((a, o) => ({
+    x1: Math.min(a.x1, o.x1), y1: Math.min(a.y1, o.y1),
+    x2: Math.max(a.x2, o.x2), y2: Math.max(a.y2, o.y2),
+  }));
+  const hx1 = Math.max(0, o0.x1), hy1 = Math.max(0, o0.y1);
+  const hx2 = Math.min(W, o0.x2), hy2 = Math.min(H, o0.y2);
+  // touchAction 'none': tažení po zamlženém okolí nemá rolovat stránkou pod ním.
+  const pruh = { position: 'absolute', pointerEvents: 'auto', touchAction: 'none' };
+  const pruhy = [
+    { ...pruh, left: 0, right: 0, top: 0, height: Math.max(0, hy1) },
+    { ...pruh, left: 0, right: 0, top: Math.max(0, hy2), bottom: 0 },
+    { ...pruh, left: 0, top: hy1, width: Math.max(0, hx1), height: Math.max(0, hy2 - hy1) },
+    { ...pruh, left: hx2, right: 0, top: hy1, height: Math.max(0, hy2 - hy1) },
+  ];
+
+  // Popis je NAD prvním okýnkem od začátku — ať se nikam nepřesouvá ve chvíli,
+  // kdy se rozbalí výběr. Jen když je okýnko úplně nahoře, jde popis pod něj.
+  const prvni = okna[0];
+  const podNim = prvni.y1 < 160;
+  const kurzor = <span style={{
+    display: 'inline-block', width: 2, height: '1em', marginLeft: 3, verticalAlign: '-0.14em',
+    background: '#252525', animation: 'obBlink 1.06s steps(1) infinite',
+  }} />;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9200, pointerEvents: 'none' }}>
+      {/* Matný světlý závoj s kulatými okýnky */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'rgba(244, 246, 251, .78)',
+        backdropFilter: 'blur(9px) saturate(.9)', WebkitBackdropFilter: 'blur(9px) saturate(.9)',
+        maskImage: maska, WebkitMaskImage: maska,
+        maskSize: '100% 100%', WebkitMaskSize: '100% 100%',
+        maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat',
+        animation: 'wFadeIn .28s ease both',
+      }} />
+      {/* Obrys okýnka. Dřív se rozcházel s dírou (ta byla ostrá, rámeček kulatý),
+          teď mají oba stejný poloměr, takže sedí na sebe. Bez něj okýnko
+          na světlém závoji splývá a nevypadá jako okýnko. */}
+      {okna.map((o, i) => (
+        <div key={'r' + i} style={{
+          position: 'absolute', left: o.x1, top: o.y1,
+          width: Math.max(1, o.x2 - o.x1), height: Math.max(1, o.y2 - o.y1),
+          borderRadius: Math.min(rr, (o.x2 - o.x1) / 2, (o.y2 - o.y1) / 2),
+          boxShadow: '0 0 0 1.5px rgba(37,37,37,.12), 0 18px 44px rgba(16,24,64,.16)',
+          pointerEvents: 'none',
+        }} />
+      ))}
+      {/* Zábrana kolem okýnka — čtyři pruhy, samotná díra zůstává volná */}
+      {pruhy.map((s, i) => <div key={'p' + i} style={s} />)}
+      {/* Popis */}
+      <div style={{
+        position: 'absolute', left: 20, right: 20,
+        top: podNim ? (prvni.y2 + 16) : undefined,
+        bottom: podNim ? undefined : (H - prvni.y1 + 16),
+        pointerEvents: 'auto',
+      }}>
+        {titul && (
+          <div style={{ fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: '#252525', letterSpacing: -0.4, minHeight: 26 }}>
+            {napsano.t}{napsano.x.length === 0 && kurzor}
+          </div>
+        )}
+        <div style={{ marginTop: titul ? 7 : 0, fontFamily: T.fontUI, fontSize: 15, color: '#252525', opacity: .82, lineHeight: 1.6 }}>
+          {napsano.x}{napsano.x.length > 0 && kurzor}
+        </div>
+        {onPreskocit && napsano.x.length === (text || '').length && (
+          <button onClick={onPreskocit} style={{
+            marginTop: 16, border: '1px solid rgba(37,37,37,.14)', background: 'rgba(255,255,255,.7)',
+            color: '#252525', fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700,
+            padding: '10px 17px', borderRadius: 999, cursor: 'pointer',
+            animation: 'wFadeIn .3s ease both',
+          }}>Zatím ne</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { JOBS, CHATS, THREAD, T, Icon, fmtKc, JobCard, Stamp, wRoletka, WNavod, wOtevriOdkaz, W_ODKAZY,
   W_NOTIF_DRUHY, wNotifPovoleno, wNotifNastav, wNotifDruh });

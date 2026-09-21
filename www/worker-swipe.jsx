@@ -741,7 +741,7 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
   );
 }
 
-function WSwipe({ tick }) {
+function WSwipe({ tick, onChybiVek }) {
   const [jobs,       setJobs]       = useStateW(() => _wComputeFeed(
     (() => { try { return JSON.parse(localStorage.getItem('makej-worker-kraje') || '[]'); } catch (e) { return []; } })(),
     _wLoadFilters(), _wLoadLoc(),
@@ -839,6 +839,15 @@ function WSwipe({ tick }) {
 
   async function doLike(sup) {
     if (!currentJob) return;
+    // Zájem je první skutečný krok k práci — tady potřebujeme vědět, kolik mu
+    // je. Zastavíme PŘED odletem karty, takže se brigáda nespotřebuje a po
+    // doplnění údajů na ni může znovu kliknout.
+    //
+    // snapBack je tu povinný: když sem člověk přijde tahem prstu, karta je
+    // odtažená a `dragging` pořád běží. Bez vrácení zůstane viset nakloněná
+    // v půlce odletu a nejde s ní hnout. „Zatím ne" nic nepotvrdilo, takže
+    // patří zpátky na místo.
+    if (onChybiVek && onChybiVek()) { snapBack(); return; }
     const job = currentJob;
     setActionAnim(sup ? 'super' : 'like');
     setTimeout(() => setActionAnim(null), 700);   // potvrzovací popisek (Odesláno/Odmítnuto) drží 700 ms
