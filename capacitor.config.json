@@ -12,7 +12,7 @@
     "backgroundColor": "#0020F6"
   },
   "server": {
-    "url": "http://172.20.10.4:4000",
+    "url": "http://172.20.10.3:4000",
     "cleartext": true,
     "androidScheme": "https"
   },

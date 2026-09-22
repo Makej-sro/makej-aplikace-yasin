@@ -1039,61 +1039,85 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
     { ...pruh, left: hx2, right: 0, top: hy1, height: Math.max(0, hy2 - hy1) },
   ];
 
-  // Popis je NAD prvním okýnkem od začátku — ať se nikam nepřesouvá ve chvíli,
-  // kdy se rozbalí výběr. Jen když je okýnko úplně nahoře, jde popis pod něj.
+  // Bublina sedí NAD výřezem, dokud je nad ním dost místa. U výřezu při horním
+  // okraji se překlopí pod něj. Rozhoduje se podle místa nahoře, ne podle
+  // místa dole — jinak by se přesunula ve chvíli, kdy se výřez roztáhne
+  // (rozbalený výběr data), a to by poskočilo přímo pod prstem.
   const prvni = okna[0];
-  const podNim = prvni.y1 < 160;
+  const podNim = prvni.y1 < 190;
   const kurzor = <span style={{
     display: 'inline-block', width: 2, height: '1em', marginLeft: 3, verticalAlign: '-0.14em',
-    background: '#252525', animation: 'obBlink 1.06s steps(1) infinite',
+    background: 'currentColor', animation: 'obBlink 1.06s steps(1) infinite',
   }} />;
+
+  // ── Bublina ──
+  // Vzor „spotlight": ztmavená plocha, čistý výřez a bublina se šipkou, která
+  // na něj ukazuje. Sedí pod výřezem, a když tam není místo, překlopí se nad něj.
+  const BUB_S = 12;                       // velikost šipky
+  const BUB_OKRAJ = 18;                   // odstup bubliny od kraje obrazovky
+  const bubSirka = Math.min(330, W - BUB_OKRAJ * 2);
+  const stredDiry = (prvni.x1 + prvni.x2) / 2;
+  let bubLeft = Math.round(stredDiry - bubSirka / 2);
+  bubLeft = Math.max(BUB_OKRAJ, Math.min(bubLeft, W - BUB_OKRAJ - bubSirka));
+  // Šipka míří na střed díry, ale nesmí vylézt z oblouku bubliny.
+  const sipkaX = Math.max(18, Math.min(bubSirka - 18, Math.round(stredDiry - bubLeft)));
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9200, pointerEvents: 'none' }}>
-      {/* Matný světlý závoj s kulatými okýnky */}
+      {/* Ztmavená plocha s vyříznutým okýnkem. Žádné rozmazání — spotlight
+          se pozná podle toho, že okolí ztmavne a zůstane ostré. */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'rgba(244, 246, 251, .78)',
-        backdropFilter: 'blur(9px) saturate(.9)', WebkitBackdropFilter: 'blur(9px) saturate(.9)',
+        background: 'rgba(9, 12, 32, .66)',
         maskImage: maska, WebkitMaskImage: maska,
         maskSize: '100% 100%', WebkitMaskSize: '100% 100%',
         maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat',
         animation: 'wFadeIn .28s ease both',
       }} />
-      {/* Obrys okýnka. Dřív se rozcházel s dírou (ta byla ostrá, rámeček kulatý),
-          teď mají oba stejný poloměr, takže sedí na sebe. Bez něj okýnko
-          na světlém závoji splývá a nevypadá jako okýnko. */}
+      {/* Jemný světlý lem kolem výřezu, ať je na ztmavené ploše vidět hrana */}
       {okna.map((o, i) => (
         <div key={'r' + i} style={{
           position: 'absolute', left: o.x1, top: o.y1,
           width: Math.max(1, o.x2 - o.x1), height: Math.max(1, o.y2 - o.y1),
           borderRadius: Math.min(rr, (o.x2 - o.x1) / 2, (o.y2 - o.y1) / 2),
-          boxShadow: '0 0 0 1.5px rgba(37,37,37,.12), 0 18px 44px rgba(16,24,64,.16)',
+          boxShadow: '0 0 0 2px rgba(255,255,255,.34), 0 0 34px rgba(255,255,255,.18)',
           pointerEvents: 'none',
         }} />
       ))}
       {/* Zábrana kolem okýnka — čtyři pruhy, samotná díra zůstává volná */}
       {pruhy.map((s, i) => <div key={'p' + i} style={s} />)}
-      {/* Popis */}
+
+      {/* Bublina s popisem */}
       <div style={{
-        position: 'absolute', left: 20, right: 20,
-        top: podNim ? (prvni.y2 + 16) : undefined,
-        bottom: podNim ? undefined : (H - prvni.y1 + 16),
-        pointerEvents: 'auto',
+        position: 'absolute', left: bubLeft, width: bubSirka,
+        top: podNim ? (prvni.y2 + BUB_S + 6) : undefined,
+        bottom: podNim ? undefined : (H - prvni.y1 + BUB_S + 6),
+        background: T.primary, color: '#fff', borderRadius: 18,
+        padding: '15px 17px 16px', pointerEvents: 'auto',
+        boxShadow: '0 18px 40px -12px rgba(0,0,0,.45)',
+        animation: 'wFadeIn .3s ease both',
       }}>
+        {/* Šipka — jen otočený roh bubliny, takže má vždy stejnou barvu */}
+        <span style={{
+          position: 'absolute', left: sipkaX - BUB_S / 2, width: BUB_S, height: BUB_S,
+          top: podNim ? -BUB_S / 2 : undefined, bottom: podNim ? undefined : -BUB_S / 2,
+          background: T.primary, transform: 'rotate(45deg)', borderRadius: 3,
+        }} />
         {titul && (
-          <div style={{ fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, color: '#252525', letterSpacing: -0.4, minHeight: 26 }}>
+          <div style={{ fontFamily: T.fontHead, fontSize: 17, fontWeight: 800,
+                        letterSpacing: -0.3, minHeight: 22 }}>
             {napsano.t}{napsano.x.length === 0 && kurzor}
           </div>
         )}
-        <div style={{ marginTop: titul ? 7 : 0, fontFamily: T.fontUI, fontSize: 15, color: '#252525', opacity: .82, lineHeight: 1.6 }}>
+        <div style={{ marginTop: titul ? 5 : 0, fontFamily: T.fontUI, fontSize: 14,
+                      lineHeight: 1.5, color: 'rgba(255,255,255,.88)' }}>
           {napsano.x}{napsano.x.length > 0 && kurzor}
         </div>
         {onPreskocit && napsano.x.length === (text || '').length && (
           <button onClick={onPreskocit} style={{
-            marginTop: 16, border: '1px solid rgba(37,37,37,.14)', background: 'rgba(255,255,255,.7)',
-            color: '#252525', fontFamily: T.fontUI, fontSize: 13.5, fontWeight: 700,
-            padding: '10px 17px', borderRadius: 999, cursor: 'pointer',
+            marginTop: 12, border: 0, background: 'rgba(255,255,255,.16)',
+            color: '#fff', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700,
+            padding: '8px 15px', borderRadius: 999, cursor: 'pointer',
             animation: 'wFadeIn .3s ease both',
           }}>Zatím ne</button>
         )}
