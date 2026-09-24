@@ -206,30 +206,44 @@ const _wPrepinacKnob = on => ({
   background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'left .2s',
 });
 
-function WDatumPicker({ value, onChange, row, siroky }) {
+function WDatumPicker({ value, onChange, row, siroky, zamceno, onPotvrdit }) {
   const [open, setOpen] = useStateW(false);
   const [dmy, setDmy]   = useStateW(() => _wRozlozDatum(value));
   const ref = useRefW(null);
   useEffectW(() => { setDmy(_wRozlozDatum(value)); }, [value]);
   useEffectW(() => {
-    if (!open) return;
+    if (!open || zamceno) return;
     // Zavře jen KLEPNUTÍ mimo (click). Tažení prstem (scroll) klik nevyvolá,
     // takže se dá scrollovat a picker zůstane otevřený a posouvá se se stránkou.
-    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    //
+    // `zamceno` (běží návod): klepnutí mimo NEZAVÍRÁ. Návod končí jen tlačítkem
+    // — klepnutí vedle je skoro vždycky omyl a zavřít mu kvůli tomu celé
+    // navedení je ta nejhorší možná odpověď.
+    const onClick = e => {
+      if (window.__wNavodBezi) return;   // běží návod → zavírá jedině tlačítko
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
-  }, [open]);
+  }, [open, zamceno]);
 
   const dniVMesici = new Date(dmy.y, dmy.m + 1, 0).getDate();
   const DNY = [];
   for (let d = 1; d <= dniVMesici; d++) DNY.push(d);
+
+  // Za běhu návodu se výběr klepnutím na řádek jen otevírá, nezavírá — zavřít
+  // ho smí jedině „Potvrdit". Jinak by druhé klepnutí vypadalo jako potvrzení,
+  // a přitom by datum zrušilo.
+  function prepni() { setOpen(o => zamceno ? true : !o); }
 
   function zmen(nove) {
     const next = { ...dmy, ...nove };
     const dim = new Date(next.y, next.m + 1, 0).getDate();
     if (next.d > dim) next.d = dim;   // 31. → kratší měsíc → sklouzni na poslední den
     setDmy(next);
-    onChange(next.y + '-' + String(next.m + 1).padStart(2, '0') + '-' + String(next.d).padStart(2, '0'));
+    const txt = next.y + '-' + String(next.m + 1).padStart(2, '0') + '-' + String(next.d).padStart(2, '0');
+    onChange(txt);
+    return txt;   // „Potvrdit" potřebuje hodnotu hned, stav se překreslí až potom
   }
 
   return (
@@ -238,7 +252,7 @@ function WDatumPicker({ value, onChange, row, siroky }) {
     // nemá kudy prosvítat — okýnko obepne řádek i panel a nic cizího nezbyde.
     <div ref={ref} style={{ position: siroky ? 'static' : 'relative' }}>
       {row ? (
-        <button onClick={() => setOpen(o => !o)} style={{
+        <button onClick={prepni} style={{
           display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
           fontFamily: T.fontHead, fontWeight: 800, fontSize: 16, color: value ? T.ink : T.mutedSoft, WebkitTapHighlightColor: 'transparent',
         }}>
@@ -246,7 +260,7 @@ function WDatumPicker({ value, onChange, row, siroky }) {
           <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke={T.mutedSoft} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5 6.5 6.5 1.5 11.5" /></svg>
         </button>
       ) : (
-        <button onClick={() => setOpen(o => !o)} style={{
+        <button onClick={prepni} style={{
           ...fieldStyle, width: '100%', textAlign: 'left', cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 9, color: value ? T.ink : T.mutedSoft,
         }}>
@@ -278,7 +292,7 @@ function WDatumPicker({ value, onChange, row, siroky }) {
               a zároveň rovnou zapíše datum, i když s kolečky nikdo nehnul. */}
           <div style={{ height: 1, background: T.border, margin: '10px 14px 12px' }} />
           <div style={{ padding: '0 14px' }}>
-            <button onClick={() => { zmen({}); setOpen(false); }} style={{
+            <button onClick={() => { const d = zmen({}); setOpen(false); if (onPotvrdit) onPotvrdit(d); }} style={{
               width: '100%', padding: '13px 0', border: 'none', borderRadius: 14,
               background: T.primary, color: '#fff', cursor: 'pointer',
               fontFamily: T.fontHead, fontWeight: 800, fontSize: 15.5,
@@ -348,7 +362,10 @@ function WVyberPicker({ value, onChange, items, placeholder }) {
     if (!open) return;
     // Zavře jen KLEPNUTÍ mimo (click). Tažení prstem (scroll) klik nevyvolá,
     // takže se dá scrollovat a roletka zůstane otevřená a posouvá se se stránkou.
-    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onClick = e => {
+      if (window.__wNavodBezi) return;   // běží návod → zavírá jedině tlačítko
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
   }, [open]);
@@ -529,40 +546,57 @@ function WProfile({ tick, onSignOut, onGoTab, onClose, navodVek, onNavodHotov })
   // o brigádu a my neznáme jeho věk. Otevře editaci, odscrolluje na pole
   // a rozmaže zbytek obrazovky, aby bylo jasné CO se po něm chce.
   const datumRef = useRefW(null);
+  const telRef = useRefW(null);
+  // DVĚ různé věci, schválně oddělené:
+  //
+  // `navodBezi` — datum narození. Není to průvodce, je to zákonná podmínka:
+  //   bez data se o brigádu říct nedá, protože pod patnáct let ji vzít nesmí
+  //   (§ 35 obč. zák.). Proto stojí sám, nemá tečky ani „Přeskočit".
+  //
+  // `tourBezi` — průvodce zbytkem profilu (telefon a dál). Nic z toho zákon
+  //   nevyžaduje. Kdo si ho přeskočí a pak se diví, že mu firma nemá kam
+  //   zavolat, je to jeho věc — proto tečky, „Přeskočit" a otázka navíc.
   const [navodBezi, setNavodBezi] = useStateW(false);
+  const [tourBezi, setTourBezi] = useStateW(false);
+  const [tourKrok, setTourKrok] = useStateW(0);
+  // Zadal datum, ze kterého mu ještě není patnáct → rovnou to řekneme.
+  // Datum se ukládá dál (je pravdivé), jen ho nepustíme k brigádám.
+  const [vekStop, setVekStop] = useStateW(null);   // věk, nebo null
   useEffectW(() => {
     if (!navodVek) return;
     setEditing(true);
     // Editace se musí stihnout vykreslit, než se na pole odscrolluje.
-    const t = setTimeout(() => {
-      const el = datumRef.current;
-      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      // A ještě chvíli, než scroll dojede — jinak by se okýnko vystřihlo jinde.
-      setTimeout(() => setNavodBezi(true), 420);
-    }, 260);
+    const t = setTimeout(() => najedNa(datumRef, () => setNavodBezi(true)), 260);
     return () => clearTimeout(t);
   }, [navodVek]);
+  // Doskroluj na pole a teprve pak přehoď okýnko. Kdyby se přehodilo hned,
+  // vystřihlo by se místo, kam se obraz teprve posouvá.
+  function najedNa(cil, potom) {
+    const el = cil && cil.current;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(potom, 420);
+  }
   function ukonciNavod() {
     setNavodBezi(false);
     if (onNavodHotov) onNavodHotov();
+  }
+  // Datum zapsané → zákonná podmínka splněná a na brigádu už si říct může.
+  // Průvodce zbytkem profilu na to navazuje, ale je to jiná věc: nic neblokuje.
+  function spustTour() {
+    setNavodBezi(false);
+    if (onNavodHotov) onNavodHotov();
+    setTourKrok(0);
+    setTimeout(() => najedNa(telRef, () => setTourBezi(true)), 220);
   }
 
   const [saving,  setSaving]  = useStateW(false);
   const [form,    setForm]    = useStateW({ titul: '', titulZa: '', jmeno: '', druhe: '', prijmeni: '', rodne: '', datum: '', kraj: '', mesto: '', telPredvolba: '+420', telCislo: '', email: '', ridicak: false, auto: false, bio: '', skills: [], stupen: '', obor: '', cv_url: '' });
 
-  // Návod skončí, až je datum vyplněné A výběr zavřený. Dřív končil na první
-  // změnu hodnoty — jenže kolečko hlásí změnu při každém posunu, takže
-  // rozmazání zmizelo ve chvíli, kdy si člověk teprve listoval roky.
-  // (Musí stát AŽ ZA `form` — jinak se na něj sahá dřív, než vznikne, a profil spadne.)
-  useEffectW(() => {
-    if (!navodBezi) return;
-    const t = setInterval(() => {
-      const el = datumRef.current;
-      if (!el) return;
-      if (!el.querySelector('[data-navod-rozsir]') && form.datum) ukonciNavod();
-    }, 350);
-    return () => clearInterval(t);
-  }, [navodBezi, form.datum]);
+  // Návod končí JEDINĚ tlačítkem: „Potvrdit" ve výběru data, nebo „Zatím ne"
+  // v bublině. Dřív hlídal interval, jestli je datum vyplněné a výběr zavřený
+  // — jenže výběr zavřelo i klepnutí vedle, takže omylem klepnout mimo
+  // znamenalo přijít o celé navedení. Klepnutí mimo teď nedělá nic
+  // (viz `zamceno` u WDatumPicker).
   const [uctuEmail, setUctuEmail] = useStateW('');   // přihlašovací e-mail (fallback do kontaktu)
   const [skillInput, setSkillInput] = useStateW('');
   const [titulShake, setTitulShake] = useStateW(0);   // šťouchnutí do polí titulu při zablokovaném uložení
@@ -924,23 +958,32 @@ function WProfile({ tick, onSignOut, onGoTab, onClose, navodVek, onNavodHotov })
                 <div ref={datumRef} style={{ ...radek, borderTop: '1px solid ' + T.border,
                      justifyContent: 'space-between', position: 'relative' }}>
                   <span style={radekLabel}>Datum narození</span>
-                  {/* Návod NEkončí při každém posunu kolečka — jinak by zmizel
-                      hned, jak člověk začne datum hledat. Konec řeší efekt výš. */}
-                  <WDatumPicker row siroky={navodBezi} value={form.datum}
+                  {/* Návod NEkončí při každém posunu kolečka ani klepnutím vedle
+                      — zavře ho až „Potvrdit" (viz `zamceno` a `onPotvrdit`). */}
+                  <WDatumPicker row siroky={navodBezi} zamceno={navodBezi}
+                    onPotvrdit={d => {
+                      if (!wVekStaci(d)) { setVekStop(wVekZDatumu(d)); if (navodBezi) ukonciNavod(); return; }
+                      if (navodBezi) spustTour();
+                    }}
+                    value={form.datum}
                     onChange={v => setForm(f => ({ ...f, datum: v }))} />
                 </div>
               </div>
-              <div style={poznamka}>Firmy vidí jméno a první písmeno příjmení. Datum narození potřebujeme kvůli věkovému limitu u některých směn.</div>
             </div>
             <div>
               <div style={labelStyle}>Kontaktní údaje</div>
               <div style={{ ...KARTA, padding: 0 }}>
-                <div style={radek}>
+                <div ref={telRef} style={radek}>
                   <select value={form.telPredvolba} onChange={e => setForm(f => ({ ...f, telPredvolba: e.target.value }))}
                     style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: T.fontHead, fontWeight: 800, fontSize: 15, color: T.ink, cursor: 'pointer', flexShrink: 0 }}>
                     {_W_PREDVOLBY.map(p => <option key={p.kod} value={p.kod}>{p.vlajka + ' ' + p.kod}</option>)}
                   </select>
-                  <input type="tel" inputMode="tel" value={form.telCislo} onChange={e => setForm(f => ({ ...f, telCislo: e.target.value }))} placeholder="Telefon" style={radekInput} />
+                  {/* Bez tohohle klávesnice řádek překryje a člověk nevidí,
+                      co píše — prohlížeč ho odroluje na střed celé stránky,
+                      tedy pod klávesnici. */}
+                  <input type="tel" inputMode="tel" value={form.telCislo}
+                    onFocus={() => wDrzVZornem(telRef.current)}
+                    onChange={e => setForm(f => ({ ...f, telCislo: e.target.value }))} placeholder="Telefon" style={radekInput} />
                   {form.telCislo.trim() && (telOvereno ? <WOverenoPill /> : <WOveritBtn onClick={() => otevritOvereni('phone')} />)}
                 </div>
                 <div style={{ ...radek, borderTop: '1px solid ' + T.border }}>
@@ -1514,14 +1557,34 @@ function WProfile({ tick, onSignOut, onGoTab, onClose, navodVek, onNavodHotov })
       })()}
 
       {/* Navedení k datu narození — rozmaže vše kromě toho jednoho pole. */}
+      {/* Zákonná podmínka, ne průvodce: žádné tečky, žádné „Přeskočit".
+          „Zatím ne" jen zavře — o brigádu si pak říct nejde. */}
       {navodBezi && (
         <WNavod
           cil={datumRef}
           titul="Doplň datum narození"
-          text="Potřebujeme ho kvůli věkovému limitu u některých směn a do smlouvy. Ostatní údaje můžeš doplnit později."
-          onPreskocit={ukonciNavod}
+          text="Vyber datum a klepni na Potvrdit."
+          onPreskocit={ukonciNavod} preskocitText="Zatím ne" bezOtazky
         />
       )}
+
+      {/* Průvodce zbytkem profilu — dobrovolný. */}
+      {tourBezi && (() => {
+        // `akce` je tlačítko v bublině: svítí, až je krok splněný.
+        const telVyplneno = form.telCislo.replace(/\D/g, '').length >= 9;
+        const kroky = [
+          { cil: telRef, titul: 'Přidej telefon',
+            text: 'Firma se ti na něj ozve, až tě vezme. Zadej číslo a klepni na Ověřit.',
+            akce: { text: 'Hotovo', hotovo: telVyplneno, onClick: () => setTourBezi(false) } },
+        ];
+        const k = kroky[Math.min(tourKrok, kroky.length - 1)];
+        return <WNavod cil={k.cil} titul={k.titul} text={k.text} akce={k.akce}
+                       krok={tourKrok} kroku={kroky.length}
+                       onPreskocit={() => setTourBezi(false)} />;
+      })()}
+
+      {/* Mladší patnácti let — řekneme to hned, ne až u smlouvy. */}
+      {vekStop !== null && <WVekStop vek={vekStop} onClose={() => setVekStop(null)} />}
     </div>
   );
 }

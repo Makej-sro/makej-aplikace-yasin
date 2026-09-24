@@ -1024,12 +1024,6 @@ function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
 // pustíme ho rovnou tam. Volba nic nezamyká — jen určí, kde začne.
 // Rozhodnutí si pamatuje telefon; naostro patří i do profilu (sloupec zatím
 // není, viz DATABASE.md).
-// Víme, kolik je člověku let? Bez data narození ho nepustíme k zájmu o
-// brigádu — u části směn je zákonný věkový limit a do smlouvy to patří taky.
-function _wZnameVek() {
-  return !!(W_PROFILE && W_PROFILE.birth_date);
-}
-
 // Roletka u prvního zájmu. Neptá se tady na datum — jen řekne, co chybí,
 // a pošle do profilu, kde ho návod dovede k poli. Vyplňovat důležitý údaj
 // v roletce nad feedem by znamenalo mít dvě místa, kde se to samé edituje.
@@ -1146,6 +1140,7 @@ function WorkerApp() {
   const [otevritKartu, setOtevritKartu] = useStateW(false);   // „Nabízím" pustí rovnou editor karty
   // Chybějící datum narození: roletka u prvního zájmu → návod v profilu.
   const [vekRoletka, setVekRoletka] = useStateW(false);
+  const [vekStop, setVekStop] = useStateW(null);   // věk mladšího patnácti let
   const [navodVek, setNavodVek] = useStateW(false);
   const [loaded, setLoaded] = useStateW(false);
   const [tick,   setTick]   = useStateW(0);
@@ -1587,9 +1582,12 @@ function WorkerApp() {
     );
   } else if (tab === 'swipe') {
     body = <WSwipe tick={tick} onChybiVek={() => {
-      if (_wZnameVek()) return false;      // víme věk → nic nebrzdíme
-      setVekRoletka(true);
-      return true;                         // zastav zájem, karta zůstane
+      const datum = W_PROFILE && W_PROFILE.birth_date;
+      if (!datum) { setVekRoletka(true); return true; }   // neznáme věk → doplnit
+      // Známe věk, ale je mu míň než patnáct. Do smlouvy ho pustit nemůžeme,
+      // tak ať to ví tady a ne až u firmy v chatu.
+      if (!wVekStaci(datum)) { setVekStop(wVekZDatumu(datum)); return true; }
+      return false;                        // vše v pořádku → nic nebrzdíme
     }} />;
   } else if (tab === 'people') {
     body = <WPeople tick={tick} otevritKartu={otevritKartu} onKartaOtevrena={() => setOtevritKartu(false)} />;
@@ -1865,6 +1863,9 @@ function WorkerApp() {
           onDoplnit={() => { setVekRoletka(false); setTab('profile'); setNavodVek(true); }}
         />
       )}
+
+      {/* Mladší patnácti let — zákon ho k závislé práci nepustí. */}
+      {vekStop !== null && <WVekStop vek={vekStop} onClose={() => setVekStop(null)} />}
     </div>
   );
 }

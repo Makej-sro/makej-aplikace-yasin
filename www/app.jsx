@@ -904,6 +904,109 @@ function wRoletka(onClose, nast) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Klávesnice a rolování
+//
+// Když se klepne do pole, prohlížeč si ho odroluje sám — jenže míří na střed
+// CELÉ stránky, a ten je po vyjetí klávesnice schovaný pod ní. Řádek zmizí
+// přesně ve chvíli, kdy do něj člověk začne psát.
+//
+// Tohle ho srovná na střed toho, co je opravdu vidět (visualViewport = plocha
+// nad klávesnicí). Volá se znovu při každé změně výšky, protože klávesnice
+// nevyjede naráz a první výpočet by počítal s ještě celou obrazovkou.
+// ─────────────────────────────────────────────────────────────
+function wNajdiRolovac(el) {
+  for (let p = el && el.parentElement; p; p = p.parentElement) {
+    const s = getComputedStyle(p).overflowY;
+    if ((s === 'auto' || s === 'scroll') && p.scrollHeight > p.clientHeight + 4) return p;
+  }
+  return null;
+}
+function wDoZorneho(el) {
+  if (!el) return;
+  const vv = window.visualViewport;
+  const box = el.getBoundingClientRect();
+  const vrch = vv ? vv.offsetTop : 0;
+  const vyska = vv ? vv.height : window.innerHeight;
+  const posun = (box.top + box.height / 2) - (vrch + vyska / 2);
+  if (Math.abs(posun) < 8) return;
+  const rolovac = wNajdiRolovac(el);
+  if (rolovac) rolovac.scrollBy({ top: posun, behavior: 'smooth' });
+  else window.scrollBy({ top: posun, behavior: 'smooth' });
+}
+// Podrž pole v zorném poli, dokud se klávesnice neustálí.
+function wDrzVZornem(el) {
+  if (!el) return;
+  const vv = window.visualViewport;
+  setTimeout(() => wDoZorneho(el), 60);
+  if (!vv) { setTimeout(() => wDoZorneho(el), 340); return; }
+  const znovu = () => wDoZorneho(el);
+  vv.addEventListener('resize', znovu);
+  setTimeout(() => vv.removeEventListener('resize', znovu), 1400);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Věkový limit
+//
+// Závislou práci smí podle § 35 občanského zákoníku vykonávat až ten, komu je
+// 15 a má ukončenou povinnou školní docházku — obě podmínky naráz. Flexinovela
+// od 1. 6. 2025 pustila ke lehkým pracím i čtrnáctileté, ale jen o hlavních
+// prázdninách, s písemným souhlasem zákonného zástupce a s vlastními limity
+// (max. 7 h denně, zákaz práce 20–6). To appka neumí ohlídat, takže hranice
+// je 15 a níž nikoho nepustíme.
+// ─────────────────────────────────────────────────────────────
+const W_MIN_VEK = 15;
+
+// Věk k dnešku z „RRRR-MM-DD". Vrací null, když datum nedává smysl.
+function wVekZDatumu(datum) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datum || '');
+  if (!m) return null;
+  const r = +m[1], me = +m[2], d = +m[3];
+  const dnes = new Date();
+  let vek = dnes.getFullYear() - r;
+  // Letos ještě neměl narozeniny → o rok míň.
+  const mesic = dnes.getMonth() + 1;
+  if (mesic < me || (mesic === me && dnes.getDate() < d)) vek--;
+  return vek >= 0 && vek < 130 ? vek : null;
+}
+function wVekStaci(datum) {
+  const v = wVekZDatumu(datum);
+  return v == null ? false : v >= W_MIN_VEK;
+}
+
+// Roletka „ještě si počkej". Nic nenabízí a nikam nevede — mladší patnácti
+// let u nás práci nenajde, tak ať to ví hned a narovinu, ne až u smlouvy.
+function WVekStop({ vek, onClose }) {
+  const R = wRoletka(onClose, { panelIn: 'wSheetUp .34s cubic-bezier(.24,1,.32,1) both' });
+  const zbyva = vek == null ? null : Math.max(1, W_MIN_VEK - vek);
+  return (
+    <div {...R.zavojProps} style={{
+      position: 'fixed', inset: 0, zIndex: 9300, background: 'rgba(12,16,52,.44)',
+      display: 'flex', alignItems: 'flex-end', animation: R.zavojAnim,
+    }}>
+      <div {...R.panelProps} style={{
+        width: '100%', background: T.bg, borderRadius: '22px 22px 0 0',
+        padding: '10px 22px calc(22px + env(safe-area-inset-bottom))',
+        animation: R.panelAnim,
+      }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: T.border, margin: '0 auto 18px' }} />
+        <div style={{ fontFamily: T.fontHead, fontSize: 21, fontWeight: 800, color: T.ink, letterSpacing: -0.4, lineHeight: 1.25 }}>
+          Omlouváme se, ještě si musíš počkat
+        </div>
+        <div style={{ marginTop: 8, fontFamily: T.fontUI, fontSize: 14.5, color: T.muted, lineHeight: 1.6 }}>
+          Brigádu u nás můžeš vzít od {W_MIN_VEK} let, až budeš mít za sebou povinnou školní docházku. Tak to máme podle zákona a nemůžeme si vybírat.
+          {zbyva != null && <span> Vrať se za {zbyva === 1 ? 'rok' : (zbyva < 5 ? zbyva + ' roky' : zbyva + ' let')} — účet ti tu zůstane.</span>}
+        </div>
+        <button onClick={() => R.zavri()} style={{
+          width: '100%', marginTop: 20, border: 'none', borderRadius: 16, padding: 17,
+          background: T.primary, color: '#fff', fontFamily: T.fontUI, fontSize: 15.5, fontWeight: 800,
+          cursor: 'pointer',
+        }}>Rozumím</button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // WNavod — vizuální navedení „udělej tohle"
 //
 // Přes obrazovku lehne SVĚTLÝ matný závoj a v něm zůstanou čistá okýnka
@@ -927,10 +1030,35 @@ function wRoletka(onClose, nast) {
 // ─────────────────────────────────────────────────────────────
 const _W_NAVOD_ZNAK_TITUL = 26;   // ms na znak — rychleji než běžný typewriter
 const _W_NAVOD_ZNAK_TEXT  = 13;
+const _W_NAV_BTN = {
+  flex: 'none', border: 0, borderRadius: 999, padding: '9px 15px', cursor: 'pointer',
+  fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800,
+  WebkitTapHighlightColor: 'transparent',
+};
 
-function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
+// `bezOtazky`: odchod bez druhého ptaní. Patří ke krokům, které nejsou
+// průvodce, ale zákonná podmínka — tam „Zatím ne" nic nepřeskakuje, jen
+// člověka pustí pryč bez toho, aby si o brigádu řekl.
+function WNavod({ cil, titul, text, onPreskocit, preskocitText, bezOtazky, mezera, radius, krok, kroku, akce }) {
   const [okna, setOkna] = useState(null);
   const [napsano, setNapsano] = useState({ t: '', x: '' });
+  // Přeskočení se ptá podruhé. Průvodce je krátký a kdo ho odklikne omylem,
+  // už se k němu sám nevrátí — druhé klepnutí stojí vteřinu a ušetří mrzení.
+  const [ptamSe, setPtamSe] = useState(false);
+  // Kolik z obrazovky je vidět. Klávesnice ji zmenší zespodu a `innerHeight`
+  // o tom na iOSu neví — ví to jen visualViewport.
+  const [vidu, setVidu] = useState(() => ({
+    vrch: 0, vyska: (window.visualViewport ? window.visualViewport.height : window.innerHeight),
+  }));
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const zmer = () => setVidu({ vrch: vv.offsetTop, vyska: vv.height });
+    zmer();
+    vv.addEventListener('resize', zmer);
+    vv.addEventListener('scroll', zmer);
+    return () => { vv.removeEventListener('resize', zmer); vv.removeEventListener('scroll', zmer); };
+  }, []);
   const drzena = useRef(null);
   // Bez lemu: okýnko sedne přesně na řádek, takže uvnitř je jen jeho text
   // a nic z okolní karty. S lemem kolem prosvítalo pozadí a oválek vypadal
@@ -940,6 +1068,16 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
   // data) ztratí a hrany vypadají ostré. Clamp na polovinu kratší strany níž
   // z toho u nízkého řádku udělá skoro pilulku.
   const rr = radius == null ? 30 : radius;
+
+  // ── Značka „běží návod" pro zbytek appky ──
+  // Roletky a výběry se běžně zavírají klepnutím vedle. Za běhu návodu je to
+  // ale skoro vždycky omyl — a zavřít kvůli omylu celé navedení je ta nejhorší
+  // možná odpověď. Kdo čte tuhle značku, nechá se zavřít jedině tlačítkem.
+  // Počítadlo, ne true/false: návodů může být za sebou víc a překrýt se.
+  useEffect(() => {
+    window.__wNavodBezi = (window.__wNavodBezi || 0) + 1;
+    return () => { window.__wNavodBezi = Math.max(0, (window.__wNavodBezi || 1) - 1); };
+  }, []);
 
   // ── Poloha okýnek ──
   useEffect(() => {
@@ -994,6 +1132,7 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
       j++; setNapsano({ t: T1, x: T2.slice(0, j) });
       if (j < T2.length) casovac = setTimeout(krokText, _W_NAVOD_ZNAK_TEXT);
     }
+    setPtamSe(false);   // nový krok → případná otázka „opravdu?" jde pryč
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) setNapsano({ t: T1, x: T2 });
     else casovac = setTimeout(krokTitul, 220);
     return () => { bezi = false; clearTimeout(casovac); };
@@ -1044,7 +1183,12 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
   // místa dole — jinak by se přesunula ve chvíli, kdy se výřez roztáhne
   // (rozbalený výběr data), a to by poskočilo přímo pod prstem.
   const prvni = okna[0];
-  const podNim = prvni.y1 < 190;
+  // Nad výřezem, dokud je nad ním místo — a měří se místo VIDITELNÉ, ne celá
+  // obrazovka. S vyjetou klávesnicí je spodní třetina pryč a bublina pod
+  // výřezem by skončila za ní.
+  const mistoNad = prvni.y1 - vidu.vrch;
+  const mistoPod = (vidu.vrch + vidu.vyska) - prvni.y2;
+  const podNim = mistoNad < 190 && mistoPod > mistoNad;
   const kurzor = <span style={{
     display: 'inline-block', width: 2, height: '1em', marginLeft: 3, verticalAlign: '-0.14em',
     background: 'currentColor', animation: 'obBlink 1.06s steps(1) infinite',
@@ -1113,13 +1257,50 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
                       lineHeight: 1.5, color: 'rgba(255,255,255,.88)' }}>
           {napsano.x}{napsano.x.length > 0 && kurzor}
         </div>
-        {onPreskocit && napsano.x.length === (text || '').length && (
-          <button onClick={onPreskocit} style={{
-            marginTop: 12, border: 0, background: 'rgba(255,255,255,.16)',
-            color: '#fff', fontFamily: T.fontUI, fontSize: 13, fontWeight: 700,
-            padding: '8px 15px', borderRadius: 999, cursor: 'pointer',
-            animation: 'wFadeIn .3s ease both',
-          }}>Zatím ne</button>
+        {/* Patička se ukáže, až se text dopíše — dřív by přetahovala pozornost
+            od toho, co si má člověk přečíst. */}
+        {napsano.x.length === (text || '').length && (onPreskocit || akce || kroku > 1) && (
+          <div style={{ marginTop: 14, animation: 'wFadeIn .3s ease both' }}>
+            {ptamSe ? (
+              <div>
+                <div style={{ fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, marginBottom: 10 }}>
+                  Opravdu chceš průvodce přeskočit?
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={onPreskocit} style={{ ..._W_NAV_BTN, background: '#fff', color: T.primary }}>Ano, přeskočit</button>
+                  <button onClick={() => setPtamSe(false)} style={{ ..._W_NAV_BTN, background: 'rgba(255,255,255,.16)', color: '#fff' }}>Ne, pokračovat</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* Tečky: kolik kroků průvodce má a kde v něm člověk stojí. */}
+                {kroku > 1 && (
+                  <div style={{ display: 'flex', gap: 6, flex: 'none' }} aria-label={'Krok ' + (krok + 1) + ' z ' + kroku}>
+                    {Array.from({ length: kroku }, (_, i) => (
+                      <span key={i} style={{
+                        width: i === krok ? 18 : 7, height: 7, borderRadius: 999,
+                        background: i <= krok ? '#fff' : 'rgba(255,255,255,.34)',
+                        transition: 'width .22s ease, background .22s ease',
+                      }} />
+                    ))}
+                  </div>
+                )}
+                <div style={{ flex: 1 }} />
+                {onPreskocit && (
+                  <button onClick={() => (bezOtazky ? onPreskocit() : setPtamSe(true))} style={{
+                    ..._W_NAV_BTN, padding: '8px 12px', background: 'transparent',
+                    color: 'rgba(255,255,255,.82)',
+                  }}>{preskocitText || 'Přeskočit'}</button>
+                )}
+                {akce && (
+                  <button onClick={akce.hotovo ? akce.onClick : undefined} disabled={!akce.hotovo} style={{
+                    ..._W_NAV_BTN, background: '#fff', color: T.primary,
+                    opacity: akce.hotovo ? 1 : 0.42, cursor: akce.hotovo ? 'pointer' : 'default',
+                  }}>{akce.text}</button>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -1127,4 +1308,5 @@ function WNavod({ cil, titul, text, onPreskocit, mezera, radius }) {
 }
 
 Object.assign(window, { JOBS, CHATS, THREAD, T, Icon, fmtKc, JobCard, Stamp, wRoletka, WNavod, wOtevriOdkaz, W_ODKAZY,
+  W_MIN_VEK, wVekZDatumu, wVekStaci, WVekStop, wDoZorneho, wDrzVZornem,
   W_NOTIF_DRUHY, wNotifPovoleno, wNotifNastav, wNotifDruh });
