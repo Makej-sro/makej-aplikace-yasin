@@ -31,6 +31,21 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 
 ## Připravené změny (ještě nespuštěné)
 
+### 2026-09-26 · Yasin (dashboard, Claude) · Profil firmy — fotka pozadí, kontakty, otevírací doba
+**Soubor: `makej-web-sam/supabase/migration_profil_firmy.sql`** — jen additivní sloupce v `profiles`:
+```sql
+alter table public.profiles add column if not exists cover_url     text;
+alter table public.profiles add column if not exists founded       text;
+alter table public.profiles add column if not exists career_url    text;
+alter table public.profiles add column if not exists phone         text;
+alter table public.profiles add column if not exists contact_email text;
+alter table public.profiles add column if not exists opening_hours jsonb;
+```
+Dashboard (nová záložka Profil firmy) je ukládá druhým `update` zvlášť od stávajících
+sloupců — dokud chybí, uloží se základ a firma dostane hlášku. `socials` nově může mít
+i klíč `youtube`. Appka zatím ukazuje jen `founded` (už ho čte); `cover_url`, kontakty
+a otevírací dobu v profilu firmy (WEmployerModal) teprve napojit. **Chce se říct Samovi.**
+
 ### 2026-09-20 · Jan (appka, Claude) · Karty v Lidech bez limitu
 **Soubor: `supabase/migration_lide_strankovani.sql` — POŘADÍ: už zbývá jen
 `migration_karta_fotky.sql` před ní.** `migration_people_cards.sql`
