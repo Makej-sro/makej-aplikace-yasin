@@ -1689,7 +1689,9 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
     || formatContractTypes(normalizeContractTypes(job))
     || (JOB_TYPE_LABEL[job.jobType] || 'Brigáda');
   const reqChips = _reqAll.filter(r => !/^smluvní vztah/i.test(r) && !/^hledáme/i.test(r));
-  const payoutTag = (Array.isArray(job.tags) ? job.tags : []).find(t => /výplat/i.test(t)) || '';
+  // Výplata: ze sloupce payout (vyplňuje firma v dashboardu), u ukázek ze štítku
+  const payoutTag = (Array.isArray(job.tags) ? job.tags : []).find(t => /výplat/i.test(t))
+    || (job.payout ? 'Výplata ' + String(job.payout).toLowerCase() : '');
   const kmTxt = job.distance != null ? String(job.distance).replace('.', ',') + ' km od tebe' : '';
   const ctaTotal = job.shiftTotal > 0 ? job.shiftTotal.toLocaleString('cs-CZ').replace(/,/g, ' ') + ' Kč' : '';
 

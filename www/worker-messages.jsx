@@ -159,7 +159,7 @@ function _wDenPopis(ts) {
 // do 5 min, ani jedna není karta směny/pohovoru — ty stojí vždy samostatně.)
 function _wStejnyBalik(a, b) {
   if (!a || !b || a.from !== b.from) return false;
-  const spec = m => m.kind === 'shift' || m.kind === 'interview';
+  const spec = m => m.kind === 'shift' || m.kind === 'interview' || m.kind === 'jobOffer';
   if (spec(a) || spec(b)) return false;
   if (_wDenKlic(a.ts) !== _wDenKlic(b.ts)) return false;
   if (a.ts && b.ts && Math.abs(new Date(b.ts) - new Date(a.ts)) > 5 * 60 * 1000) return false;
@@ -558,6 +558,13 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   const [kindOpen, setKindOpen] = useStateW(false);       // rozbalený dropdown přepínače
   const [confirmShift, setConfirmShift] = useStateW(null); // { shift }
   const [lupa,     setLupa]     = useStateW(null);          // fotka přes celou obrazovku
+  const [nabidka,  setNabidka]  = useStateW(null);          // otevřená nabídka brigády { card, aktivni, maZajem }
+  async function otevriNabidku(j) {
+    if (!j || !j.job_id || !userId.current) return;
+    const r = typeof fetchJobOfferW === 'function' ? await fetchJobOfferW(userId.current, j.job_id) : null;
+    if (!r || !r.job) { setNabidka({ card: { id: j.job_id, title: j.title, pay: j.pay, payUnit: j.pay_unit, city: j.location }, aktivni: false, maZajem: false }); return; }
+    setNabidka({ card: jobToCard(r.job), aktivni: r.aktivni, maZajem: r.maZajem });
+  }
   const [chybaPrilohy, setChybaPrilohy] = useStateW('');
   // Nabídka ⋯ v hlavičce vlákna: nahlásit / zablokovat (App Store Guideline 1.2).
   const [chatMenu, setChatMenu] = useStateW(false);
@@ -644,6 +651,7 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
           const from = msg.sender_id === userId.current ? 'me' : 'them';
           const isShift = msg.type === 'shift_offer' && msg.metadata;
           const isInterview = msg.type === 'interview_offer' && msg.metadata;
+          const isJob = msg.type === 'job_offer' && msg.metadata;
           const jePriloha = !!msg.file_url;
           const newMsg = jePriloha
             ? { from, kind: 'file', file: _wPrilohaZRadku(msg), t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
@@ -651,10 +659,12 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
             ? { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
             : isInterview
             ? { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
+            : isJob
+            ? { from, kind: 'jobOffer', job: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id }
             : { from, text: msg.text, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
           return {
             ...t,
-            last: jePriloha ? wNahledPrilohy(msg) : isShift ? 'Nabídka směny' : isInterview ? 'Pozvánka na pohovor' : msg.text,
+            last: jePriloha ? wNahledPrilohy(msg) : isShift ? 'Nabídka směny' : isInterview ? 'Pozvánka na pohovor' : isJob ? 'Nabídka brigády' : msg.text,
             msgs: [...t.msgs, newMsg],
           };
         }));
@@ -1184,6 +1194,17 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
                   </React.Fragment>
                 );
               }
+              // Nabídka brigády od firmy — klepnutí otevře detail inzerátu s „Mám zájem"
+              if (m.kind === 'jobOffer') {
+                return (
+                  <React.Fragment key={m.id || i}>
+                    {den}
+                    <div style={{ marginTop: mtop }}>
+                      <WJobOfferCard msg={m} isMe={mine} onOtevri={() => otevriNabidku(m.job)} />
+                    </div>
+                  </React.Fragment>
+                );
+              }
               if (m.kind === 'interview') {
                 const responseMsg = thread.msgs.slice(i + 1).find(lm => lm.from === 'me' && (lm.text === '✓ Přijímám pozvánku na pohovor!' || lm.text === 'Bohužel se pohovoru nemohu zúčastnit.'));
                 const alreadyResponded = responseMsg ? (responseMsg.text.includes('Přijímám') ? 'accepted' : 'rejected') : null;
@@ -1397,6 +1418,21 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
 
       {lupa && <WLupa url={lupa} onClose={() => setLupa(null)} />}
 
+      {nabidka && (
+        <WJobDetailModal
+          job={nabidka.card}
+          readOnly={nabidka.maZajem || !nabidka.aktivni}
+          statusLabel={nabidka.maZajem ? 'O tuhle brigádu už máš zájem' : !nabidka.aktivni ? 'Inzerát už neběží' : undefined}
+          onClose={() => setNabidka(null)}
+          onLike={async () => {
+            const uid = userId.current;
+            if (uid && nabidka.card && nabidka.card.id) await createMatchW(uid, nabidka.card.id, false);
+            setNabidka(null);
+          }}
+          onPass={() => setNabidka(null)}
+        />
+      )}
+
       {confirmShift && (
         <WShiftConfirmDialog
           shift={confirmShift.shift}
@@ -1465,6 +1501,28 @@ function WShiftConfirmDialog({ shift, company, onConfirm, onClose }) {
 }
 
 // ── Shift offer card (worker view) ─────────────────────────────
+// Karta nabídky brigády (firma ji poslala z dashboardu, type 'job_offer').
+// Jen náhled — celý inzerát a „Mám zájem" jsou v detailu po klepnutí.
+function WJobOfferCard({ msg, isMe, onOtevri }) {
+  const j = msg.job || {};
+  const radek = [j.pay ? j.pay + ' ' + (j.pay_unit || 'Kč/h') : null, j.location, j.date && /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? (+j.date.slice(8, 10)) + '. ' + (+j.date.slice(5, 7)) + '.' : j.date].filter(Boolean).join(' · ');
+  return (
+    <div style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+      <div onClick={onOtevri} style={{ borderRadius: 18, overflow: 'hidden', background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 8px 20px rgba(20,22,40,0.08)', cursor: 'pointer' }}>
+        <div style={{ padding: '16px 18px 14px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: T.primary, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', fontFamily: T.fontUI, marginBottom: 10 }}>Nabídka brigády</div>
+          <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4, marginBottom: radek ? 8 : 0 }}>{j.title || 'Brigáda'}</div>
+          {radek && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 14 }}>{radek}</div>}
+        </div>
+        {!isMe && (
+          <div style={{ padding: '13px 0', textAlign: 'center', background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800 }}>Zobrazit brigádu</div>
+        )}
+      </div>
+      <div style={{ color: T.mutedSoft, fontFamily: T.fontMono, fontSize: 10, marginTop: 3, textAlign: isMe ? 'right' : 'left' }}>{msg.t}</div>
+    </div>
+  );
+}
+
 function WShiftCard({ msg, isMe, alreadyResponded, onAccept, onReject }) {
   const [localResponded, setLocalResponded] = useStateW(null);
   const responded = localResponded || alreadyResponded;

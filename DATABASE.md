@@ -22,6 +22,12 @@ Formát záznamu: **datum · kdo · co · přesné SQL**.
 `id`, `match_id`, `sender_id`, `text`, `type`, `metadata`, `created_at`;
 pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`,
 `file_size`, `duration`.
+Hodnoty `type`: `text` (výchozí), `shift_offer`, `interview_offer` a od 2026-09-28
+`job_offer` — firma z dashboardu pošle kartu svého aktivního inzerátu, `metadata` =
+`{ job_id, title, pay, pay_unit, location, date }`. Appka kartu ukáže ve zprávách
+(`WJobOfferCard`), po klepnutí načte inzerát a nabídne „Mám zájem" (vznikne běžný
+match na ten inzerát). Bez změny schématu — pokud by na `type` byl CHECK, je potřeba
+`job_offer` přidat.
 
 ### notifications
 `id`, `user_id`, `match_id`, `type`, `read`, `created_at`. Plní je trigger
@@ -30,6 +36,26 @@ pro přílohy: `file_url`, `file_type` (`image` / `audio` / `file`), `file_name`
 ---
 
 ## Připravené změny (ještě nespuštěné)
+
+### 2026-09-28 · Yasin (dashboard, Claude) · Inzerát: počet volných míst + hodiny týdně
+**Soubor: `makej-web-sam/supabase/migration_jobs_pocet_a_hodiny.sql`** — additivní sloupce v `jobs`:
+`positions integer default 1` (appka: „N volných míst" v detailu inzerátu) a `hours_per_week integer`
+(appka: štítek Plný / Zkrácený / Částečný úvazek u pracovní smlouvy + „30 h/týden" na kartě —
+`normalizeHours` v `www/makej-badge.jsx`). K tomu volitelný `update`, který převede staré názvy krajů
+(„Jihomoravský") na id („jihomoravsky") — appka filtruje podle id.
+Okno Nový / Upravit inzerát v dashboardu teď zapisuje i už existující sloupce z 2026-08-22
+(`contract, recurrence, payout, duties, expectations, bonuses, offer, perks`). `positions` a
+`hours_per_week` posílá taky; dokud sloupce nejsou, zápis je vynechá (PostgREST PGRST204 → zkusí
+znovu bez nich), takže nic nespadne. **Chce se říct Samovi.**
+
+### 2026-09-28 · Yasin (dashboard, Claude) · Stupeň důvěry brigádníka pro firmy
+**Soubor: `makej-web-sam/supabase/migration_worker_trust.sql`** — nová funkce, žádná tabulka:
+`worker_trust_stats(worker_ids uuid[])` → `(worker_id, dokoncene, zrusene)`, `security definer`,
+spustit smí jen `authenticated`. Dashboard z ní ukazuje u kandidáta stejný odznak jako appka
+(Nový / Spolehlivý / Ověřený / Top, hranice z `W_TIERS` ve `www/worker-supabase.jsx`) — firma
+přes RLS nevidí matches jiných firem, proto to počítá DB. Dokud funkce chybí, odznak se
+nezobrazí. Zároveň z dashboardu zmizely `profiles.level` a `profiles.jobs_done` (appka je nikdy
+nezapisuje, u všech bylo „Level 1 · 0 směn"). **Chce se říct Samovi.**
 
 ### 2026-09-26 · Yasin (dashboard, Claude) · Profil firmy — fotka pozadí, kontakty, otevírací doba
 **Soubor: `makej-web-sam/supabase/migration_profil_firmy.sql`** — jen additivní sloupce v `profiles`:

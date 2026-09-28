@@ -579,7 +579,17 @@ function jobToCard(job) {
     jobType:   job.job_type || 'brigada',
     tips:      !!job.tips,
     eventDate: job.event_date || null,
+    // „Přidáno …" na kartě — ukázky ho mají napsané, inzeráty z DB z created_at
+    posted:    job.posted || _wPridano(job.created_at),
   };
+}
+
+// created_at → „dnes" / „včera" / „před N dny" (stejně jako náhled na firemním dashboardu)
+function _wPridano(iso) {
+  if (!iso) return '';
+  const n = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (isNaN(n)) return '';
+  return n <= 0 ? 'dnes' : n === 1 ? 'včera' : 'před ' + n + ' dny';
 }
 
 // ── Main fetch ─────────────────────────────────────────────────
@@ -721,6 +731,7 @@ async function fetchWorkerData(workerId) {
           if (msg.file_url) return { from, kind: 'file', file: _wPrilohaZRadku(msg), t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
           if (msg.type === 'shift_offer' && msg.metadata) return { from, kind: 'shift', shift: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
           if (msg.type === 'interview_offer' && msg.metadata) return { from, kind: 'interview', interview: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
+          if (msg.type === 'job_offer' && msg.metadata) return { from, kind: 'jobOffer', job: msg.metadata, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
           return { from, text: msg.text, t: _wFmtTime(msg.created_at), ts: msg.created_at, id: msg.id };
         });
 
@@ -728,6 +739,7 @@ async function fetchWorkerData(workerId) {
       const lastPreview = lastMsg
         ? (lastMsg.kind === 'shift' ? 'Nabídka směny'
          : lastMsg.kind === 'interview' ? 'Pozvánka na pohovor'
+         : lastMsg.kind === 'jobOffer' ? 'Nabídka brigády'
          : lastMsg.kind === 'file' ? (lastMsg.file.typ === 'image' ? 'Fotka' : lastMsg.file.nazev)
          : lastMsg.text)
         : 'Nová shoda!';
@@ -1019,6 +1031,19 @@ async function markNotifsReadW(userId) {
   return true;
 }
 
+// Nabídka brigády z chatu (firma poslala kartu inzerátu, type 'job_offer').
+// Vrátí { job, aktivni, maZajem } — job ve stejném tvaru jako feed (jobToCard
+// ho převede na kartu), maZajem = brigádník už na inzerát dal „Mám zájem".
+async function fetchJobOfferW(workerId, jobId) {
+  const [jobRes, matchRes] = await Promise.all([
+    sb.from('jobs').select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)').eq('id', jobId).maybeSingle(),
+    sb.from('matches').select('id, status').eq('worker_id', workerId).eq('job_id', jobId).maybeSingle(),
+  ]);
+  if (jobRes.error) console.error('fetchJobOfferW:', jobRes.error);
+  const job = jobRes.data || null;
+  return { job, aktivni: !!job && job.status === 'active', maZajem: !!matchRes.data };
+}
+
 async function createRejectionW(workerId, jobId) {
   const { error } = await sb.from('rejections').insert({ worker_id: workerId, job_id: jobId });
   if (error && error.code !== '23505') console.error('createRejectionW:', error);
@@ -1281,7 +1306,7 @@ async function updateProfileW(workerId, updates) {
 
 Object.assign(window, {
   W_PROFILE, W_JOBS, W_THREADS, W_HISTORY, W_REVIEWS, W_TRUST, W_TIERS,
-  fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
+  fetchWorkerData, createMatchW, createRejectionW, fetchRejectedJobsW, fetchJobOfferW, sendMessageW, updateProfileW, submitReviewW, confirmShiftW, cancelShiftW, logJobViewW,
   fetchPeopleCardsW, createPeopleMatchW, createPeopleRejectionW, dotahniZbytekFeeduW,
   wNahrajFotkuKartyW, wSmazFotkyKartyW, wUlozFotkyKartyW, W_BUCKET_KARTA,
   fetchNotifsW, insertNotifW, markNotifsReadW, _wNotifZRadku,
