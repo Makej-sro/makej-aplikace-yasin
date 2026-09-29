@@ -37,6 +37,17 @@ match na ten inzerát). Bez změny schématu — pokud by na `type` byl CHECK, j
 
 ## Připravené změny (ještě nespuštěné)
 
+### 2026-09-29 · Yasin (dashboard, Claude) · Topování inzerátů — tabulka `job_topovani`
+**Soubor: `makej-web-sam/supabase/migration_topovani.sql`** — nová tabulka `job_topovani`
+(`job_id`, `employer_id default auth.uid()`, `started_at`, `ends_at`) + RLS: firma čte a zapisuje
+jen svoje řádky a jen k vlastním inzerátům; mazat/upravovat nesmí (jinak by si vynulovala limit).
+Tlačítko „Topovat" v dashboardu nastaví `jobs.top_until = now() + 72 h` (sloupec už existuje,
+`get_feed_jobs` podle něj řadí; appka topované dává na začátek i po filtrech a ukazuje pilulku TOP)
+a zapíše řádek sem. Z řádků od začátku měsíce se počítá limit tarifu (Základní 0, Výhodný 1,
+Dynamický 3, Maximální 5, Vlastní 5 — `EMPLOYER_TOP_MESICNE` v `employer-pages.jsx`).
+Dokud tabulka není, dashboard počítá odhadem z `jobs.top_until` a nic nespadne. Limit zatím hlídá
+jen dashboard — tarif firmy v DB není; až bude, patří kontrola do RPC. **Chce se říct Samovi.**
+
 ### 2026-09-28 · Yasin (dashboard, Claude) · Inzerát: počet volných míst + hodiny týdně
 **Soubor: `makej-web-sam/supabase/migration_jobs_pocet_a_hodiny.sql`** — additivní sloupce v `jobs`:
 `positions integer default 1` (appka: „N volných míst" v detailu inzerátu) a `hours_per_week integer`
@@ -260,7 +271,9 @@ v appce porovnává PŘESNÉ hodnoty, takže tato pole musí být v dashboardu
 - `obor`: `gastro` | `sklad` | `promo` | `foto` | `prodej`
 - `recurrence`: `Pravidelná` | `Jednorázová`
 - `payout`: `Týdně` | `Hned po akci` | `Do 14 dní` | `Měsíčně`
-- `contract`: `DPP` | `DPČ` | `HPP` | `IČO` (volnější, jen se zobrazuje)
+- `contract`: `DPP` | `DPČ` | `HPP` | `IČO` | `Dohodou` (volnější, jen se zobrazuje).
+  `Dohodou` (od 2026-09-29) = firma smlouvu neuvádí: na kartě štítek „Dle domluvy",
+  ve filtru smlouvy se inzerát neukáže, v detailu dlaždice Smlouva „Dohodou". Žádná změna schématu.
 Volný text/seznamy (bez vlivu na filtr): `duties` (víceřádkový popis),
 `expectations`/`bonuses`/`offer`/`perks` (pole řádků), `photos` (URL z uploadu).
 

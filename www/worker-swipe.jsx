@@ -53,6 +53,14 @@ const W_FILTERS = [
     ['BRIGADA', 'Brigáda'], ['CASTECNY_UVAZEK', 'Částečný úvazek'], ['ZKRACENY_UVAZEK', 'Zkrácený úvazek'],
     ['PLNY_UVAZEK', 'Plný úvazek'], ['NA_ICO', 'Na IČO'], ['DLE_DOMLUVY', 'Dle domluvy'],
   ] },
+  // Kdy — den v týdnu a denní doba (29. 9.). Dvě skupiny v jedné kategorii
+  // (4. prvek = nadpis skupiny); logika v _wJobMatchesKdy. „Dnes/Zítra" záměrně ne —
+  // tak si brigádu nikdo nehledá. prace.cz filtr na směny nemá, firmy ji píšou do názvu.
+  { key: 'kdy', label: 'Kdy', opts: [
+    ['vsedni', 'Ve všední dny', 'po–pá', 'Den'], ['vikend', 'O víkendu', 'so–ne', 'Den'],
+    ['ranni', 'Ranní', 'začíná do 11:00', 'Denní doba'], ['odpoledni', 'Odpolední', 'začíná 11:00–16:00', 'Denní doba'],
+    ['vecerni', 'Večerní a noční', 'začíná od 16:00', 'Denní doba'],
+  ] },
   // Preferenční filtr — poznává se z textu inzerátu (viz _W_PROKOHO). Modré obdélníky.
   { key: 'proKoho', label: 'Pro koho', opts: [
     ['bez_praxe', 'Bez zkušeností'], ['student', 'Pro studenty'], ['od15', 'Od 15 let'], ['zauci', 'Zaučíme'],
@@ -70,7 +78,7 @@ const W_FILTERS = [
     ['Pravidelná', 'Pravidelná'], ['Jednorázová', 'Jednorázová'],
   ] },
 ];
-const W_FILTER_EMPTY = { contractType: [], uvazek: [], proKoho: [], pay: [], payout: [], recurrence: [] };
+const W_FILTER_EMPTY = { contractType: [], uvazek: [], kdy: [], proKoho: [], pay: [], payout: [], recurrence: [] };
 function _wLoadFilters() {
   try { return { ...W_FILTER_EMPTY, ...JSON.parse(localStorage.getItem('makej-worker-filters') || '{}') }; }
   catch (e) { return { ...W_FILTER_EMPTY }; }
@@ -113,6 +121,49 @@ function _wJobMatchesProKoho(j, vals) {
   const hay = _wJobProKohoHay(j);
   return vals.some(v => (_W_PROKOHO[v] || []).some(kw => hay.indexOf(_wStripD(kw)) !== -1));   // OR přes vybrané
 }
+// „Kdy" — z data a času směny, které firma vyplní v dashboardu (jobs.date, time_start);
+// u ukázek z textu `when` („Pá 9. května", „Po – Pá") a `time`. Platí i štítky
+// z dashboardu („Víkendy", „Ranní směna"…) — ty pokryjí i pravidelné brigády, u kterých
+// známe jen datum první směny. Uvnitř skupiny „nebo", mezi Den × Denní doba „a zároveň".
+const _W_KDY_SKUPINA = { vsedni: 'den', vikend: 'den', ranni: 'doba', odpoledni: 'doba', vecerni: 'doba' };
+const _W_KDY_STITKY  = { vikend: /víkend/, ranni: /ranní/, odpoledni: /odpolední/, vecerni: /noční|večerní/ };
+const _W_DNY = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'];   // indexy jako Date.getDay()
+function _wJobDny(j) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(j.date || '');
+  if (m) return [new Date(+m[1], +m[2] - 1, +m[3]).getDay()];
+  const t = String(j.when || j.date || '').toLowerCase();
+  const re = /(?:^|[^\p{L}])(po|út|st|čt|pá|so|ne)(?!\p{L})/gu;
+  const hity = []; let x;
+  while ((x = re.exec(t))) hity.push({ d: _W_DNY.indexOf(x[1]), i: x.index });
+  // „Po – Pá", „So 10. – Ne 11. května" → rozsah dnů
+  if (hity.length === 2 && /[–-]/.test(t.slice(hity[0].i, hity[1].i))) {
+    const out = [hity[0].d]; let d = hity[0].d;
+    while (d !== hity[1].d && out.length < 7) { d = (d + 1) % 7; out.push(d); }
+    return out;
+  }
+  return hity.map(h => h.d);
+}
+function _wJobZacatek(j) {
+  const m = /(\d{1,2})[:.](\d{2})/.exec(j.time_start || j.time || '');
+  return m ? +m[1] + +m[2] / 60 : null;
+}
+function _wJobMatchesKdy(j, vals) {
+  if (!vals || !vals.length) return true;
+  const tagy = (Array.isArray(j.tags) ? j.tags : []).join(' ').toLowerCase();
+  const splni = v => {
+    if (_W_KDY_STITKY[v] && _W_KDY_STITKY[v].test(tagy)) return true;
+    if (_W_KDY_SKUPINA[v] === 'den') return _wJobDny(j).some(d => v === 'vikend' ? (d === 0 || d === 6) : (d >= 1 && d <= 5));
+    const h = _wJobZacatek(j);
+    if (h == null) return false;
+    return v === 'ranni' ? (h >= 4 && h < 11) : v === 'odpoledni' ? (h >= 11 && h < 16) : (h >= 16 || h < 4);
+  };
+  const den  = vals.filter(v => _W_KDY_SKUPINA[v] === 'den');
+  const doba = vals.filter(v => _W_KDY_SKUPINA[v] === 'doba');
+  return (!den.length || den.some(splni)) && (!doba.length || doba.some(splni));
+}
+// Počet u volby Kdy: její skupina jen s touto volbou, druhá skupina zůstane, jak je
+const _wKdyJen = (vals, v) => (vals || []).filter(x => _W_KDY_SKUPINA[x] !== _W_KDY_SKUPINA[v]).concat(v);
+
 // Projde inzerát aktivním filtrem? Prázdná dimenze = bez omezení.
 function _wJobMatchesFilters(j, f) {
   if (!f) return true;
@@ -124,6 +175,7 @@ function _wJobMatchesFilters(j, f) {
     const b = _wJobBadge(j);
     if (!b || !f.uvazek.includes(b)) return false;
   }
+  if (f.kdy && f.kdy.length && !_wJobMatchesKdy(j, f.kdy)) return false;
   if (f.proKoho && f.proKoho.length && !_wJobMatchesProKoho(j, f.proKoho)) return false;
   if (f.payout.length && !f.payout.includes(j.payout)) return false;
   if (f.recurrence.length && !f.recurrence.includes(j.recurrence)) return false;
@@ -244,7 +296,11 @@ function _wComputeFeed(kraje, filters, loc, profese) {
   } else {
     geo = src;
   }
-  return geo.filter(j => _wJobMatchesProfese(j, profese) && _wJobMatchesFilters(j, filters));
+  // Topované (job.boosted = top_until v budoucnu) jako první karty v tom, co brigádník
+  // vidí po filtrech; jinak pořadí z databáze (od nejnovějších). Řadí už i RPC
+  // get_feed_jobs, tady to platí i pro stránky dotažené později. sort je stabilní.
+  return geo.filter(j => _wJobMatchesProfese(j, profese) && _wJobMatchesFilters(j, filters))
+    .sort((a, b) => (b.boosted ? 1 : 0) - (a.boosted ? 1 : 0));
 }
 
 // Badge (bublinka vlevo nahoře) se NIKDY nezadává ručně — ODVOZUJE se z typu
@@ -474,6 +530,32 @@ function WGoldBadge({ label = 'Byl jsem u toho', icon = null }) {
   );
 }
 
+// Pilulka „TOP" — inzerát, který si firma topovala (jobs.top_until v budoucnu → job.boosted).
+// Zlatý kov s tekoucím leskem, 1:1 jako odznáček „Byl jsem u toho" z webového waitlistu
+// (WGoldBadge níž, keyframes wGoldFlow/wGoldSheen v index.html). Bez ikonky — jako originál.
+// Stejná je v dashboardu firem (_JbTop + .e-zlato v employer/) — při změně upravit obě.
+function WTopBadge() {
+  return (
+    <span style={{
+      position: 'relative', overflow: 'hidden', display: 'inline-flex', alignItems: 'center',
+      padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+      fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, letterSpacing: '.04em',
+      color: '#221A05', border: '1px solid #A5780C',
+      background: 'linear-gradient(105deg, #B8860B 0%, #E8C56A 22%, #FDF3C8 42%, #D9A93C 62%, #A9770A 82%, #E4C069 100%)',
+      backgroundSize: '260% 100%',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 0 rgba(90,60,0,.35), 0 2px 6px -2px rgba(140,96,10,.5)',
+      animation: 'wGoldFlow 7s ease-in-out infinite',
+    }}>
+      TOP
+      <span aria-hidden="true" style={{
+        position: 'absolute', top: '-40%', left: 0, width: 26, height: '180%', pointerEvents: 'none',
+        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 100%)',
+        animation: 'wGoldSheen 4.5s ease-in-out infinite',
+      }} />
+    </span>
+  );
+}
+
 // Onyxový odznak „Zakládající partner" (firma) — 1:1 podle webového waitlistu
 // (style.css → .founder-badge): tmavý kovový přechod, bílý text s tyrkysovým
 // odleskem, přejíždějící světelný pruh.
@@ -581,18 +663,29 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
   const check = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', flex: 'none' }}><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
   // Obecná kategorie (Úvazek, Pro koho, Typ smlouvy, Odměna, Výplata, Pravidelnost) — volby s počty.
+  // Volba může mít šedou poznámku (3. prvek) a nadpis skupiny (4. prvek, u Kdy: Den / Denní doba).
   function genericBody(sec) {
-    return sec.opts.map(([val, label]) => {
+    let skupina = null;
+    const out = [];
+    sec.opts.forEach(([val, label, pozn, sk]) => {
+      if (sk && sk !== skupina) { skupina = sk; out.push(<div key={'sk-' + sk} style={{ ...headUpper, paddingTop: out.length ? 14 : 2 }}>{sk}</div>); }
       const on = (filters[sec.key] || []).includes(val);
       const n = countFor ? countFor(sec.key, val) : null;
       const dead = n === 0 && !on;
-      return (
+      const nazev = { fontSize: 14.5, fontWeight: on ? 700 : 600, color: on ? T.primary : T.ink };
+      out.push(
         <button key={val} type="button" disabled={dead} onClick={() => !dead && onToggle(sec.key, val)} style={optRow(on, dead)}>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: on ? 700 : 600, color: on ? T.primary : T.ink }}>{label}</span>
+          {pozn
+            ? <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <span style={nazev}>{label}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#8A93B6' }}>{pozn}</span>
+              </span>
+            : <span style={{ flex: 1, minWidth: 0, ...nazev }}>{label}</span>}
           <span style={{ flex: 'none', fontSize: dead ? 12.5 : 13, fontWeight: on ? 800 : 700, color: on ? T.primary : (dead ? '#5B6488' : T.ink) }}>{n == null ? '' : (dead ? 'nic' : n)}</span>
         </button>
       );
     });
+    return out;
   }
 
   // Území — vyhledávač → prázdné = kraje, psaní = města, vybrané město = okolí do X km.
@@ -731,7 +824,7 @@ function WJobFilter({ filters, onToggle, onClear, count, kraje, onToggleKraj, lo
                 display: 'block', width: '100%', border: resultCount === 0 ? '1px solid ' + T.border : 0, fontFamily: T.fontUI,
                 fontSize: 16, fontWeight: 700, textAlign: 'center', padding: 16, borderRadius: 16,
                 background: resultCount === 0 ? '#f7f8fc' : T.primary, color: resultCount === 0 ? '#9096ad' : '#fff', cursor: 'pointer' }}>
-                {resultCount === 0 ? 'Nic nenajdeme — uvolni filtr' : ('Ukázat ' + _wPlural(resultCount || 0, 'brigádu', 'brigády', 'brigád'))}
+                {resultCount === 0 ? 'Nic nenajdeme — uvolni filtr' : ('Ukázat ' + (resultCount || 0) + ' ' + _wPlural(resultCount || 0, 'brigádu', 'brigády', 'brigád'))}
               </button>
             </div>
           </div>
@@ -793,7 +886,7 @@ function WSwipe({ tick, onChybiVek }) {
   const clearFilters  = () => { setFilters({ ...W_FILTER_EMPTY }); setKraje([]); setLoc(l => ({ center: null, radius: l.radius || 25 })); setProfese([]); };
   const filterCount   = _wFilterCount(filters) + kraje.length + (loc.center ? 1 : 0) + profese.length;
   // Počet u volby: kolik brigád zbyde, kdyby v této kategorii byla vybraná jen tahle volba (ostatní filtry beze změny).
-  const countFor      = (key, val) => _wComputeFeed(kraje, { ...filters, [key]: [val] }, loc, profese).length;
+  const countFor      = (key, val) => _wComputeFeed(kraje, { ...filters, [key]: key === 'kdy' ? _wKdyJen(filters.kdy, val) : [val] }, loc, profese).length;
 
   const currentJob   = jobs[topIdx] || null;
   const visibleCards = jobs.slice(topIdx, topIdx + 3);
@@ -1278,9 +1371,12 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
               </div>)}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.42) 0%, rgba(11,18,51,0) 38%, rgba(11,18,51,.55) 100%)' }} />
 
-          {/* horní odznaky: typ (vlevo) + uložit (vpravo) */}
+          {/* horní odznaky: typ + TOP (vlevo) + uložit (vpravo) */}
           <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff', marginTop: 2 }}>{typeLabel}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff' }}>{typeLabel}</span>
+              {job.boosted && <WTopBadge />}
+            </span>
             {/* Uložit (záložka) — kolečko, ze kterého při uložení vyjede pilulka „Uloženo",
                 zase zajede a nakonec se ikonka vyplní (~1,6 s). Roste doleva (kotví vpravo).
                 pointerdown zastavíme, ať deck nezačne tah/nezachytí pointer (jinak by „spolkl" klik);
@@ -1687,6 +1783,9 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
   const _reqAll = Array.isArray(job.requirements) ? job.requirements : [];
   const contract = (_reqAll.find(r => /^smluvní vztah/i.test(r)) || '').replace(/^smluvní vztah:\s*/i, '')
     || formatContractTypes(normalizeContractTypes(job))
+    // Text mimo známé typy ukázat, jak je — hlavně „Dohodou" z dashboardu (firma smlouvu
+    // neuvádí), jinak by tu stálo „Brigáda", což nemusí být pravda
+    || (typeof job.contract === 'string' ? job.contract.trim() : '')
     || (JOB_TYPE_LABEL[job.jobType] || 'Brigáda');
   const reqChips = _reqAll.filter(r => !/^smluvní vztah/i.test(r) && !/^hledáme/i.test(r));
   // Výplata: ze sloupce payout (vyplňuje firma v dashboardu), u ukázek ze štítku
@@ -1785,9 +1884,10 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
           <div style={{ position: 'relative', marginTop: -22, background: '#fff', borderRadius: '22px 22px 0 0', padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {job.positions > 1 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>{job.positions} volných míst</span>
+              {(job.positions > 1 || job.boosted) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {job.boosted && <WTopBadge />}
+                  {job.positions > 1 && <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>{job.positions} volných míst</span>}
                 </div>
               )}
               <h1 style={{ margin: 0, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1.15 }}>{job.title}</h1>
