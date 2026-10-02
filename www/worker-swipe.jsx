@@ -530,29 +530,69 @@ function WGoldBadge({ label = 'Byl jsem u toho', icon = null }) {
   );
 }
 
-// Pilulka „TOP" — inzerát, který si firma topovala (jobs.top_until v budoucnu → job.boosted).
-// Zlatý kov s tekoucím leskem, 1:1 jako odznáček „Byl jsem u toho" z webového waitlistu
-// (WGoldBadge níž, keyframes wGoldFlow/wGoldSheen v index.html). Bez ikonky — jako originál.
-// Stejná je v dashboardu firem (_JbTop + .e-zlato v employer/) — při změně upravit obě.
-function WTopBadge() {
+// Urgentní a Top na kartě inzerátu (Yasin 2. 10., předloha Downloads/handoff/inzerat-stitky).
+// Stejně jako na firemním dashboardu (_JbUrgent / _JbTopNalepka / .e-urgent v employer/ repa webu)
+// — při změně upravit obě. Pilulka TOP se už nepoužívá (Yasin: ne tři pilulky vedle sebe).
+// Urgentní = firma inzerát v dashboardu označila (Yasin 2. 10., počet podle tarifu) a směna
+// ještě nezačala: jobs.urgent_until (= začátek směny) je v budoucnu. Dřív byl urgentní sám
+// se směnou do 2 dnů. Feed (get_feed_jobs → to_jsonb(j)) posílá sloupec sám.
+function _wUrgentni(job) {
+  return !!(job.urgent_until && new Date(job.urgent_until) > Date.now());
+}
+// „Zbývá 18 h" do začátku směny (urgent_until, jinak datum + čas od)
+function _wOdpocet(job) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(job.date || '');
+  const t = /(\d{1,2}):(\d{2})/.exec(job.time_start || job.time || '');
+  const cil = job.urgent_until ? new Date(job.urgent_until) : m ? new Date(+m[1], +m[2] - 1, +m[3], t ? +t[1] : 0, t ? +t[2] : 0) : null;
+  if (!cil || isNaN(cil)) return '';
+  const min = Math.floor((cil - Date.now()) / 60000);
+  if (min <= 0) return '';
+  if (min < 60) return 'Zbývá ' + min + ' min';
+  const h = Math.floor(min / 60), dny = Math.floor(h / 24);
+  return h < 48 ? 'Zbývá ' + h + ' h' : 'Zbývá ' + dny + (dny < 5 ? ' dny' : ' dní');
+}
+// Fialová pilulka vedle úvazku: přeliv a přejíždějící odlesk (keyframes wGoldFlow, wSheenSweep
+// v index.html). Pulzující kruh kolem pilulky z předlohy Yasin 2. 10. nechtěl.
+function WUrgentBadge() {
   return (
     <span style={{
       position: 'relative', overflow: 'hidden', display: 'inline-flex', alignItems: 'center',
-      padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
-      fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, letterSpacing: '.04em',
-      color: '#221A05', border: '1px solid #A5780C',
-      background: 'linear-gradient(105deg, #B8860B 0%, #E8C56A 22%, #FDF3C8 42%, #D9A93C 62%, #A9770A 82%, #E4C069 100%)',
+      padding: '6px 11px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+      fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, color: '#fff',
+      background: 'linear-gradient(105deg, #6634AE 0%, #7A41C8 30%, #9461DC 50%, #7A41C8 70%, #6634AE 100%)',
       backgroundSize: '260% 100%',
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 0 rgba(90,60,0,.35), 0 2px 6px -2px rgba(140,96,10,.5)',
-      animation: 'wGoldFlow 7s ease-in-out infinite',
+      animation: 'wGoldFlow 5s ease-in-out infinite',
     }}>
-      TOP
+      Urgentní
       <span aria-hidden="true" style={{
-        position: 'absolute', top: '-40%', left: 0, width: 26, height: '180%', pointerEvents: 'none',
-        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 100%)',
-        animation: 'wGoldSheen 4.5s ease-in-out infinite',
+        position: 'absolute', top: '-40%', left: 0, width: 18, height: '180%', pointerEvents: 'none',
+        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.75) 50%, rgba(255,255,255,0) 100%)',
+        animation: 'wSheenSweep 3.6s cubic-bezier(.5,0,.3,1) infinite',
       }} />
     </span>
+  );
+}
+// Zlatá nálepka TOP přes pravý horní roh fotky (fotka i karta mají overflow: hidden, konce se ořízou).
+// Yasin: „nálepka", ne pilulka ani šerpa.
+function WTopNalepka() {
+  return (
+    <div style={{
+      position: 'absolute', top: 20, right: -38, zIndex: 2, width: 150, overflow: 'hidden', padding: '6px 0',
+      transform: 'rotate(45deg)', pointerEvents: 'none',
+      background: 'linear-gradient(105deg, #B8860B 0%, #E8C56A 22%, #FDF3C8 42%, #D9A93C 62%, #A9770A 82%, #E4C069 100%)',
+      backgroundSize: '260% 100%',
+      color: '#221A05', fontFamily: T.fontHead, fontSize: 12, fontWeight: 900, letterSpacing: 1.4,
+      textTransform: 'uppercase', textAlign: 'center',
+      boxShadow: '0 4px 10px -4px rgba(60,40,0,.6)',
+      animation: 'wGoldFlow 7s ease-in-out infinite',
+    }}>
+      Top
+      <span aria-hidden="true" style={{
+        position: 'absolute', top: '-40%', left: 0, width: 18, height: '180%', pointerEvents: 'none',
+        background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 100%)',
+        animation: 'wSheenSweep 5s ease-in-out infinite',
+      }} />
+    </div>
   );
 }
 
@@ -1341,6 +1381,10 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
   const posted   = job.posted || job.postedAgo || '';
   // Pravidelnost brigády — mění se jen text (Pravidelná / Jednorázová), ikonka pořád stejná.
   const recurrenceTxt = job.recurrence || job.frequency || '';
+  // Urgentní: pilulka nahoře + fialový řádek termínu s odpočtem. Na úzké kartě (malý telefon)
+  // zůstane u termínu jen začátek směny — konec (.w-cas-konec) schová @container v index.html.
+  const urg = _wUrgentni(job), odpocet = urg ? _wOdpocet(job) : '';
+  const casZac = odpocet ? (/^\s*\d{1,2}:\d{2}/.exec(job.time || '') || [''])[0] : '';
 
   return (
     <div
@@ -1357,12 +1401,12 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
       onClick={() => isTop && !drag.moved && onTap?.()}
     >
       <div style={{
-        position: 'absolute', inset: 0, borderRadius: 26, overflow: 'hidden',
+        position: 'absolute', inset: 0, borderRadius: 26, overflow: 'hidden', containerType: 'inline-size',
         background: '#fff', display: 'flex', flexDirection: 'column',
         border: '1px solid ' + T.border,
       }}>
         {/* ── Fotka provozu (nahoře) ── */}
-        <div style={{ position: 'relative', height: 240, flex: 'none', background: '#EEF1FF' }}>
+        <div style={{ position: 'relative', height: 240, flex: 'none', overflow: 'hidden', background: '#EEF1FF' }}>
           {heroImg
             ? <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             : (<div style={{ position: 'absolute', inset: 0, background: T.heroGrad, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
@@ -1371,47 +1415,18 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
               </div>)}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(11,18,51,.42) 0%, rgba(11,18,51,0) 38%, rgba(11,18,51,.55) 100%)' }} />
 
-          {/* horní odznaky: typ + TOP (vlevo) + uložit (vpravo) */}
-          <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff' }}>{typeLabel}</span>
-              {job.boosted && <WTopBadge />}
-            </span>
-            {/* Uložit (záložka) — kolečko, ze kterého při uložení vyjede pilulka „Uloženo",
-                zase zajede a nakonec se ikonka vyplní (~1,6 s). Roste doleva (kotví vpravo).
-                pointerdown zastavíme, ať deck nezačne tah/nezachytí pointer (jinak by „spolkl" klik);
-                akci pustíme na pointerup (spolehlivé i na dotyku), klik jen zastavíme, ať neotevře detail. */}
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => { e.stopPropagation(); if (isTop) toggleSave(); }}
-              onClick={(e) => e.stopPropagation()}
-              title={saved ? 'Uloženo' : 'Uložit'} style={{
-                height: 34, flex: 'none', borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
-                background: savedPill ? T.primary : '#fff', boxShadow: '0 2px 8px rgba(11,18,51,0.16)',
-                display: 'inline-flex', alignItems: 'center', overflow: 'hidden',
-                transition: 'background-color .3s ease',
-                WebkitTapHighlightColor: 'transparent',
-              }}>
-              <span style={{
-                whiteSpace: 'nowrap', overflow: 'hidden',
-                maxWidth: savedPill ? 96 : 0, opacity: savedPill ? 1 : 0,
-                paddingLeft: savedPill ? 13 : 0,
-                transition: 'max-width .34s cubic-bezier(.2,.8,.2,1), opacity .26s ease, padding-left .34s cubic-bezier(.2,.8,.2,1)',
-                fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, color: '#fff',
-              }}>Uloženo</span>
-              <span style={{ width: 34, height: 34, flex: 'none', display: 'grid', placeItems: 'center' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? T.primary : 'none'} style={{ transition: 'fill .28s ease' }} aria-hidden="true">
-                  <path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={saved ? T.primary : (savedPill ? '#fff' : '#0B1233')} strokeWidth="1.7" strokeLinejoin="round" style={{ transition: 'stroke .28s ease' }} />
-                </svg>
-              </span>
-            </button>
+          {/* vlevo nahoře úvazek + Urgentní, vpravo nahoře nálepka TOP (Uložit je dole vpravo) */}
+          <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: T.fontHead, fontSize: 12, fontWeight: 800, padding: '6px 11px', borderRadius: 999, color: '#0B1233', background: '#fff' }}>{typeLabel}</span>
+            {urg && <WUrgentBadge />}
           </div>
+          {job.boosted && <WTopNalepka />}
 
           {/* dole: logo firmy + název + hodnocení (klik = profil firmy) */}
           <div
             onClick={(e) => { e.stopPropagation(); if (!drag.moved) _wOpenEmployerFor(job); }}
             title="Zobrazit profil firmy"
-            style={{ position: 'absolute', left: 14, bottom: 14, right: 14, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            style={{ position: 'absolute', left: 14, bottom: 14, right: 58, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
             <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 14, background: '#fff', color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{job.logo}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -1426,6 +1441,36 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
               )}
             </div>
           </div>
+          {/* Uložit (záložka) — vpravo dole vedle firmy (2. 10. přesunuto z pravého horního rohu,
+              kde je teď nálepka TOP). Kolečko, ze kterého při uložení vyjede pilulka „Uloženo",
+              zase zajede a nakonec se ikonka vyplní (~1,6 s). Roste doleva (kotví vpravo).
+              pointerdown zastavíme, ať deck nezačne tah/nezachytí pointer (jinak by „spolkl" klik);
+              akci pustíme na pointerup (spolehlivé i na dotyku), klik jen zastavíme, ať neotevře detail. */}
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => { e.stopPropagation(); if (isTop) toggleSave(); }}
+            onClick={(e) => e.stopPropagation()}
+            title={saved ? 'Uloženo' : 'Uložit'} style={{
+              position: 'absolute', right: 14, bottom: 18, zIndex: 1,
+              height: 34, flex: 'none', borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
+              background: savedPill ? T.primary : '#fff', boxShadow: '0 2px 8px rgba(11,18,51,0.16)',
+              display: 'inline-flex', alignItems: 'center', overflow: 'hidden',
+              transition: 'background-color .3s ease',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+            <span style={{
+              whiteSpace: 'nowrap', overflow: 'hidden',
+              maxWidth: savedPill ? 96 : 0, opacity: savedPill ? 1 : 0,
+              paddingLeft: savedPill ? 13 : 0,
+              transition: 'max-width .34s cubic-bezier(.2,.8,.2,1), opacity .26s ease, padding-left .34s cubic-bezier(.2,.8,.2,1)',
+              fontFamily: T.fontHead, fontSize: 13.5, fontWeight: 800, color: '#fff',
+            }}>Uloženo</span>
+            <span style={{ width: 34, height: 34, flex: 'none', display: 'grid', placeItems: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? T.primary : 'none'} style={{ transition: 'fill .28s ease' }} aria-hidden="true">
+                <path d="M6.5 3.75h11a1.25 1.25 0 0 1 1.25 1.25v15.5l-6.75-3.7-6.75 3.7V5A1.25 1.25 0 0 1 6.5 3.75z" stroke={saved ? T.primary : (savedPill ? '#fff' : '#0B1233')} strokeWidth="1.7" strokeLinejoin="round" style={{ transition: 'stroke .28s ease' }} />
+              </svg>
+            </span>
+          </button>
         </div>
 
         {/* ── Tělo karty ── */}
@@ -1460,12 +1505,15 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
           {/* Fakta */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(job.when || job.time) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <span style={{ width: 22, flex: 'none', display: 'flex', justifyContent: 'center' }}><WIcoCalendar size={20} color={T.primary} /></span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11, ...(urg ? { margin: '-4px -8px', padding: '6px 8px', borderRadius: 10, background: '#F2ECFB' } : null) }}>
+                <span style={{ width: 22, flex: 'none', display: 'flex', justifyContent: 'center' }}><WIcoCalendar size={20} color={urg ? '#7A41C8' : T.primary} /></span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-                  <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{[job.when, job.time].filter(Boolean).join(' · ')}</span>
-                  {job.shiftHours ? <span style={{ fontFamily: T.fontUI, fontSize: 12, color: '#7A82A6' }}>{job.shiftHours} {_wPlural(job.shiftHours, 'hodina', 'hodiny', 'hodin')}</span> : null}
+                  {urg
+                    ? <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#3E1D74', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.when}{job.when && job.time ? ' · ' : ''}{casZac ? <>{casZac}<span className="w-cas-konec">{job.time.slice(casZac.length)}</span></> : job.time}</span>
+                    : <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: '#0B1233' }}>{[job.when, job.time].filter(Boolean).join(' · ')}</span>}
+                  {job.shiftHours ? <span style={{ fontFamily: T.fontUI, fontSize: 12, color: urg ? '#7B62A3' : '#7A82A6' }}>{job.shiftHours} {_wPlural(job.shiftHours, 'hodina', 'hodiny', 'hodin')}</span> : null}
                 </div>
+                {odpocet && <span style={{ marginLeft: 'auto', flex: 'none', padding: '3px 8px', borderRadius: 999, background: '#7A41C8', fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{odpocet}</span>}
               </div>
             )}
             {recurrenceTxt && (
@@ -1884,9 +1932,9 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
           <div style={{ position: 'relative', marginTop: -22, background: '#fff', borderRadius: '22px 22px 0 0', padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(job.positions > 1 || job.boosted) && (
+              {(job.positions > 1 || _wUrgentni(job)) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  {job.boosted && <WTopBadge />}
+                  {_wUrgentni(job) && <WUrgentBadge />}
                   {job.positions > 1 && <span style={{ fontFamily: T.fontHead, fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, color: '#B96F06', background: '#FFF3E0' }}>{job.positions} volných míst</span>}
                 </div>
               )}

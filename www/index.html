@@ -161,6 +161,9 @@
     /* Onyxový odznak „Zakládající partner" (firma) — tělo teče (wGoldFlow), text i pruh sheenují */
     @keyframes wSheenSweep { 0%, 8% { transform: translateX(-200%) skewX(-22deg); } 46%, 100% { transform: translateX(900%) skewX(-22deg); } }
     @keyframes wTextSheen { 0%, 8% { background-position: 100% 50%; } 46%, 100% { background-position: 0% 50%; } }
+    /* Urgentní inzerát: na úzké kartě (malý telefon) u termínu jen začátek směny,
+       celý čas by se vedle odpočtu nevešel. */
+    @container (max-width: 335px) { .w-cas-konec { display: none; } }
     /* Panel „Odměna v okolí" — dopad značky na sloupci grafu + bublina s metodikou */
     @keyframes wPinDrop { from { opacity: 0; transform: translate(-50%,-14px); } to { opacity: 1; transform: translate(-50%,0); } }
     @keyframes wBubbleIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -2906,7 +2909,7 @@
 </script>
 
 <!-- App kód (JSX transformovaný Babelem v prohlížeči). Pořadí musí zůstat zachováno. -->
-<script type="text/babel-pozdeji" src="app.jsx?v=35"></script>
+<script type="text/babel-pozdeji" src="app.jsx?v=37"></script>
 <script type="text/babel-pozdeji" src="makej-badge.jsx?v=1"></script>
 <script src="text-filtr.js?v=1"></script>
 <script src="cz-mesta.js?v=1"></script>
@@ -2914,7 +2917,7 @@
 <script type="text/babel-pozdeji" src="worker-theme.jsx"></script>
 <script type="text/babel-pozdeji" src="worker-supabase.jsx?v=15"></script>
 <script type="text/babel-pozdeji" src="worker-demo.jsx?v=6"></script>
-<script type="text/babel-pozdeji" src="worker-swipe.jsx?v=122"></script>
+<script type="text/babel-pozdeji" src="worker-swipe.jsx?v=126"></script>
 <script type="text/babel-pozdeji" src="worker-people.jsx?v=194"></script>
 <script type="text/babel-pozdeji" src="worker-messages.jsx?v=24"></script>
 <script type="text/babel-pozdeji" src="worker-profile.jsx?v=54"></script>

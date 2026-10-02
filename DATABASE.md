@@ -37,6 +37,18 @@ match na ten inzerát). Bez změny schématu — pokud by na `type` byl CHECK, j
 
 ## Připravené změny (ještě nespuštěné)
 
+### 2026-10-02 · Yasin (dashboard + appka, Claude) · Urgentní označuje firma — `jobs.urgent_until` + tabulka `job_urgentni`
+**Soubor: `makej-web-sam/supabase/migration_urgentni.sql`** — nový sloupec `jobs.urgent_until
+timestamptz` a tabulka `job_urgentni` (`job_id`, `employer_id default auth.uid()`, `started_at`,
+`ends_at`) se stejnými RLS jako `job_topovani` (firma čte a zapisuje jen svoje, mazat nesmí).
+Dřív byl inzerát urgentní sám (směna do 2 dnů). Teď ho firma označí v dashboardu („Označit
+urgentní") a platí do začátku směny: `urgent_until` = datum + čas od. Appka podle
+`urgent_until > now()` ukazuje fialovou pilulku Urgentní a odpočet (feed `get_feed_jobs` vrací
+`to_jsonb(j)`, sloupec jde sám). Limit tarifu za měsíc: Dynamický 1, Maximální 2, Vlastní 3
+(`EMPLOYER_URGENT_MESICNE` v `employer-pages.jsx`). **Bez sloupce `urgent_until` označení nejde
+uložit** (dashboard ukáže „Nepovedlo se") a urgentní nebude nikde. Bez tabulky se limit počítá
+odhadem ze sloupce. **Chce se říct Samovi.**
+
 ### 2026-09-29 · Yasin (dashboard, Claude) · Topování inzerátů — tabulka `job_topovani`
 **Soubor: `makej-web-sam/supabase/migration_topovani.sql`** — nová tabulka `job_topovani`
 (`job_id`, `employer_id default auth.uid()`, `started_at`, `ends_at`) + RLS: firma čte a zapisuje

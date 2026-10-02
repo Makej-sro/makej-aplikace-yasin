@@ -60,6 +60,16 @@ function wLogoImg(text, seed) {
 // ─────────────────────────────────────────────────────────────
 // Mock data
 // ─────────────────────────────────────────────────────────────
+// Ukázka urgentního inzerátu (Yasin 2. 10.): festival (j2) je vždycky zítra ve 12:00 a firma
+// ho označila jako urgentní (urgent_until = začátek směny), ať je v demu vidět Urgentní s odpočtem.
+const _DEMO_ZITRA = (() => {
+  const d = new Date(Date.now() + 86400000);
+  return {
+    iso: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+    txt: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'][d.getDay()] + ' ' + d.getDate() + '. ' + (d.getMonth() + 1) + '.',
+    urgent: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0).toISOString(),
+  };
+})();
 const JOBS = [
   {
     id: 'j1',
@@ -139,7 +149,9 @@ const JOBS = [
     duties: 'Sraz máš 30 minut před otevřením bran u produkčního stanu, kde dostaneš tričko, akreditaci a krátký briefing.\n\nPřes den jsi u vstupu nebo u infostánku: kontroluješ vstupenky a náramky, navádíš návštěvníky k pódiím, WC a stánkům a odpovídáš na dotazy. Používáš čtečku náramků a vysílačku, kterou se domlouváš s koordinátorem. Na pauzy se střídáš s ostatními hostesami.\n\nPo skončení programu pomůžeš s úklidem svého stanoviště a vrátíš vybavení. Pracuješ venku v areálu festivalu, hodně na nohou a v kontaktu s lidmi.',
     location: 'Brno — Výstaviště',
     distance: 3.4,
-    when: 'So 10. – Ne 11. května',
+    date: _DEMO_ZITRA.iso,
+    urgent_until: _DEMO_ZITRA.urgent,
+    when: _DEMO_ZITRA.txt,
     time: '12:00 – 24:00',
     rating: 4.9,
     reviews: 348,
