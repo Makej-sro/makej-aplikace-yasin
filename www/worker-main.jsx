@@ -810,210 +810,472 @@ function WPayPanel({ data, onClose }) {
   );
 }
 
-// ── Profil zaměstnavatele (pohled brigádníka) ──────────────────
+// ── Profil firmy pro brigádníka (Yasin 2. 10., návrh „Profil firmy.dc.html" → Mobil · veřejný profil) ──
+// Stejná struktura jako Profil firmy v dashboardu: úvodní fotka, logo přes ni, název, obor a místo,
+// hodnocení, „Volné brigády (N)", záložky Přehled · Fotky · Brigády · Hodnocení. Přehled má sekce
+// O firmě → Sociální sítě → Kontakt a údaje → Otevírací doba (stejné pořadí jako dashboard).
+// Prázdné údaje i celé sekce se nezobrazují. Úvodní fotka je vždy celá (dashboard ji ukládá 1640 × 624).
+// Z návrhu záměrně chybí „Sledovat", sdílení a „více" — zatím za nimi nic není.
+const _WE_MODRA = '#1A3CFF';
+const _WE_DNY = [['po', 'Pondělí'], ['ut', 'Úterý'], ['st', 'Středa'], ['ct', 'Čtvrtek'], ['pa', 'Pátek'], ['so', 'Sobota'], ['ne', 'Neděle']];
+const _WE_SITE = [['instagram', 'Instagram', '#D62976'], ['facebook', 'Facebook', '#1877F2'], ['linkedin', 'LinkedIn', '#0A66C2'], ['tiktok', 'TikTok', '#0B1220'], ['youtube', 'YouTube', '#E62117']];
+const _weOdkaz = v => /^https?:\/\//i.test(v) ? v : 'https://' + v;
+// Ikonky sociálních sítí — barevná loga od Yasina (2. 10.), www/site/<síť>.png; stejná v dashboardu
+// Den a minuty v Praze (otevírací doba platí podle českého času)
+function _weTed() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Prague' }));
+  return { den: ['ne', 'po', 'ut', 'st', 'ct', 'pa', 'so'][d.getDay()], min: d.getHours() * 60 + d.getMinutes() };
+}
+function _weRozsah(t) {
+  const m = /(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})/.exec(t || '');
+  return m ? { od: +m[1] * 60 + +m[2], do: +m[3] * 60 + +m[4] } : null;
+}
+// 'otevreno' | 'zavreno' | null (doba nevyplněná nebo dnešek nejde přečíst)
+function _weOtevreno(hod) {
+  if (!_WE_DNY.some(([k]) => String(hod[k] || '').trim())) return null;
+  const { den, min } = _weTed();
+  const t = String(hod[den] || '').trim();
+  if (!t) return 'zavreno';
+  const r = _weRozsah(t); if (!r) return null;
+  return (r.do > r.od ? (min >= r.od && min < r.do) : (min >= r.od || min < r.do)) ? 'otevreno' : 'zavreno';
+}
+// Dny se stejnou dobou za sebou se slučují („Úterý – Čtvrtek"), dnešek je vždy zvlášť
+function _weSkupinyDnu(hod, dnes) {
+  const out = [];
+  _WE_DNY.forEach(([k, l]) => {
+    const t = String(hod[k] || '').trim();
+    const posl = out[out.length - 1];
+    if (posl && posl.t === t && !posl.dnes && k !== dnes) { posl.do = l; return; }
+    out.push({ od: l, do: l, t, dnes: k === dnes });
+  });
+  return out;
+}
+
+// Data profilu firmy se načítají dopředu a pamatují (Yasin 2. 10.: po otevření problikly
+// základní údaje a prázdné fotky a až pak to, co firma vyplnila). wPrefetchEmployer volá
+// karta nahoře ve feedu, detail inzerátu a otevřené vlákno chatu, takže po ťuknutí na firmu
+// jsou data i obrázky (úvodní fotka, logo) obvykle už hotové a profil se ukáže celý naráz.
+const _weCache = new Map();   // employerId → { p, reviews, jobs }
+const _weBezi  = new Map();   // employerId → běžící načítání (Promise)
+// Stáhne obrázek dopředu; vrátí jeho poměr stran (šířka / výška), nebo null
+function _weObrazek(url) {
+  return new Promise(ok => {
+    const i = new Image();
+    const hotovo = () => ok(i.naturalWidth && i.naturalHeight ? i.naturalWidth / i.naturalHeight : null);
+    i.onload = () => { if (i.decode) i.decode().then(hotovo, hotovo); else hotovo(); };
+    i.onerror = () => ok(null);
+    i.src = url;
+  });
+}
+function _weNacti(employerId) {
+  if (_weBezi.has(employerId)) return _weBezi.get(employerId);
+  const pr = (async () => {
+    const [pRes, rRes, jRes] = await Promise.all([
+      sb.from('profiles').select('*').eq('id', employerId).single(),
+      sb.from('reviews').select('*, reviewer:profiles!reviews_reviewer_id_fkey(name)').eq('reviewed_id', employerId).order('created_at', { ascending: false }),
+      sb.from('jobs').select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified, logo_url)').eq('employer_id', employerId).eq('status', 'active').order('created_at', { ascending: false }),
+    ]);
+    if (pRes.error && !pRes.data) throw pRes.error;
+    const data = {
+      p: pRes.data || null,
+      reviews: rRes.data || [],
+      jobs: (jRes.data || []).map(j => (typeof jobToCard === 'function' ? jobToCard(j) : j)),
+    };
+    // Obrázky nahoře stáhnout dřív, než se profil ukáže (nejdéle 1,5 s, pak se ukáže i bez nich)
+    // Poměr úvodní fotky si zapamatovat: rám pro ni má hned správnou výšku a nic neposkočí
+    const cover = data.p && data.p.cover_url, logo = data.p && data.p.logo_url;
+    const obr = [cover ? _weObrazek(cover).then(r => { data.coverPomer = r; }) : null, logo ? _weObrazek(logo) : null].filter(Boolean);
+    await Promise.race([Promise.all(obr), new Promise(ok => setTimeout(ok, 1500))]);
+    _weCache.set(employerId, data);
+    return data;
+  })();
+  _weBezi.set(employerId, pr);
+  pr.then(() => _weBezi.delete(employerId), () => _weBezi.delete(employerId));
+  return pr;
+}
+if (typeof window !== 'undefined') {
+  window.wPrefetchEmployer = employerId => { if (employerId && !_weCache.has(employerId)) _weNacti(employerId).catch(() => {}); };
+}
+
+// ── Galerie fotek firmy (Yasin 2. 10.: na fotkách nešlo přibližovat, listovat do stran ani zavřít) ──
+// Přes celou obrazovku na černém: listování tažením do stran (každá fotka zapadne na místo),
+// přiblížení dvěma prsty (1–4×) a dvojitým ťuknutím, přiblížená fotka jde posouvat jedním prstem
+// (listování se mezitím vypne). Vpravo nahoře ✕, vlevo počítadlo jako ve fotoalbu v Lidech.
+const _WG_MAX = 4, _WG_DVOJKLIK = 2.5;
+function WGalerie({ fotky, start = 0, onClose }) {
+  const pasRef = useRefW(null);
+  const [i, setI] = useStateW(start);
+  const [z, setZ] = useStateW({ s: 1, x: 0, y: 0 });   // přiblížení aktuální fotky
+  const zRef = useRefW(z); zRef.current = z;
+  const iRef = useRefW(i); iRef.current = i;
+  const gest = useRefW(null);
+  const tuk = useRefW({ t: 0, x: 0, y: 0 });
+  const rozmery = useRefW({});   // index → { w, h } přirozená velikost fotky
+
+  React.useLayoutEffect(() => {   // otevřít rovnou u fotky, na kterou se ťuklo
+    const p = pasRef.current; if (p) p.scrollLeft = start * p.clientWidth;
+  }, []);
+  useEffectW(() => {
+    const k = e => {
+      if (e.key === 'Escape') onClose();
+      const p = pasRef.current; if (!p || zRef.current.s > 1) return;
+      if (e.key === 'ArrowRight') p.scrollTo({ left: Math.min(fotky.length - 1, iRef.current + 1) * p.clientWidth, behavior: 'smooth' });
+      if (e.key === 'ArrowLeft') p.scrollTo({ left: Math.max(0, iRef.current - 1) * p.clientWidth, behavior: 'smooth' });
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  const naScroll = () => {
+    const p = pasRef.current; if (!p) return;
+    const n = Math.round(p.scrollLeft / p.clientWidth);
+    if (n !== iRef.current) { setI(n); setZ({ s: 1, x: 0, y: 0 }); }
+  };
+
+  // Posun přiblížené fotky nesmí odjet za okraj
+  function omez(s, x, y) {
+    const p = pasRef.current, r = rozmery.current[iRef.current];
+    if (!p || !r || s <= 1) return { s: Math.max(1, s), x: 0, y: 0 };
+    const W = p.clientWidth, H = p.clientHeight, k = Math.min(W / r.w, H / r.h);
+    const mx = Math.max(0, (r.w * k * s - W) / 2), my = Math.max(0, (r.h * k * s - H) / 2);
+    return { s, x: Math.min(mx, Math.max(-mx, x)), y: Math.min(my, Math.max(-my, y)) };
+  }
+  // Gesta — nativní posluchače (React je má pasivní a pinch by jinak táhl stránku)
+  useEffectW(() => {
+    const p = pasRef.current; if (!p) return;
+    const stred = () => { const b = p.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; };
+    const vzd = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const start = e => {
+      const t = e.touches, c = zRef.current;
+      if (t.length === 2) {
+        const m = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 }, C = stred();
+        gest.current = { typ: 'pinch', d0: vzd(t[0], t[1]), s0: c.s, px: (m.x - C.x - c.x) / c.s, py: (m.y - C.y - c.y) / c.s };
+      } else if (t.length === 1 && c.s > 1) {
+        gest.current = { typ: 'pan', sx: t[0].clientX, sy: t[0].clientY, x0: c.x, y0: c.y };
+      } else gest.current = null;
+    };
+    const pohyb = e => {
+      const g = gest.current, t = e.touches; if (!g) return;
+      e.preventDefault();
+      if (g.typ === 'pinch' && t.length === 2) {
+        const C = stred(), m = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
+        const s = Math.min(_WG_MAX, Math.max(1, g.s0 * vzd(t[0], t[1]) / g.d0));
+        setZ(omez(s, m.x - C.x - s * g.px, m.y - C.y - s * g.py));
+      } else if (g.typ === 'pan' && t.length === 1) {
+        setZ(omez(zRef.current.s, g.x0 + t[0].clientX - g.sx, g.y0 + t[0].clientY - g.sy));
+      }
+    };
+    const konec = e => {
+      if (e.touches.length) return;
+      const byl = gest.current; gest.current = null;
+      if (zRef.current.s < 1.03) setZ({ s: 1, x: 0, y: 0 });
+      // Dvojité ťuknutí: přiblížit na místo ťuknutí, nebo zpět na celou fotku
+      if (byl && byl.typ === 'pinch') return;
+      const d = e.changedTouches[0]; if (!d) return;
+      const ted = Date.now(), m = tuk.current;
+      if (ted - m.t < 300 && Math.hypot(d.clientX - m.x, d.clientY - m.y) < 30) {
+        tuk.current = { t: 0, x: 0, y: 0 };
+        const c = zRef.current, C = stred();
+        if (c.s > 1) { setZ({ s: 1, x: 0, y: 0 }); return; }
+        const px = (d.clientX - C.x - c.x) / c.s, py = (d.clientY - C.y - c.y) / c.s;
+        setZ(omez(_WG_DVOJKLIK, d.clientX - C.x - _WG_DVOJKLIK * px, d.clientY - C.y - _WG_DVOJKLIK * py));
+      } else tuk.current = { t: ted, x: d.clientX, y: d.clientY };
+    };
+    p.addEventListener('touchstart', start, { passive: true });
+    p.addEventListener('touchmove', pohyb, { passive: false });
+    p.addEventListener('touchend', konec);
+    p.addEventListener('touchcancel', konec);
+    return () => {
+      p.removeEventListener('touchstart', start); p.removeEventListener('touchmove', pohyb);
+      p.removeEventListener('touchend', konec); p.removeEventListener('touchcancel', konec);
+    };
+  }, []);
+
+  const priblizeno = z.s > 1;
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: '#000', animation: 'wPop .2s ease' }}>
+      <div ref={pasRef} onScroll={naScroll} style={{
+        position: 'absolute', inset: 0, display: 'flex', overflowX: priblizeno ? 'hidden' : 'auto', overflowY: 'hidden',
+        scrollSnapType: 'x mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
+        touchAction: priblizeno ? 'none' : 'pan-x',
+      }}>
+        {fotky.map((src, k) => (
+          <div key={src + k} style={{ flex: 'none', width: '100%', height: '100%', scrollSnapAlign: 'center', scrollSnapStop: 'always', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+            <img src={src} alt="" draggable={false}
+              onLoad={e => { rozmery.current[k] = { w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight }; }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', userSelect: 'none', WebkitUserSelect: 'none',
+                transform: k === i ? 'translate(' + z.x + 'px, ' + z.y + 'px) scale(' + z.s + ')' : 'none',
+                transition: gest.current ? 'none' : 'transform .22s ease', willChange: k === i ? 'transform' : 'auto' }} />
+          </div>
+        ))}
+      </div>
+      {fotky.length > 1 && (
+        <span style={{ position: 'absolute', top: 'calc(18px + env(safe-area-inset-top))', left: 18, fontFamily: T.fontHead, fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>{(i + 1) + ' / ' + fotky.length}</span>
+      )}
+      <button onClick={onClose} title="Zavřít" style={{ position: 'absolute', top: 'calc(10px + env(safe-area-inset-top))', right: 12, width: 38, height: 38, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,0.16)', color: '#fff', fontSize: 17, cursor: 'pointer', display: 'grid', placeItems: 'center', WebkitTapHighlightColor: 'transparent' }}>✕</button>
+    </div>
+  );
+}
+
 function WEmployerModal({ employerId, fallback, reviewsOnly, onClose }) {
-  const [p, setP]         = useStateW(fallback || null);
-  const [reviews, setRev] = useStateW(null);   // null = načítá se
-  const [loading, setL]   = useStateW(true);
+  // Z paměti hned; bez ní se do načtení neukazuje nic (dřív problikly údaje z karty a prázdné fotky)
+  const ulozene = employerId ? _weCache.get(employerId) : null;
+  const [p, setP]         = useStateW(ulozene ? (ulozene.p || fallback || null) : (employerId ? null : (fallback || null)));
+  const [reviews, setRev] = useStateW(ulozene ? ulozene.reviews : null);   // null = načítá se
+  const [jobs, setJobs]   = useStateW(ulozene ? ulozene.jobs : []);        // aktivní inzeráty firmy (karty jako ve feedu)
+  const [coverPomer, setCoverPomer] = useStateW(ulozene ? ulozene.coverPomer : null);
+  const [loading, setL]   = useStateW(!!employerId && !ulozene);
+  const [ukazNacitam, setUkazNacitam] = useStateW(false);   // „Načítám…" až když to trvá déle
+  const [tab, setTab]     = useStateW(reviewsOnly ? 'hodnoceni' : 'prehled');
+  const [celyPopis, setCelyPopis] = useStateW(false);
+  const [galerie, setGalerie] = useStateW(null);   // index fotky otevřené přes celou obrazovku
+  const [nabidka, setNabidka] = useStateW(null);   // otevřený inzerát { card, aktivni, maZajem }
 
   useEffectW(() => {
-    // Demo firma nemá profil v DB — vezmi vše z předaného objektu (fallback).
+    // Demo firma nemá profil v DB — vezmi vše z předaného objektu (fallback) a ukázkové inzeráty
     if (!employerId) {
       setRev((fallback && fallback.reviews) || []);
+      const jmeno = fallback && (fallback.company_name || fallback.name);
+      setJobs(typeof JOBS !== 'undefined' && jmeno ? JOBS.filter(j => j.company === jmeno) : []);
       setL(false);
       return;
     }
     let alive = true;
-    (async () => {
-      const [pRes, rRes] = await Promise.all([
-        sb.from('profiles').select('*').eq('id', employerId).single(),
-        sb.from('reviews').select('*, reviewer:profiles!reviews_reviewer_id_fkey(name)').eq('reviewed_id', employerId).order('created_at', { ascending: false }),
-      ]);
+    const t = setTimeout(() => { if (alive) setUkazNacitam(true); }, 450);
+    // I z paměti se na pozadí obnoví (firma mohla mezitím něco změnit); _weNacti vždy stahuje znovu
+    _weNacti(employerId).then(d => {
       if (!alive) return;
-      if (pRes.data) setP(pRes.data);
-      setRev(rRes.data || []);
-      setL(false);
-    })();
-    return () => { alive = false; };
+      setP(d.p || fallback || null); setRev(d.reviews); setJobs(d.jobs); setCoverPomer(d.coverPomer || null); setL(false);
+    }, () => {
+      if (!alive) return;
+      setP(prev => prev || fallback || null); setRev(prev => prev || []); setL(false);
+    });
+    return () => { alive = false; clearTimeout(t); };
   }, [employerId]);
 
-  const name    = (p && (p.company_name || p.name)) || (fallback && fallback.name) || 'Zaměstnavatel';
+  async function otevriInzerat(card) {
+    if (!employerId || typeof fetchJobOfferW !== 'function') { setNabidka({ card, aktivni: true, maZajem: false }); return; }
+    const uid = (await sb.auth.getSession()).data.session?.user?.id;
+    const r = uid ? await fetchJobOfferW(uid, card.id) : null;
+    setNabidka({ card, aktivni: r ? r.aktivni : true, maZajem: r ? r.maZajem : false });
+  }
+
+  const name     = (p && (p.company_name || p.name)) || (fallback && fallback.name) || 'Zaměstnavatel';
   const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '??';
-  const accent  = (fallback && fallback.color) || _wColor(employerId || name);
-  const rating  = Number((p && p.rating) || (fallback && fallback.rating) || 0);
+  const accent   = (fallback && fallback.color) || _wColor(employerId || name);
   const verified = !!(p ? p.verified : (fallback && fallback.verified));
-  const bio     = (p && p.bio) || '';
+  const bio      = ((p && p.bio) || '').trim();
   const industry = (p && p.industry) || '';
-  const address = (p && p.address) || '';
-  const website = (p && p.website) || '';
-  const ic      = (p && p.ic) || '';
-  const krajId  = (p && p.kraj) || '';
-  const krajTxt = krajId ? (typeof _krajName === 'function' ? _krajName(krajId) : krajId) : '';
-  const photos  = Array.isArray(p && p.photos) ? p.photos.filter(Boolean) : [];
-  const socials = (p && p.socials && typeof p.socials === 'object') ? p.socials : {};
-  const socialLinks = Object.entries(socials).filter(([, v]) => v);
-  const memberSince = (p && p.created_at) ? new Date(p.created_at).getFullYear() : null;
-  const founded = (p && p.founded) || null;
-  const openPositions = Number((p && p.openPositions) || 0);
-  const hasInfo = industry || krajTxt || address || website || ic || memberSince || founded;
+  const address  = ((p && p.address) || '').trim();
+  const krajId   = (p && p.kraj) || '';
+  const krajTxt  = krajId ? (typeof _krajName === 'function' ? _krajName(krajId) : krajId) : '';
+  const website  = ((p && p.website) || '').trim();
+  const ic       = ((p && p.ic) || '').trim();
+  const founded  = (p && p.founded) || '';
+  const phone    = ((p && p.phone) || '').trim();
+  const email    = ((p && p.contact_email) || '').trim();
+  const cover    = (p && p.cover_url) || '';
+  const logo     = (p && p.logo_url) || '';
+  const photos   = Array.isArray(p && p.photos) ? p.photos.filter(Boolean) : [];
+  const socials  = (p && p.socials && typeof p.socials === 'object') ? p.socials : {};
+  const site     = _WE_SITE.filter(([k]) => String(socials[k] || '').trim());
+  const hodiny   = (p && p.opening_hours && typeof p.opening_hours === 'object') ? p.opening_hours : {};
+  const maHodiny = _WE_DNY.some(([k]) => String(hodiny[k] || '').trim());
+  const otevreno = _weOtevreno(hodiny);
+  const skupiny  = maHodiny ? _weSkupinyDnu(hodiny, _weTed().den) : [];
+  const recenze  = reviews || [];
+  const prumer   = recenze.length ? recenze.reduce((a, r) => a + (Number(r.rating) || 0), 0) / recenze.length : Number((p && p.rating) || (fallback && fallback.rating) || 0);
+  const meta     = [industry, address || krajTxt].filter(Boolean).join(' · ');
+  const kontakt  = [
+    ['Adresa', address],
+    ['Telefon', phone, 'tel:' + phone.replace(/\s+/g, '')],
+    ['E-mail', email, 'mailto:' + email],
+    ['Web', website.replace(/^https?:\/\//i, '').replace(/\/$/, ''), _weOdkaz(website)],
+    ['IČO', ic],
+    ['Založeno', founded ? String(founded) : ''],
+  ].filter(r => r[1]);
+  const kratky   = bio.length > 160 && !celyPopis;
 
-  const webHref = website ? (/^https?:\/\//i.test(website) ? website : 'https://' + website) : '';
-  const webLabel = website.replace(/^https?:\/\//i, '').replace(/\/$/, '');
-
-  const infoRow = (icon, label, value, href) => value ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid ' + T.border }}>
-      <div style={{ width: 36, height: 36, borderRadius: 11, background: T.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-        <Icon name={icon} size={16} color={T.primary} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-        {href
-          ? <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: T.primary, fontFamily: T.fontUI, fontSize: 14, fontWeight: 700, wordBreak: 'break-word', textDecoration: 'none' }}>{value}</a>
-          : <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 14.5, fontWeight: 800, wordBreak: 'break-word' }}>{value}</div>}
-      </div>
-    </div>
-  ) : null;
+  const sedy = '#5B6478';
+  const sekce = { padding: '20px 20px 18px', borderBottom: '8px solid #F3F4F7' };
+  const nadpis = { fontSize: 18, fontWeight: 700, color: '#0B1220' };
+  const radek = { display: 'grid', gridTemplateColumns: '84px minmax(0,1fr)', gap: 10, padding: '10px 0', borderBottom: '1px solid #F0F1F4', fontSize: 15 };
+  const prazdne = t => <div style={{ padding: '24px 20px', fontSize: 15, color: sedy }}>{t}</div>;
+  // Pořadí sekcí Přehledu jako v dashboardu; poslední viditelná je bez šedého oddělovače dole
+  const posledniSekce = [['bio', !!bio], ['site', site.length > 0], ['kontakt', kontakt.length > 0], ['doba', maHodiny]].filter(x => x[1]).map(x => x[0]).pop();
+  const styl = id => id === posledniSekce ? { ...sekce, borderBottom: 'none', paddingBottom: 24 } : sekce;
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(11,18,51,0.42)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
-      animation: 'wScrimIn .22s ease',
-    }}>
-      {/* Vyjede zezhora jako systémový panel — profil firmy přes celou šířku,
-          zaoblený jen dole, žádné plovoucí ohraničení. */}
-      <div onClick={e => e.stopPropagation()} style={{
-        position: 'absolute', top: 0, left: 0, right: 0, maxHeight: '100%',
-        background: T.bg, borderRadius: '0 0 28px 28px',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: '0 26px 60px rgba(11,18,51,0.4)',
-        animation: 'wToastIn .4s cubic-bezier(.2,.85,.25,1)',
-      }}>
-        {/* Hero */}
-        <div style={{ position: 'relative', flexShrink: 0, padding: 'calc(22px + env(safe-area-inset-top)) 22px 22px', background: T.heroGrad, overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.14) 1.2px, transparent 1.2px)', backgroundSize: '18px 18px', opacity: 0.5, pointerEvents: 'none' }} />
-          <button onClick={onClose} style={{ position: 'absolute', top: 'calc(14px + env(safe-area-inset-top))', right: 14, width: 32, height: 32, borderRadius: 999, background: 'rgba(0,0,0,0.3)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 16, zIndex: 1 }}>✕</button>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 60, height: 60, borderRadius: 17, background: '#fff', color: T.primary, display: 'grid', placeItems: 'center', fontFamily: T.fontHead, fontWeight: 800, fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
-              {p && p.logo_url ? <img src={p.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#fff', fontFamily: T.fontHead, fontSize: 20, fontWeight: 800, letterSpacing: -0.4 }}>{name}</span>
-                {verified && (typeof WVerifiedBadge === 'function' ? <WVerifiedBadge size={16} /> : <Icon name="verified-check-bold" size={15} color="#A3AEFF" />)}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontFamily: T.fontUI, fontSize: 13 }}>{industry || 'Zaměstnavatel'}</span>
-                {rating > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                    <WStar size={12} color={T.super} />
-                    <span style={{ color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 13 }}>{rating.toFixed(1).replace('.', ',')}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 22px 20px' }}>
-          {/* Proklik z hodnocení = jen recenze; vše ostatní schováme */}
-          {!reviewsOnly && (<>
-          {/* Otevřené pozice */}
-          {openPositions > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11, margin: '12px 0 2px', padding: '12px 14px', borderRadius: 14, background: T.tint }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                <Icon name="case-round-bold" size={18} color={T.primary} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800 }}>{openPositions} {_wPlural(openPositions, 'otevřená pozice', 'otevřené pozice', 'otevřených pozic')}</div>
-                <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12 }}>u téhle firmy právě teď</div>
-              </div>
-            </div>
-          )}
-
-          {/* Fotky firmy */}
-          {photos.length > 0 && (
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', margin: '10px -22px 4px', padding: '0 22px', scrollbarWidth: 'none' }}>
-              {photos.slice(0, 8).map((src, i) => (
-                <img key={i} src={src} alt="" style={{ width: 150, height: 104, objectFit: 'cover', borderRadius: 14, flexShrink: 0, border: '1px solid ' + T.border }} />
-              ))}
-            </div>
-          )}
-
-          {/* O firmě */}
-          {bio && (<>
-            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: '18px 0 8px' }}>O firmě</div>
-            <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{bio}</div>
-          </>)}
-
-          {/* Informace o firmě */}
-          {hasInfo && (<>
-            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: '18px 0 4px' }}>Informace</div>
-            <div>
-              {infoRow('buildings-2-bold', 'Obor', industry)}
-              {founded && infoRow('calendar-bold', 'Založeno', founded)}
-              {infoRow('map-point-bold', 'Kraj', krajTxt)}
-              {infoRow('map-point-bold', 'Sídlo', address)}
-              {infoRow('global-linear', 'Web', webLabel, webHref)}
-              {infoRow('document-text-bold', 'IČO', ic)}
-              {memberSince && infoRow('calendar-bold', 'Na Makej od', memberSince)}
-            </div>
-          </>)}
-
-          {/* Sociální sítě */}
-          {socialLinks.length > 0 && (<>
-            <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: '18px 0 8px' }}>Sociální sítě</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {socialLinks.map(([k, v]) => (
-                <a key={k} href={/^https?:\/\//i.test(v) ? v : 'https://' + v} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, background: T.tint, color: T.primary, fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                  <Icon name="link-bold" size={14} color={T.primary} />{k}
-                </a>
-              ))}
-            </div>
-          </>)}
-
-          {/* Když firma nic nevyplnila */}
-          {!bio && !hasInfo && photos.length === 0 && !loading && (
-            <div style={{ margin: '14px 0 4px', padding: '16px 18px', borderRadius: 14, background: T.surfaceAlt, color: T.muted, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5, textAlign: 'center' }}>
-              Tahle firma zatím nevyplnila víc informací o sobě.
-            </div>
-          )}
-          </>)}
-
-          <div style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, margin: reviewsOnly ? '10px 0 8px' : '18px 0 8px' }}>
-            Recenze{reviews && reviews.length > 0 ? ` · ${reviews.length}` : ''}
-          </div>
-          {loading ? (
-            <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 13 }}>Načítám…</div>
-          ) : (!reviews || reviews.length === 0) ? (
-            <div style={{ color: T.mutedSoft, fontFamily: T.fontUI, fontSize: 12.5, lineHeight: 1.5 }}>Tahle firma zatím nemá žádné recenze.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {reviews.map(r => {
-                const author = r.reviewer?.name || 'Brigádník';
-                const av = author.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '??';
-                return (
-                  <div key={r.id} style={{ padding: '12px 14px', borderRadius: 12, background: '#fff', border: '1px solid ' + T.border, boxShadow: '0 2px 8px rgba(20,22,40,0.05)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: r.text ? 7 : 0 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 9, background: W_AVATAR_BG, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 11, flexShrink: 0 }}>{av}</div>
-                      <div style={{ flex: 1, minWidth: 0, color: T.ink, fontFamily: T.fontUI, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{author}</div>
-                      <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                        {[1, 2, 3, 4, 5].map(n => <WStar key={n} size={12} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
-                      </div>
-                    </div>
-                    {r.text && <div style={{ color: T.inkSoft, fontFamily: T.fontUI, fontSize: 13, lineHeight: 1.5 }}>„{r.text}"</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div style={{ flexShrink: 0, padding: '12px 22px calc(14px + env(safe-area-inset-bottom))', borderTop: '1px solid ' + T.border, background: T.card }}>
-          <button onClick={onClose} style={{ width: '100%', borderRadius: 12, padding: '13px 0', background: 'rgba(18,18,26,0.05)', border: '1px solid ' + T.border, color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Zavřít</button>
-        </div>
+    // zIndex nad horní lištou feedu (kalendář, zvoneček, filtr = 8500) i panelem filtrů (8600), pod hláškami (9000)
+    <div style={{ position: 'fixed', inset: 0, zIndex: 8700, background: '#fff', display: 'flex', flexDirection: 'column', fontFamily: T.fontUI, color: '#0B1220', animation: 'wSheetUp .32s cubic-bezier(.2,.85,.25,1)' }}>
+      {/* Pod stavovým řádkem jen bílý pruh; Zpět plave nad úvodní fotkou (bílá pilulka kvůli
+          čitelnosti na fotce), ať fotka začíná hned nahoře a nic z ní neubírá lišta (Yasin 2. 10.) */}
+      <div style={{ flexShrink: 0, height: 'env(safe-area-inset-top)', background: '#fff' }} />
+      <div style={{ position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 10, zIndex: 3, background: 'rgba(255,255,255,0.94)', borderRadius: 999, boxShadow: '0 2px 10px rgba(11,18,32,0.14)' }}>
+        <WZpet onClick={onClose} />
       </div>
+
+      {loading && !p ? (
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center', color: '#5B6478', fontSize: 15 }}>{ukazNacitam ? 'Načítám…' : ''}</div>
+      ) : (
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {/* Úvodní fotka celá přes šířku (bez fotky klidná plocha), logo zasahuje do ní */}
+        {cover
+          ? <img src={cover} alt="" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: String(coverPomer || 1640 / 624), maxHeight: '45vh', objectFit: 'contain', background: '#F3F4F7' }} />
+          : <div style={{ width: '100%', aspectRatio: '1640 / 624', background: '#F3F4F7' }} />}
+
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ position: 'relative', width: 88, height: 88, borderRadius: 22, border: '4px solid #fff', marginTop: -44, boxShadow: '0 2px 10px rgba(11,18,32,.12)', overflow: 'hidden', background: logo ? '#fff' : accent, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: T.fontHead, fontWeight: 800, fontSize: 30 }}>
+            {logo ? <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.15 }}>{name}</span>
+            {verified && typeof WVerifiedBadge === 'function' && <WVerifiedBadge size={20} />}
+          </div>
+          {meta && <div style={{ fontSize: 15, color: sedy, marginTop: 4 }}>{meta}</div>}
+          {prumer > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 15 }}>
+              <WStar size={18} color={T.super} />
+              <b>{prumer.toFixed(1).replace('.', ',')}</b>
+              {recenze.length > 0 && <span style={{ color: sedy }}>· {recenze.length} hodnocení</span>}
+            </div>
+          )}
+          {jobs.length > 0 && (
+            <button onClick={() => setTab('brigady')} style={{ width: '100%', height: 48, marginTop: 16, borderRadius: 12, border: 'none', background: _WE_MODRA, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 600, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+              Volné brigády ({jobs.length})
+            </button>
+          )}
+        </div>
+
+        {/* Záložky — při posunu zůstanou nahoře */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: '#fff', display: 'flex', gap: 24, padding: '0 20px', borderBottom: '1px solid #EEF0F3', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {[['prehled', 'Přehled'], ['fotky', 'Fotky', photos.length], ['brigady', 'Brigády', jobs.length], ['hodnoceni', 'Hodnocení', recenze.length]].map(([id, l, n]) => (
+            <button key={id} onClick={() => setTab(id)} style={{ flexShrink: 0, padding: '12px 0 10px', border: 'none', borderBottom: '2px solid ' + (tab === id ? _WE_MODRA : 'transparent'), background: 'none', fontFamily: 'inherit', fontSize: 15, fontWeight: 600, color: tab === id ? '#0B1220' : sedy, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+              {l}{n != null && <span style={{ fontWeight: 500 }}>{' ' + n}</span>}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'prehled' && (
+          loading ? prazdne('Načítám…')
+          : (!bio && !kontakt.length && !maHodiny && !site.length) ? prazdne('Tahle firma zatím nevyplnila víc informací o sobě.')
+          : <>
+            {bio && (
+              <div style={styl('bio')}>
+                <div style={{ ...nadpis, marginBottom: 8 }}>O firmě</div>
+                <div style={{ fontSize: 15, lineHeight: 1.55, color: '#3A4256', whiteSpace: 'pre-wrap' }}>
+                  {kratky ? bio.slice(0, 160).trimEnd() + '… ' : bio}
+                  {kratky && <span onClick={() => setCelyPopis(true)} style={{ color: _WE_MODRA, fontWeight: 600, cursor: 'pointer' }}>více</span>}
+                </div>
+              </div>
+            )}
+            {/* Sociální sítě hned za O firmě, stejně jako v dashboardu (Yasin 2. 10.) */}
+            {site.length > 0 && (
+              <div style={styl('site')}>
+                <div style={{ ...nadpis, marginBottom: 12 }}>Sociální sítě</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {site.map(([k, l, barva]) => (
+                    <a key={k} href={_weOdkaz(String(socials[k]).trim())} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 10, border: '1px solid #E1E4EB', fontSize: 14, fontWeight: 600, color: '#0B1220', textDecoration: 'none' }}>
+                      <img src={'site/' + k + '.png'} alt="" width={18} height={18} style={{ display: 'block', flex: 'none', width: 18, height: 18, objectFit: 'contain' }} />{l}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {kontakt.length > 0 && (
+              <div style={styl('kontakt')}>
+                <div style={{ ...nadpis, marginBottom: 4 }}>Kontakt a údaje</div>
+                {kontakt.map(([l, v, href], i) => (
+                  <div key={l} style={{ ...radek, borderBottom: i === kontakt.length - 1 ? 'none' : radek.borderBottom }}>
+                    <span style={{ color: sedy }}>{l}</span>
+                    {href
+                      ? <a href={href} target={l === 'Web' ? '_blank' : undefined} rel="noopener noreferrer" style={{ color: _WE_MODRA, textDecoration: 'none', wordBreak: 'break-word' }}>{v}</a>
+                      : <span style={{ wordBreak: 'break-word' }}>{v}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {maHodiny && (
+              <div style={styl('doba')}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <span style={nadpis}>Otevírací doba</span>
+                  {otevreno === 'otevreno' && <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: '#E7F7EE', color: '#0E7A3E', fontSize: 13, fontWeight: 600 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#12A150' }} />Teď otevřeno</span>}
+                  {otevreno === 'zavreno' && <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: '#F0F1F4', color: sedy, fontSize: 13, fontWeight: 600 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#A3AAB8' }} />Zavřeno</span>}
+                </div>
+                {skupiny.map((s, i) => (
+                  <div key={s.od} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: i === skupiny.length - 1 ? 'none' : '1px solid #F0F1F4', fontSize: 15, color: s.t ? '#0B1220' : sedy, fontWeight: s.dnes ? 600 : 400 }}>
+                    <span>{s.od === s.do ? s.od : s.od + ' – ' + s.do}{s.dnes ? ' · dnes' : ''}</span>
+                    <span>{s.t || 'Zavřeno'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'fotky' && (photos.length === 0 ? prazdne('Firma zatím nepřidala žádné fotky.') : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 20 }}>
+            {photos.map((src, i) => (
+              <img key={src + i} src={src} alt="" loading="lazy" onClick={() => setGalerie(i)}
+                style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 12, background: '#F3F4F7', cursor: 'zoom-in', display: 'block' }} />
+            ))}
+          </div>
+        ))}
+
+        {tab === 'brigady' && (jobs.length === 0 ? prazdne(loading ? 'Načítám…' : 'Firma teď nemá žádné volné brigády.') : (
+          <div style={{ padding: '6px 20px 20px' }}>
+            {jobs.map((j, i) => (
+              <button key={j.id || i} onClick={() => otevriInzerat(j)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 0', border: 'none', borderBottom: i === jobs.length - 1 ? 'none' : '1px solid #F0F1F4', background: 'none', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: '#0B1220', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.title}</span>
+                  <span style={{ display: 'block', fontSize: 14, color: sedy, marginTop: 3 }}>{[j.when, j.time].filter(Boolean).join(' · ')}</span>
+                </span>
+                {j.pay ? <span style={{ fontSize: 15, fontWeight: 700, color: '#0B1220', whiteSpace: 'nowrap' }}>{j.pay} {j.payUnit || 'Kč/h'}</span> : null}
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {tab === 'hodnoceni' && (loading ? prazdne('Načítám…') : recenze.length === 0 ? prazdne('Tahle firma zatím nemá žádné recenze.') : (
+          <div style={{ padding: '6px 20px 20px' }}>
+            {recenze.map((r, i) => {
+              const autor = r.reviewer?.name || 'Brigádník';
+              const av = autor.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '??';
+              return (
+                <div key={r.id || i} style={{ padding: '14px 0', borderBottom: i === recenze.length - 1 ? 'none' : '1px solid #F0F1F4' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, background: W_AVATAR_BG, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{av}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{autor}</span>
+                    <span style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                      {[1, 2, 3, 4, 5].map(n => <WStar key={n} size={14} color={n <= r.rating ? T.super : 'rgba(18,18,26,0.14)'} />)}
+                    </span>
+                  </div>
+                  {r.text && <div style={{ fontSize: 15, lineHeight: 1.55, color: '#3A4256', marginTop: 8 }}>{r.text}</div>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        <div style={{ height: 'calc(24px + env(safe-area-inset-bottom))' }} />
+      </div>
+      )}
+
+      {galerie != null && <WGalerie fotky={photos} start={galerie} onClose={() => setGalerie(null)} />}
+      {nabidka && typeof WJobDetailModal === 'function' && (
+        <WJobDetailModal
+          job={nabidka.card}
+          readOnly={nabidka.maZajem || !nabidka.aktivni || !employerId}
+          statusLabel={nabidka.maZajem ? 'O tuhle brigádu už máš zájem' : !nabidka.aktivni ? 'Inzerát už neběží' : undefined}
+          onClose={() => setNabidka(null)}
+          onLike={async () => {
+            const uid = (await sb.auth.getSession()).data.session?.user?.id;
+            if (uid && nabidka.card && nabidka.card.id) await createMatchW(uid, nabidka.card.id, false);
+            setNabidka(null);
+          }}
+          onPass={() => setNabidka(null)}
+        />
+      )}
     </div>
   );
 }

@@ -26,11 +26,34 @@ let _wFeedRpcChybi  = false;    // RPC zatím není nasazené → záložní ces
 let _wFeedDalsi     = 0;        // odkud brát další stránku
 let _wFeedDocteno   = true;     // došli jsme na konec seznamu?
 
+// Logo firmy do karet (Yasin 2. 10.: na kartě i v detailu byly jen iniciály). get_feed_jobs
+// logo nevrací, tak se dotáhne zvlášť z profiles (veřejně čitelné), zapamatuje a obrázek se
+// stáhne dopředu, ať na kartě neproblikne. Bez změny databáze.
+const _wLoga = new Map();   // employer_id → logo_url | null
+async function _wDoplnLoga(rows) {
+  const chybi = [...new Set((rows || []).map(j => j.employer_id).filter(id => id && !_wLoga.has(id)))];
+  if (chybi.length) {
+    const { data, error } = await sb.from('profiles').select('id, logo_url').in('id', chybi);
+    if (!error) {
+      chybi.forEach(id => _wLoga.set(id, null));
+      (data || []).forEach(p => {
+        _wLoga.set(p.id, p.logo_url || null);
+        if (p.logo_url) { const i = new Image(); i.src = p.logo_url; }
+      });
+    }
+  }
+  (rows || []).forEach(j => {
+    const logo = j.employer_id ? _wLoga.get(j.employer_id) : null;
+    if (logo) j.employer = { ...(j.employer || {}), logo_url: logo };
+  });
+  return rows;
+}
+
 // Vrátí pole inzerátů, nebo null = „RPC nešlo, použij záložní cestu".
 async function _wFeedStranka(offset, limit) {
   if (_wFeedRpcChybi) return null;
   const { data, error } = await sb.rpc('get_feed_jobs', { p_limit: limit, p_offset: offset });
-  if (!error) return data || [];
+  if (!error) return _wDoplnLoga(data || []);
   // 42883 / PGRST202 = funkce v databázi není. Jiné chyby můžou být dočasné,
   // ty záložní cestu nezapínají natrvalo.
   const kod = error.code || '';
@@ -556,6 +579,7 @@ function jobToCard(job) {
     ...job,
     company:   name,
     logo,
+    logoUrl:   emp.logo_url || null,   // logo firmy z dashboardu; bez něj iniciály
     logoColor: accent,
     payUnit:   job.pay_unit || 'Kč/h',
     total:     job.pay * 8,
@@ -628,7 +652,7 @@ async function fetchWorkerData(workerId) {
       ].filter(Boolean);   // 'people' řádky mají job_id null — do IN-listu nepatří
 
       let q = sb.from('jobs')
-        .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
+        .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified, logo_url)')
         .eq('status', 'active').order('created_at', { ascending: false });
       if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
       const { data: jobs } = await q;
@@ -1036,7 +1060,7 @@ async function markNotifsReadW(userId) {
 // ho převede na kartu), maZajem = brigádník už na inzerát dal „Mám zájem".
 async function fetchJobOfferW(workerId, jobId) {
   const [jobRes, matchRes] = await Promise.all([
-    sb.from('jobs').select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)').eq('id', jobId).maybeSingle(),
+    sb.from('jobs').select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified, logo_url)').eq('id', jobId).maybeSingle(),
     sb.from('matches').select('id, status').eq('worker_id', workerId).eq('job_id', jobId).maybeSingle(),
   ]);
   if (jobRes.error) console.error('fetchJobOfferW:', jobRes.error);
@@ -1189,7 +1213,7 @@ async function fetchRejectedJobsW(workerId) {
   if (!ids.length) return { jobs: [], celkem: 0 };
 
   const { data: jobs, error } = await sb.from('jobs')
-    .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified)')
+    .select('*, employer:profiles!jobs_employer_id_fkey(rating, name, company_name, verified, logo_url)')
     .eq('status', 'active').in('id', ids);
   if (error) { console.error('fetchRejectedJobsW (jobs):', error); return { jobs: [], celkem: ids.length }; }
 

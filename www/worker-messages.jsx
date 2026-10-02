@@ -859,6 +859,8 @@ function WMessages({ tick, chatTarget, onChatOpened, onGoJobs, onThreadOpen, onR
   }
 
   const thread   = threads.find(t => t.id === active) || null;
+  // Otevřené vlákno: profil firmy načíst dopředu (ťuknutí na hlavičku ho pak ukáže hned)
+  useEffectW(() => { if (thread && thread.employerId && window.wPrefetchEmployer) window.wPrefetchEmployer(thread.employerId); }, [thread && thread.employerId]);
   const totalUnread = threads.reduce((s, t) => s + (t.unread || 0), 0);
   const kindThreads = threads.filter(t => (t.kind || 'job') === kindFilter);
   const filtered = q.trim()

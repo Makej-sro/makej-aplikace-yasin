@@ -1312,7 +1312,7 @@ function WSavedPage({ onClose }) {
             const meta  = [job.company, job.location].filter(Boolean).join(' · ');
             return (
               <div key={job.id} onClick={() => setDetailJob(job)} style={{ display: 'flex', alignItems: 'center', gap: 13, background: '#fff', borderRadius: 18, padding: 14, boxShadow: '0 4px 20px rgba(0,32,246,0.06)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ width: 46, height: 46, flex: 'none', borderRadius: 13, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{job.logo || (job.company || '?').slice(0, 1)}</span>
+                <span style={{ width: 46, height: 46, flex: 'none', borderRadius: 13, background: T.tint, color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>{job.logoUrl ? <img src={job.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} /> : (job.logo || (job.company || '?').slice(0, 1))}</span>
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ color: T.ink, fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.title}</span>
                   {meta && <span style={{ color: T.muted, fontFamily: T.fontUI, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</span>}
@@ -1333,6 +1333,8 @@ function WSavedPage({ onClose }) {
 }
 
 function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
+  // Horní karta: profil firmy načíst dopředu, ať se po ťuknutí na firmu ukáže hned celý
+  useEffectW(() => { if (isTop && !job._demo && job.employer_id && window.wPrefetchEmployer) window.wPrefetchEmployer(job.employer_id); }, [isTop, job.employer_id]);
   const [saved, setSaved]         = useStateW(() => _wIsSaved(job.id));
   const [savedPill, setSavedPill] = useStateW(false);   // „Uloženo" pilulka vyjetá z kolečka
   const saveMounted = useRefW(true);
@@ -1427,7 +1429,7 @@ function WJobCard({ job, drag, isTop, depth = 0, onTap, onSave, saveFly }) {
             onClick={(e) => { e.stopPropagation(); if (!drag.moved) _wOpenEmployerFor(job); }}
             title="Zobrazit profil firmy"
             style={{ position: 'absolute', left: 14, bottom: 14, right: 58, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 14, background: '#fff', color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{job.logo}</span>
+            <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 14, background: '#fff', color: T.primary, fontFamily: T.fontHead, fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{job.logoUrl ? <img src={job.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} /> : job.logo}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                 <span style={{ fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{job.company}</span>
@@ -1752,6 +1754,7 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
   const closeTimer = useRefW(null);
   useEffectW(() => {
     if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(true);   // schovej horní lištu
+    if (job && !job._demo && job.employer_id && window.wPrefetchEmployer) window.wPrefetchEmployer(job.employer_id);   // profil firmy dopředu
     let r2;
     const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setShown(true)); });
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(closeTimer.current); if (typeof window !== 'undefined' && window.wSetDetailOpen) window.wSetDetailOpen(false); };
@@ -1940,7 +1943,7 @@ function WJobDetailModal({ job, fromRect, onClose, onCloseStart, onLike, onSuper
               )}
               <h1 style={{ margin: 0, fontFamily: T.fontHead, fontSize: 26, fontWeight: 800, color: '#0B1233', letterSpacing: -0.6, lineHeight: 1.15 }}>{job.title}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <button onClick={openEmployer} title="Zobrazit profil firmy" style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: T.primary, color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{job.logo}</button>
+                <button onClick={openEmployer} title="Zobrazit profil firmy" style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: job.logoUrl ? '#fff' : T.primary, overflow: 'hidden', color: '#fff', fontFamily: T.fontHead, fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>{job.logoUrl ? <img src={job.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} /> : job.logo}</button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <button onClick={openEmployer} title="Zobrazit profil firmy" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontFamily: T.fontHead, fontSize: 14, fontWeight: 800, color: '#0B1233', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>{job.company}</button>

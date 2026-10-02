@@ -37,6 +37,53 @@ match na ten inzerát). Bez změny schématu — pokud by na `type` byl CHECK, j
 
 ## Připravené změny (ještě nespuštěné)
 
+### 2026-10-02 · Yasin (Claude) · Žádost o ověření firmy (`overeni_firem`)
+**Soubor: `makej-web-sam/supabase/migration_overeni_firem.sql`. Čeká, až ho Yasin spustí.**
+Dashboard (Profil firmy → Dokončeno → Ověřit firmu) chce kontaktní e-mail a IČO, IČO dohledá v ARES
+a zapíše žádost. Nová tabulka `overeni_firem` (`id`, `firma_id` → profiles, `ico` 8 číslic, `email`,
+`nazev_ares`, `adresa_ares`, `stav` ceka/schvaleno/zamitnuto, `created_at`, `vyrizeno_at`); RLS: firma
+vidí a vkládá jen svoje (stav `ceka`), update/delete nemá. Jedna čekající žádost na firmu (unikátní
+index), max. 3 za den (trigger). Trigger `overeni_firem_nova` (before insert, security definer) pošle
+přes `makej_posli_email` e-mail na **podpora@makej.eu**; když e-mail selže, žádost se stejně uloží.
+Trigger `overeni_firem_vyrizeni` (before update): `stav` → `schvaleno` zapne `profiles.verified` a pošle
+firmě e-mail „Vaše firma je ověřená", přepnutí ze `schvaleno` jinam ho vypne. Appka se nemění
+(odznak čte z `profiles.verified` jako dřív).
+
+### 2026-10-02 · Yasin (Claude) · Úložiště `uploads` jen obrázky do 5 MB
+Bucket `uploads` (fotky z dashboardu: logo, úvodní fotka, fotky firmy, fotky inzerátů — appka ho
+nepoužívá) má teď i na serveru `file_size_limit = 5242880` a `allowed_mime_types = image/jpeg, image/png,
+image/webp, image/gif`. Dashboard navíc odmítne soubor nad 15 MB / ne-obrázek a každou fotku přepíše do
+JPEG, takže reálně jde nahoru pár set kB. **Spustil Yasin 2. 10., ověřeno jeho kontrolním dotazem.**
+```sql
+update storage.buckets set file_size_limit = 5242880,
+  allowed_mime_types = array['image/jpeg','image/png','image/webp','image/gif'] where id = 'uploads';
+```
+
+### 2026-10-02 · Yasin (Claude) · Druhá dávka: fotky karet v Lidech, stránkování, datum zhlédnutí, kraje
+Ověřeno přes REST 2. 10.: chyběly `profiles.card_photos` (appka posílá kartu Lidí jedním `update`
+i s fotkami, takže **karta se do DB vůbec neukládala**), `get_people_cards_page`, `job_views.created_at`.
+Yasin spouští najednou: `migration_karta_fotky.sql` (bucket `karta-fotky` + politiky + `card_photos`
++ `get_people_cards` s fotkami; **opraveno: před ní `drop function`**, protože `create or replace`
+neumí změnit návratový typ), `migration_lide_strankovani.sql`, `job_views.created_at` (bez výchozí
+hodnoty pro staré řádky, `default now()` jen pro nové) a převod krajů z
+`makej-web-sam/supabase/migration_jobs_pocet_a_hodiny.sql`. Nespuštěno záměrně:
+`migration_read_presence.sql` (online/přečteno, appka ho zatím nepoužívá), `launch_list_pocet`
+(ukáže na webu skutečný počet na čekacím listu, čeká na rozhodnutí), `reset_test_account` (nástroj na test).
+**Spuštěno a ověřeno 2. 10.** (REST: `card_photos`, `job_views.created_at`, `get_people_cards_page` jsou).
+Kontrolní dotaz ukázal, že chybí jen `launch_list_pocet`, `touch_last_seen`, `mark_thread_read` (záměrně)
+a **`worker_trust_stats`** (odznak důvěry u kandidátů) → Yasin spustil `migration_worker_trust.sql`, ověřeno voláním.
+Všechny triggery (oznámení, blokování, e-maily), úložiště a pg_cron/pg_net jsou.
+
+### 2026-10-02 · Yasin (Claude) · Ověření, hodnocení a tarif si nikdo nezmění sám
+**Soubor: `makej-web-sam/supabase/migration_profil_chranene_sloupce.sql`.** Pravidlo „Users can
+update own profile" (`(auth.uid() = id) OR can_act_as(id)`) pouští celý řádek, triggery na
+`profiles` žádné nebyly (Yasin 2. 10. přes `pg_policies`/`pg_trigger`). Firma si tak mohla dát
+`verified = true`, `rating` nebo `plan`. Trigger `profiles_chranene_sloupce` (before insert or
+update): když zapisuje `authenticated`/`anon`, tyhle tři sloupce nechá (insert: false / 0 / null).
+SQL Editor, service role (budoucí Stripe webhook pro `plan`) a security definer funkce je měnit
+můžou. **Spustil Yasin 2. 10., ověřeno** na test@makej.eu: PATCH `verified=true, rating=5,
+plan='maximalni'` vrátil beze změny (false / 0 / `starter`). Pozn.: `plan` má výchozí `'starter'`.
+
 ### 2026-10-02 · Yasin (dashboard + appka, Claude) · Urgentní označuje firma — `jobs.urgent_until` + tabulka `job_urgentni`
 **Soubor: `makej-web-sam/supabase/migration_urgentni.sql`** — nový sloupec `jobs.urgent_until
 timestamptz` a tabulka `job_urgentni` (`job_id`, `employer_id default auth.uid()`, `started_at`,
@@ -94,6 +141,11 @@ Dashboard (nová záložka Profil firmy) je ukládá druhým `update` zvlášť 
 sloupců — dokud chybí, uloží se základ a firma dostane hlášku. `socials` nově může mít
 i klíč `youtube`. Appka zatím ukazuje jen `founded` (už ho čte); `cover_url`, kontakty
 a otevírací dobu v profilu firmy (WEmployerModal) teprve napojit. **Chce se říct Samovi.**
+**Doplněno 2. 10.:** ověřeno přes REST, že pořád chybí `cover_url`, `career_url`,
+`contact_email`, `opening_hours`. Dokud chybí, dashboard je ukládá do `profiles.branding.<sloupec>`
+(jsonb). Na konci migrace je proto `update`, který je přesune do sloupců (nepřepíše vyplněné)
+a z `branding` smaže, takže se po spuštění nic neztratí. **Spustil Yasin 2. 10.** (spolu
+s `migration_urgentni.sql`, `migration_topovani.sql` a `jobs.hours_per_week`), ověřeno přes REST.
 
 ### 2026-09-20 · Jan (appka, Claude) · Karty v Lidech bez limitu
 **Soubor: `supabase/migration_lide_strankovani.sql` — POŘADÍ: už zbývá jen

@@ -58,6 +58,9 @@ alter table public.profiles
 -- ── 4) Fotky musí ven i ostatním ───────────────────────────────────────────
 -- get_people_cards vrací jen bezpečné sloupce profilu (ne e-mail/telefon/datum
 -- narození). Přidává se card_photos; zbytek beze změny.
+-- Přibývá sloupec ve výsledku a to create or replace neumí („cannot change return
+-- type of existing function"), proto nejdřív drop (2. 10.).
+drop function if exists public.get_people_cards(uuid[]);
 create or replace function public.get_people_cards(exclude_ids uuid[])
 returns table (
   id uuid, name text, bio text, city text, kraj text,
